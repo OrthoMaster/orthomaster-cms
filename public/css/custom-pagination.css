@@ -1,0 +1,186 @@
+/* RESET và BASE STYLING cho Laravel 11 Pagination */
+
+/* Container chính của pagination */
+div.table-navigation nav[role="navigation"] {
+    display: flex;
+    justify-content: flex-end;
+    margin: 0;
+    border: 0;
+}
+
+/* Flex container chứa pagination links */
+div.table-navigation nav[role="navigation"] > div {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 0.25rem;
+    border: 0;
+}
+
+/* Styling cho tất cả pagination links */
+div.table-navigation nav[role="navigation"] a,
+div.table-navigation nav[role="navigation"] span {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.75rem 1rem;
+    margin: 0 2px;
+    color: #22a7f0;
+    text-decoration: none;
+    background-color: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    transition: all 0.3s ease;
+    font-weight: 500;
+    min-width: 45px;
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+}
+
+/* Hover effect cho links */
+div.table-navigation nav[role="navigation"] a:hover {
+    color: #fff;
+    background: #22a7f0;
+    border-color: #22a7f0;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(102, 126, 234, 0.3);
+    text-decoration: none;
+}
+
+/* Current page (active) - Laravel 11 dùng aria-current="page" */
+div.table-navigation nav[role="navigation"] span[aria-current="page"] {
+    color: #fff;
+    background: #22a7f0;
+    border-color: #22a7f0;
+    box-shadow: 0 2px 4px rgba(102, 126, 234, 0.3);
+}
+
+/* Disabled states - Laravel 11 có thể dùng classes khác */
+div.table-navigation nav[role="navigation"] span:not([aria-current]):not(:hover) {
+    color: #9ca3af;
+    background-color: #f9fafb;
+    border-color: #e5e7eb;
+    cursor: default;
+}
+
+/* Previous/Next buttons styling */
+div.table-navigation nav[role="navigation"] a[rel="prev"],
+div.table-navigation nav[role="navigation"] a[rel="next"],
+div.table-navigation nav[role="navigation"] span:first-child,
+div.table-navigation nav[role="navigation"] span:last-child {
+    background-color: #f8fafc;
+    color: #64748b;
+    font-weight: 600;
+}
+
+div.table-navigation nav[role="navigation"] a[rel="prev"]:hover,
+div.table-navigation nav[role="navigation"] a[rel="next"]:hover {
+    background-color: #e2e8f0;
+    color: #475569;
+    transform: translateY(-1px);
+}
+
+/* Dots separator (...) */
+div.table-navigation nav[role="navigation"] span:not([aria-current]):not([rel]) {
+    border: none;
+    background: transparent;
+    color: #9ca3af;
+    cursor: default;
+    font-weight: bold;
+}
+
+/* Mobile responsive */
+@media (max-width: 640px) {
+    div.table-navigation nav[role="navigation"] a,
+    div.table-navigation nav[role="navigation"] span {
+        padding: 0.5rem 0.75rem;
+        font-size: 0.75rem;
+        min-width: 36px;
+    }
+    
+    div.table-navigation nav[role="navigation"] > div {
+        gap: 0.125rem;
+    }
+}
+
+/* 
+===================================
+ALTERNATIVE: TARGET BY STRUCTURE
+===================================
+Nếu CSS trên không work, thử cách này:
+*/
+
+/* Target direct children của pagination container */
+div.table-navigation nav[role="navigation"] > .pagination-wrapper nav > div > * {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.75rem 1rem;
+    margin: 0 2px;
+    color: #22a7f0;
+    text-decoration: none;
+    background-color: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    transition: all 0.3s ease;
+    font-weight: 500;
+    min-width: 45px;
+}
+
+div.table-navigation nav[role="navigation"] > .pagination-wrapper nav > div > a:hover {
+    color: #fff;
+    background: #22a7f0;
+    border-color: #22a7f0;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(102, 126, 234, 0.3);
+}
+
+
+/* Target any pagination container */
+div.table-navigation [role="navigation"],
+div.table-navigation > .pagination-container {
+    display: flex;
+    justify-content: center;
+    margin: 2rem 0;
+}
+
+/* Target any link or span inside pagination */
+div.table-navigation [role="navigation"] a,
+div.table-navigation [role="navigation"] span,
+div.table-navigation > .pagination a,
+div.table-navigation > .pagination span {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 0.75rem 1rem !important;
+    margin: 0 2px !important;
+    color: #22a7f0 !important;
+    text-decoration: none !important;
+    background-color: #fff !important;
+    border: 1px solid #e5e7eb !important;
+    border-radius: 8px !important;
+    transition: all 0.3s ease !important;
+    font-weight: 500 !important;
+    min-width: 45px !important;
+    font-size: 0.875rem !important;
+}
+
+/* Hover states */
+div.table-navigation [role="navigation"] a:hover,
+div.table-navigation > .pagination a:hover {
+    color: #fff !important;
+    background: #22a7f0 !important;
+    border-color: #22a7f0 !important;
+    transform: translateY(-2px) !important;
+    box-shadow: 0 4px 8px rgba(102, 126, 234, 0.3) !important;
+}
+
+/* Current page */
+[role="navigation"] [aria-current="page"],
+.pagination .active > span,
+.pagination .active > a {
+    color: #fff !important;
+    background: #22a7f0 !important;
+    border-color: #22a7f0 !important;
+    box-shadow: 0 2px 4px rgba(102, 126, 234, 0.3) !important;
+}
