@@ -12,6 +12,10 @@ class HealthcareProfessionalController extends Controller
      */
     public function index(Request $request)
     {
+        if (!$request->filled('pp') && !$request->filled('pp') && !$request->filled('pp')) {
+            return view('healthcare.index');
+        }
+
         $query = HealthcareProfessional::query();
 
         if ($request->filled('pp')) {
@@ -28,7 +32,7 @@ class HealthcareProfessionalController extends Controller
 
         $query->with(['diplomes', 'activities']);
 
-        $hcps = $query->latest('id')->paginate(20);
+        $hcps = $query->latest('id')->paginate(10);
         $hcps->appends($request->query());
 
         return view('healthcare.index', compact('hcps'));

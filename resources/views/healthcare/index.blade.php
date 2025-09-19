@@ -43,12 +43,14 @@
             </div>
         </div>
 
-        @if (!$hcps->count() > 0)
+        
+        @if (isset($hcps) && !$hcps->count() > 0)
             <div class="alert alert-warning">
                 <strong>Aucune information n'est disponible !</strong>
                 <p>Vous pouvez modifier les filtres pour trouver les bonnes informations.</p>
             </div>
-        @else
+        @endif
+        @if (isset($hcps) && $hcps->count() > 0)
             <div class="panel panel-bordered">
                 <div class="panel-body">
                     <div class="row">

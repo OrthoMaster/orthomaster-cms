@@ -1,6 +1,6 @@
 .quiz-tool {
     padding: 20px;
-    margin: 10px 0;
+    margin: 10px 0 20px 0;
     background: #f9f9f9;
     border: 1px solid #f0f0f0;
     border-radius: 4px;
@@ -12,7 +12,9 @@
 }
 
 .quiz-config-section {
-    margin: 10px 0;
+    margin: 20px 0;
+    padding-bottom: 20px;
+    border-bottom: solid 1px #f0f0f0;
 }
 
 .quiz-question-section,
@@ -22,9 +24,8 @@
 
 .quiz-question-section label {
     display: block;
-    font-weight: 600;
+    font-weight: 500;
     margin-bottom: 8px;
-    color: #333;
 }
 
 .quiz-question {
@@ -61,8 +62,7 @@
 }
 
 .quiz-answers-header label {
-    font-weight: 600;
-    color: #333;
+    font-weight: 500;
     margin: 0;
 }
 

@@ -38,8 +38,8 @@ class QuizChoice {
         this.wrapper.innerHTML = `
             <div class="quiz-container">
                 <div class="quiz-question-section">
-                    <label>Question:</label>
-                    <input type="text" class="quiz-question" placeholder="Entrez la question ..." value="${this.data.question}">
+                    <label>Question :</label>
+                    <input type="text" class="quiz-question" value="${this.data.question}">
                 </div>
                 
                 <div class="quiz-config-section">
@@ -51,16 +51,16 @@ class QuizChoice {
                 
                 <div class="quiz-answers-section">
                     <div class="quiz-answers-header">
-                        <label>Réponses:</label>
+                        <label>Réponses :</label>
                         <small class="quiz-instruction">
                             ${this.data.multiSelect ? 'Cochez les bonnes réponses' : 'Choisissez une réponse correcte'}
                         </small>
                     </div>
                     <div class="quiz-answers-list"></div>
                     <div class="text-right">
-                        <button type="button" class="quiz-add-answer btn btn-sm btn-success">
+                        <button type="button" class="quiz-add-answer btn btn-sm btn-primary">
                             <i class="voyager-list-add"></i>
-                            <span class="hidden-xs hidden-sm">Ajouter une réponse</span>
+                            <span>Ajouter une réponse</span>
                         </button>
                     </div>
                 </div>
@@ -90,7 +90,6 @@ class QuizChoice {
                     <span class="quiz-answer-number">${String.fromCharCode(65 + index)}.</span>
                     <input type="text" 
                            class="quiz-answer-text" 
-                           placeholder="Saisissez la réponse ..." 
                            value="${answer}"
                            data-index="${index}">
                     <button type="button" 
@@ -106,7 +105,7 @@ class QuizChoice {
                         value="${index}" 
                         ${isCorrect ? 'checked' : ''}
                         class="quiz-correct-input">
-                    <label class="quiz-correct-label">Vrai</label>
+                    <label class="quiz-correct-label hidden-xs hidden-sm">Vrai</label>
                 </div>
             </div>
             `;

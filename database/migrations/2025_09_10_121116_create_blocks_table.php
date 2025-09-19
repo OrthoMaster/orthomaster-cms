@@ -1,5 +1,7 @@
 <?php
 
+use App\Models\Formation;
+use App\Models\Training;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
@@ -13,6 +15,10 @@ return new class extends Migration
     {
         Schema::create('blocks', function (Blueprint $table) {
             $table->id();
+            $table->foreignIdFor(Training::class);
+            $table->json('content')->nullable();
+            $table->json('draft')->nullable();
+            $table->softDeletes();
             $table->timestamps();
         });
     }

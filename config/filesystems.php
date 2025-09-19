@@ -58,6 +58,8 @@ return [
             'use_path_style_endpoint' => env('AWS_USE_PATH_STYLE_ENDPOINT', false),
             'throw' => false,
             'report' => false,
+            'visibility' => 'public',
+            'root' => env('AWS_ROOT', 'application-data')
         ],
 
     ],

@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Block;
 use App\Models\Formation;
+use App\Models\Training;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
@@ -10,57 +12,64 @@ use Illuminate\Support\Facades\Gate;
 class ContentController extends Controller
 {
     /**
-     * Display a listing of the resource.
-     */
-    public function index()
-    {
-        //
-    }
-
-    /**
-     * Show the form for creating a new resource.
-     */
-    public function create()
-    {
-        //
-    }
-
-    /**
-     * Store a newly created resource in storage.
-     */
-    public function store(Request $request)
-    {
-        //
-    }
-
-    /**
-     * Display the specified resource.
-     */
-    public function show(string $id)
-    {
-        //
-    }
-
-    /**
      * Show the form for editing the specified resource.
      */
-    public function edit(string $id, Request $request)
+    public function edit(string $formationId, Request $request)
     {
-        if (Gate::denies('edit', app('App\Models\Formation'))) {
+        if (Gate::denies('edit', app('App\Models\Training'))) {
             abort(403, 'Unauthorized action.');
         }
 
-        $formation = Formation::findOrFail($id);
+        $formation = Training::findOrFail($formationId);
+        $block = Block::getFirstByFormation($formationId);
 
-        return view('content.edit');
+        return view('content.edit', compact('formation', 'block'));
     }
 
     /**
-     * Update the specified resource in storage.
+     * Update content.
      */
-    public function update(Request $request, string $id)
+    public function update(string $formationId, Request $request)
     {
-        //
+        $formation = Training::findOrFail($formationId);
+        $block = Block::getFirstByFormation($formation->id);
+
+        // Check request has content
+        if (!$request->has('content')) {
+            return response()->json([
+                'success' => false,
+            ]);
+        }
+
+        $block->content = $request->content;
+        $block->save();
+
+        return response()->json([
+            'success' => true,
+        ]);
+    }
+
+    /**
+     * Update content as draft.
+     */
+    public function updateAsDraft(string $formationId, Request $request)
+    {
+        $formation = Training::findOrFail($formationId);
+        $block = Block::getFirstByFormation($formation->id);
+
+        // Check request has content
+        if (!$request->has('content')) {
+            return response()->json([
+                'success' => false,
+            ]);
+        }
+
+        $block->draft = $request->content;
+        $block->save();
+
+        return response()->json([
+            'success' => true,
+        ]);
     }
 
     /**
