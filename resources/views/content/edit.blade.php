@@ -7,13 +7,23 @@
         <h1 class="page-title">
             <i class="voyager-character"></i> Le contenu
         </h1>
+        <!-- Dev Mode Toggle -->
+        <div class="text-right">
+            <div class="dev-mode-toggle">
+                <label class="switch">
+                    <input type="checkbox" id="devModeToggle">
+                    <span class="slider round"></span>
+                </label>
+                <span class="toggle-label">DEV mode</span>
+            </div>
+        </div>
     </div>
 @stop
 
 @section('content')
     <div class="page-content browse container-fluid">
         <div class="row">
-            <div class="col-md-8">
+            <div class="col-md-8" id="editorColumn">
                 <div class="panel panel-bordered">
                     <div class="panel-heading">
                         <h5 class="panel-title text-center">{{ $formation->name }}</h5>
@@ -23,7 +33,7 @@
                     </div>
                 </div>
             </div>
-            <div class="col-md-4">
+            <div class="col-md-4" id="previewColumn" style="display: none;">
                 <div id="codePreview"></div>
             </div>
         </div>
@@ -86,6 +96,84 @@
         .ce-popover__item[data-item-name="stretched"] {
             display: none !important;
         }
+
+        /* Dev Mode Toggle Styles */
+        .dev-mode-toggle {
+            display: inline;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 50px;
+            height: 24px;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            -webkit-transition: .4s;
+            transition: .4s;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            -webkit-transition: .4s;
+            transition: .4s;
+        }
+
+        input:checked+.slider {
+            background-color: #2196F3;
+        }
+
+        input:focus+.slider {
+            box-shadow: 0 0 1px #2196F3;
+        }
+
+        input:checked+.slider:before {
+            -webkit-transform: translateX(26px);
+            -ms-transform: translateX(26px);
+            transform: translateX(26px);
+        }
+
+        .slider.round {
+            border-radius: 24px;
+        }
+
+        .slider.round:before {
+            border-radius: 50%;
+        }
+
+        .toggle-label {
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 768px) {
+            #previewColumn {
+                margin-top: 20px;
+            }
+        }
     </style>
 @stop
 
@@ -101,6 +189,44 @@
     <script src="{{ asset('js/editorjs/video.js') }}"></script>
 
     <script>
+        // Dev Mode Toggle functionality
+        function toggleDevMode() {
+            const devModeToggle = document.getElementById('devModeToggle');
+            const previewColumn = document.getElementById('previewColumn');
+            const editorColumn = document.getElementById('editorColumn');
+
+            if (devModeToggle.checked) {
+                // Show preview column and adjust editor column
+                previewColumn.style.display = 'block';
+                editorColumn.classList.remove('col-md-12');
+                editorColumn.classList.add('col-md-8');
+            } else {
+                // Hide preview column and make editor full width
+                previewColumn.style.display = 'none';
+                editorColumn.classList.remove('col-md-8');
+                editorColumn.classList.add('col-md-12');
+            }
+        }
+
+        // Initialize dev mode toggle
+        document.addEventListener('DOMContentLoaded', function() {
+            const devModeToggle = document.getElementById('devModeToggle');
+
+            // Load saved state from localStorage
+            const savedState = localStorage.getItem('devModeEnabled');
+            if (savedState === 'true') {
+                devModeToggle.checked = true;
+                toggleDevMode();
+            }
+
+            // Add event listener
+            devModeToggle.addEventListener('change', function() {
+                toggleDevMode();
+                // Save state to localStorage
+                localStorage.setItem('devModeEnabled', this.checked);
+            });
+        });
+
         // Initialize EditorJS
         const editor = new EditorJS({
             holder: 'editorjs',
@@ -186,28 +312,17 @@
                     }
                 },
                 quizSelect: QuizChoice,
-                // quote: {
-                //     class: Quote,
-                //     inlineToolbar: true,
-                //     config: {
-                //         quotePlaceholder: 'Enter a quote',
-                //         captionPlaceholder: 'Quote\'s author',
-                //     }
-                // },
-
             },
             data: JSON.parse(@json($block->content)),
             onReady: () => {
                 editor.save().then((outputData) => {
                     updateCodePreview(outputData);
-
                 })
             },
             onChange: (api, event) => {
                 console.log('Content changed', event);
                 editor.save().then((outputData) => {
                     updateCodePreview(outputData);
-
                 })
             },
             i18n: {
@@ -258,7 +373,6 @@
                         "List": "Liste",
                         "Bold": "Gras",
                         "Italic": "Italique",
-                        "Convert to": "asdfasdf",
                     },
                     "tools": {
                         "header": {
@@ -318,8 +432,8 @@
             const formattedCode = JSON.stringify(data, null, 2);
             codePreview.innerHTML =
                 `<pre class="code-block"><code class="language-json">${escapeHtml(formattedCode)}</code></pre>`;
-
         }
+
         // Escape HTML function
         function escapeHtml(text) {
             const div = document.createElement('div');

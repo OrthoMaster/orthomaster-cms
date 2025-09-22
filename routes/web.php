@@ -3,6 +3,7 @@
 use App\Http\Controllers\ContentController;
 use App\Http\Controllers\HealthcareProfessionalController;
 use App\Http\Controllers\ImageController;
+use App\Http\Controllers\VideoController;
 use Illuminate\Support\Facades\Route;
 use TCG\Voyager\Facades\Voyager;
 use Illuminate\Support\Facades\Storage;
@@ -18,14 +19,15 @@ Route::get('/', function () {
     // return redirect('/admin');
 });
 
-Route::get('/test-s3', function () {
-});
-
-
 Route::group(['prefix' => 'admin', 'middleware' => 'admin.user'], function () {
     // Images
     Route::post('/upload-image-s3', [ImageController::class, 'uploadToS3'])->name('upload.image.s3');
     Route::delete('/delete-image-s3', [ImageController::class, 'deleteFromS3'])->name('delete.image.s3');
+
+    // Videos
+    Route::get('/upload-video-s3', [VideoController::class, 'edit'])->name('edit.video.s3');
+    Route::post('/upload-video-s3', [VideoController::class, 'uploadToS3'])->name('upload.video.s3');
+    Route::delete('/delete-video-s3', [VideoController::class, 'delete'])->name('delete.video.s3');
 
     // Formations
     Route::get('/formations/{formationId}/content', [ContentController::class, 'edit'])->name('content.edit');

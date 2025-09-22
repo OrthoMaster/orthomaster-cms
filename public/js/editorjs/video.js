@@ -4,7 +4,8 @@ class VideoBlock {
         this.data = data || {};
         this.config = config || {};
         this.wrapper = null;
-        this.currentMode = this.data.type || null; // 'url' or 'upload'
+        this.currentMode = this.data.type || null; // 'url', 'hls'
+        this.hlsInstance = null;
     }
 
     static get toolbox() {
@@ -13,8 +14,7 @@ class VideoBlock {
             icon: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
   <path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
   <path stroke-linecap="round" stroke-linejoin="round" d="M15.91 11.672a.375.375 0 0 1 0 .656l-5.603 3.113a.375.375 0 0 1-.557-.328V8.887c0-.286.307-.466.557-.327l5.603 3.112Z" />
-</svg>
-`
+</svg>`
         };
     }
 
@@ -45,14 +45,12 @@ class VideoBlock {
             <small>YouTube, etc.</small>
           </button>
           
-          <button class="mode-btn upload-mode disabled" data-mode="upload" disabled>
+          <button class="mode-btn hls-mode" data-mode="hls">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-              <polyline points="7,10 12,15 17,10"/>
-              <line x1="12" y1="15" x2="12" y2="3"/>
+              <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
             </svg>
-            Importer
-            <small>Bientôt disponible ...</small>
+            Vidéo HLS
+            <small>Streaming adaptatif</small>
           </button>
         </div>
       </div>
@@ -62,6 +60,11 @@ class VideoBlock {
         this.wrapper.querySelector('.url-mode').addEventListener('click', () => {
             this.currentMode = 'url';
             this.renderUrlInput();
+        });
+
+        this.wrapper.querySelector('.hls-mode').addEventListener('click', () => {
+            this.currentMode = 'hls';
+            this.renderHlsInput();
         });
     }
 
@@ -97,6 +100,44 @@ class VideoBlock {
     `;
 
         this.attachUrlInputListeners();
+    }
+
+    renderHlsInput() {
+        this.wrapper.innerHTML = `
+      <div class="video-hls-input">
+        <div class="input-header">
+          <h4>Vidéo HLS Streaming</h4>
+          <button class="back-btn">← Retour</button>
+        </div>
+        
+        <div class="hls-form">
+          <input type="url" 
+                 placeholder="URL du fichier .m3u8 ou lien HLS …" 
+                 class="video-hls-field"
+                 value="${this.data.type === 'hls' ? this.data.url : ''}" />
+          
+          <div class="hls-options">
+              <input type="text" 
+                     placeholder="Titre de la vidéo (facultatif)" 
+                     class="video-title-field"
+                     value="${this.data.title || ''}" />
+          </div>
+          
+          <div class="hls-info">
+            <small>📡 Supporte les formats HLS (.m3u8) pour le streaming adaptatif</small>
+          </div>
+          
+          <div class="text-right">
+            <button class="preview-btn btn btn-sm btn-warning" disabled>Prévisualisation</button>
+            <button class="save-btn btn btn-sm btn-primary" disabled>Enregistrer</button>
+          </div>
+        </div>
+        
+        <div class="video-preview-area" style="display: none;"></div>
+      </div>
+    `;
+
+        this.attachHlsInputListeners();
     }
 
     attachUrlInputListeners() {
@@ -153,6 +194,60 @@ class VideoBlock {
         validateUrl();
     }
 
+    attachHlsInputListeners() {
+        const hlsField = this.wrapper.querySelector('.video-hls-field');
+        const titleField = this.wrapper.querySelector('.video-title-field');
+        const previewBtn = this.wrapper.querySelector('.preview-btn');
+        const saveBtn = this.wrapper.querySelector('.save-btn');
+        const backBtn = this.wrapper.querySelector('.back-btn');
+        const previewArea = this.wrapper.querySelector('.video-preview-area');
+
+        // Back button
+        backBtn.addEventListener('click', () => {
+            this.cleanupHls();
+            this.renderModeSelection();
+        });
+
+        // HLS URL validation
+        const validateHlsUrl = () => {
+            const url = hlsField.value.trim();
+            const isValid = this.isValidHlsUrl(url);
+
+            previewBtn.disabled = !isValid;
+            saveBtn.disabled = !isValid;
+
+            return isValid;
+        };
+
+        hlsField.addEventListener('input', validateHlsUrl);
+
+        // Preview functionality
+        previewBtn.addEventListener('click', () => {
+            const url = hlsField.value.trim();
+            if (this.isValidHlsUrl(url)) {
+                this.showHlsPreview(url, titleField.value.trim());
+            }
+        });
+
+        // Save functionality
+        saveBtn.addEventListener('click', () => {
+            const url = hlsField.value.trim();
+            const title = titleField.value.trim();
+
+            if (this.isValidHlsUrl(url)) {
+                this.data = {
+                    type: 'hls',
+                    url: url,
+                    title: title || this.extractTitleFromUrl(url)
+                };
+                this.renderVideoDisplay();
+            }
+        });
+
+        // Initial validation
+        validateHlsUrl();
+    }
+
     isValidVideoUrl(url) {
         if (!url) return false;
 
@@ -169,6 +264,120 @@ class VideoBlock {
 
         return youtubePatterns.some(pattern => pattern.test(url)) ||
             directVideoPatterns.some(pattern => pattern.test(url));
+    }
+
+    isValidHlsUrl(url) {
+        if (!url) return false;
+
+        // HLS patterns
+        const hlsPatterns = [
+            /\.m3u8(\?.*)?$/i,
+            /^https?:\/\/.*\/.*\.m3u8/i
+        ];
+
+        return hlsPatterns.some(pattern => pattern.test(url));
+    }
+
+    // Load HLS.js dynamically if needed
+    async loadHlsJs() {
+        if (window.Hls) {
+            return window.Hls;
+        }
+
+        return new Promise((resolve, reject) => {
+            const script = document.createElement('script');
+            script.src = 'https://cdn.jsdelivr.net/npm/hls.js@latest';
+            script.onload = () => resolve(window.Hls);
+            script.onerror = reject;
+            document.head.appendChild(script);
+        });
+    }
+
+    async showHlsPreview(url, title) {
+        const previewArea = this.wrapper.querySelector('.video-preview-area');
+
+        previewArea.innerHTML = `
+      <div class="preview-header">
+        <div class="loading-indicator">Chargement de la vidéo HLS...</div>
+      </div>
+      <div class="hls-video-preview">
+        <video id="hls-preview-video" controls width="100%" height="315">
+          Votre navigateur ne supporte pas la vidéo HLS.
+        </video>
+        <div class="hls-fallback" style="display: none;">
+          <p>⚠️ Votre navigateur ne supporte pas HLS nativement.</p>
+          <p>La vidéo sera chargée avec HLS.js</p>
+        </div>
+      </div>
+    `;
+
+        previewArea.style.display = 'block';
+
+        const video = previewArea.querySelector('#hls-preview-video');
+        const loadingIndicator = previewArea.querySelector('.loading-indicator');
+        const fallbackDiv = previewArea.querySelector('.hls-fallback');
+
+        try {
+            // Check if browser supports HLS natively (Safari)
+            if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                video.src = url;
+                loadingIndicator.textContent = 'Chargement natif HLS...';
+            } else {
+                // Use HLS.js for other browsers
+                const Hls = await this.loadHlsJs();
+
+                if (Hls.isSupported()) {
+                    this.cleanupHls();
+                    this.hlsInstance = new Hls({
+                        debug: false,
+                        enableWorker: true
+                    });
+
+                    this.hlsInstance.loadSource(url);
+                    this.hlsInstance.attachMedia(video);
+
+                    this.hlsInstance.on(Hls.Events.MANIFEST_PARSED, () => {
+                        loadingIndicator.style.display = 'none';
+                    });
+
+                    this.hlsInstance.on(Hls.Events.ERROR, (event, data) => {
+                        console.error('HLS Error:', data);
+                        loadingIndicator.textContent = 'Erreur lors du chargement de la vidéo';
+                        fallbackDiv.style.display = 'block';
+                    });
+
+                    fallbackDiv.style.display = 'block';
+                    loadingIndicator.textContent = 'Chargement avec HLS.js...';
+                } else {
+                    throw new Error('HLS not supported');
+                }
+            }
+
+            // Hide loading indicator when video is ready
+            video.addEventListener('loadeddata', () => {
+                loadingIndicator.style.display = 'none';
+            });
+
+        } catch (error) {
+            console.error('Error loading HLS:', error);
+            loadingIndicator.textContent = 'Erreur: Impossible de charger la vidéo HLS';
+            fallbackDiv.style.display = 'block';
+            fallbackDiv.innerHTML = `
+                <p>❌ Impossible de lire cette vidéo HLS</p>
+                <p>Vérifiez que l'URL est correcte et accessible</p>
+                <details>
+                    <summary>Détails de l'erreur</summary>
+                    <pre>${error.message}</pre>
+                </details>
+            `;
+        }
+    }
+
+    cleanupHls() {
+        if (this.hlsInstance) {
+            this.hlsInstance.destroy();
+            this.hlsInstance = null;
+        }
     }
 
     getEmbedUrl(url) {
@@ -231,12 +440,22 @@ class VideoBlock {
         previewArea.style.display = 'block';
     }
 
-    renderVideoDisplay() {
+    async renderVideoDisplay() {
         const { url, title, embedUrl, type } = this.data;
 
         let videoContent;
 
-        if (embedUrl && (embedUrl.includes('youtube.com'))) {
+        if (type === 'hls') {
+            // HLS Video Display
+            videoContent = `
+        <video id="hls-display-video" controls width="100%" height="315">
+          Votre navigateur ne supporte pas la vidéo HLS.
+        </video>
+        <div class="hls-status" style="display: none;">
+          <small>🔄 Chargement HLS...</small>
+        </div>
+      `;
+        } else if (embedUrl && (embedUrl.includes('youtube.com'))) {
             videoContent = `
         <iframe src="${embedUrl}" 
                 width="100%" 
@@ -268,14 +487,79 @@ class VideoBlock {
       </div>
     `;
 
+        // Initialize HLS for display if needed
+        if (type === 'hls') {
+            await this.initializeHlsDisplay(url);
+        }
+
         // Attach action listeners
         this.wrapper.querySelector('.edit-video-btn').addEventListener('click', () => {
-            this.renderUrlInput();
+            this.cleanupHls();
+            if (type === 'hls') {
+                this.renderHlsInput();
+            } else {
+                this.renderUrlInput();
+            }
         });
+    }
+
+    async initializeHlsDisplay(url) {
+        const video = this.wrapper.querySelector('#hls-display-video');
+        const statusDiv = this.wrapper.querySelector('.hls-status');
+
+        if (!video || !url) return;
+
+        try {
+            statusDiv.style.display = 'block';
+
+            // Check if browser supports HLS natively (Safari)
+            if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                video.src = url;
+                statusDiv.innerHTML = '<small>HLS natif</small>';
+            } else {
+                // Use HLS.js for other browsers
+                const Hls = await this.loadHlsJs();
+
+                if (Hls.isSupported()) {
+                    this.cleanupHls();
+                    this.hlsInstance = new Hls({
+                        debug: false,
+                        enableWorker: true
+                    });
+
+                    this.hlsInstance.loadSource(url);
+                    this.hlsInstance.attachMedia(video);
+
+                    this.hlsInstance.on(Hls.Events.MANIFEST_PARSED, () => {
+                        statusDiv.innerHTML = '<small>✅ HLS prêt</small>';
+                        setTimeout(() => {
+                            statusDiv.style.display = 'none';
+                        }, 2000);
+                    });
+
+                    this.hlsInstance.on(Hls.Events.ERROR, (event, data) => {
+                        console.error('HLS Display Error:', data);
+                        statusDiv.innerHTML = '<small>❌ Erreur HLS</small>';
+                    });
+
+                } else {
+                    throw new Error('HLS not supported');
+                }
+            }
+
+        } catch (error) {
+            console.error('Error initializing HLS display:', error);
+            statusDiv.innerHTML = '<small>❌ HLS indisponible</small>';
+        }
     }
 
     save() {
         return this.data;
+    }
+
+    // Cleanup when block is destroyed
+    destroy() {
+        this.cleanupHls();
     }
 
     static get sanitize() {
