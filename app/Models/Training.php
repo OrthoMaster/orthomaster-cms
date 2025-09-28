@@ -8,8 +8,8 @@ class Training extends Model
 {
     protected $guarded = ['id'];
 
-    public function blocks()
+    public function lessons()
     {
-        return $this->hasMany(Block::class);
+        return $this->hasMany(Lesson::class);
     }
 }

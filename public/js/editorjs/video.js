@@ -37,20 +37,19 @@ class VideoBlock {
         <h4>Ajouter Vidéo</h4>
         <div class="mode-buttons">
           <button class="mode-btn url-mode" data-mode="url">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
-              <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+            <svg width="20" height="20" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M13.19 8.688a4.5 4.5 0 0 1 1.242 7.244l-4.5 4.5a4.5 4.5 0 0 1-6.364-6.364l1.757-1.757m13.35-.622 1.757-1.757a4.5 4.5 0 0 0-6.364-6.364l-4.5 4.5a4.5 4.5 0 0 0 1.242 7.244" />
             </svg>
             En ligne
             <small>YouTube, etc.</small>
           </button>
           
           <button class="mode-btn hls-mode" data-mode="hls">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
+            <svg width="20" height="20" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 9.776c.112-.017.227-.026.344-.026h15.812c.117 0 .232.009.344.026m-16.5 0a2.25 2.25 0 0 0-1.883 2.542l.857 6a2.25 2.25 0 0 0 2.227 1.932H19.05a2.25 2.25 0 0 0 2.227-1.932l.857-6a2.25 2.25 0 0 0-1.883-2.542m-16.5 0V6A2.25 2.25 0 0 1 6 3.75h3.879a1.5 1.5 0 0 1 1.06.44l2.122 2.12a1.5 1.5 0 0 0 1.06.44H18A2.25 2.25 0 0 1 20.25 9v.776" />
             </svg>
             Vidéo HLS
-            <small>Streaming adaptatif</small>
+            <small>Orthomaster</small>
           </button>
         </div>
       </div>
@@ -121,10 +120,6 @@ class VideoBlock {
                      placeholder="Titre de la vidéo (facultatif)" 
                      class="video-title-field"
                      value="${this.data.title || ''}" />
-          </div>
-          
-          <div class="hls-info">
-            <small>📡 Supporte les formats HLS (.m3u8) pour le streaming adaptatif</small>
           </div>
           
           <div class="text-right">
@@ -413,7 +408,7 @@ class VideoBlock {
         <div class="embed-preview">
           <iframe src="${embedUrl}" 
                   width="100%" 
-                  height="315" 
+                  height="400" 
                   frameborder="0" 
                   allowfullscreen>
           </iframe>

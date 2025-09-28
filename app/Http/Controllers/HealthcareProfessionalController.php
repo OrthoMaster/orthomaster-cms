@@ -12,7 +12,7 @@ class HealthcareProfessionalController extends Controller
      */
     public function index(Request $request)
     {
-        if (!$request->filled('pp') && !$request->filled('pp') && !$request->filled('pp')) {
+        if (!$request->filled('pp') && !$request->filled('name') && !$request->filled('first_name')) {
             return view('healthcare.index');
         }
 

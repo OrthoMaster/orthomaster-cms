@@ -82,26 +82,26 @@ return new class extends Migration
                 $table->integer('last_activity')->index();
             });
         } else {
-            Schema::table('voy_sessions', function (Blueprint $table) {
-                if (!Schema::hasColumn('sessions', 'id')) {
-                    $table->string('id')->primary();
-                }
-                if (!Schema::hasColumn('sessions', 'user_id')) {
-                    $table->foreignId('user_id')->nullable()->index();
-                }
-                if (!Schema::hasColumn('sessions', 'ip_address')) {
-                    $table->string('ip_address', 45)->nullable();
-                }
-                if (!Schema::hasColumn('sessions', 'user_agent')) {
-                    $table->text('user_agent')->nullable();
-                }
-                if (!Schema::hasColumn('sessions', 'payload')) {
-                    $table->longText('payload');
-                }
-                if (!Schema::hasColumn('sessions', 'last_activity')) {
-                    $table->integer('last_activity')->index();
-                }
-            });
+            // Schema::table('voy_sessions', function (Blueprint $table) {
+            //     if (!Schema::hasColumn('sessions', 'id')) {
+            //         $table->string('id')->primary();
+            //     }
+            //     if (!Schema::hasColumn('sessions', 'user_id')) {
+            //         $table->foreignId('user_id')->nullable()->index();
+            //     }
+            //     if (!Schema::hasColumn('sessions', 'ip_address')) {
+            //         $table->string('ip_address', 45)->nullable();
+            //     }
+            //     if (!Schema::hasColumn('sessions', 'user_agent')) {
+            //         $table->text('user_agent')->nullable();
+            //     }
+            //     if (!Schema::hasColumn('sessions', 'payload')) {
+            //         $table->longText('payload');
+            //     }
+            //     if (!Schema::hasColumn('sessions', 'last_activity')) {
+            //         $table->integer('last_activity')->index();
+            //     }
+            // });
         }
     }
 

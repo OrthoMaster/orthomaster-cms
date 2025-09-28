@@ -23,10 +23,12 @@
 @section('content')
     <div class="page-content browse container-fluid">
         <div class="row">
+            <div class="col-md-2" id="leftColumn"></div>
             <div class="col-md-8" id="editorColumn">
                 <div class="panel panel-bordered">
-                    <div class="panel-heading">
-                        <h5 class="panel-title text-center">{{ $formation->name }}</h5>
+                    <div class="panel-heading editor-title">
+                        <small>{{ $lesson->training->name }}</small>
+                        <h4>{{ $lesson->title }}</h4>
                     </div>
                     <div class="panel-body">
                         <div id="editorjs"></div>
@@ -194,36 +196,24 @@
             const devModeToggle = document.getElementById('devModeToggle');
             const previewColumn = document.getElementById('previewColumn');
             const editorColumn = document.getElementById('editorColumn');
+            const leftColumn = document.getElementById('leftColumn');
 
             if (devModeToggle.checked) {
                 // Show preview column and adjust editor column
                 previewColumn.style.display = 'block';
-                editorColumn.classList.remove('col-md-12');
-                editorColumn.classList.add('col-md-8');
+                leftColumn.classList.remove('col-md-2');
             } else {
                 // Hide preview column and make editor full width
                 previewColumn.style.display = 'none';
-                editorColumn.classList.remove('col-md-8');
-                editorColumn.classList.add('col-md-12');
+                leftColumn.classList.add('col-md-2');
             }
         }
 
         // Initialize dev mode toggle
         document.addEventListener('DOMContentLoaded', function() {
-            const devModeToggle = document.getElementById('devModeToggle');
-
-            // Load saved state from localStorage
-            const savedState = localStorage.getItem('devModeEnabled');
-            if (savedState === 'true') {
-                devModeToggle.checked = true;
-                toggleDevMode();
-            }
-
             // Add event listener
             devModeToggle.addEventListener('change', function() {
                 toggleDevMode();
-                // Save state to localStorage
-                localStorage.setItem('devModeEnabled', this.checked);
             });
         });
 
@@ -269,7 +259,7 @@
                             uploadByFile(file) {
                                 const formData = new FormData();
                                 formData.append('image', file);
-                                formData.append('id', {{ $formation->id }});
+                                formData.append('id', {{ $lesson->id }});
 
                                 return fetch("{{ route('upload.image.s3') }}", {
                                         method: 'POST',
@@ -315,9 +305,7 @@
             },
             data: JSON.parse(@json($block->content)),
             onReady: () => {
-                editor.save().then((outputData) => {
-                    updateCodePreview(outputData);
-                })
+                updateCodePreview('Modifiez pour afficher');
             },
             onChange: (api, event) => {
                 console.log('Content changed', event);
@@ -399,7 +387,7 @@
             editor.save().then((outputData) => {
                 console.log('Data: ', outputData);
 
-                fetch("{{ route('content.update', request()->route('formationId')) }}", {
+                fetch("{{ route('content.update', request()->route('id')) }}", {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
@@ -428,6 +416,8 @@
 
         // Preview
         function updateCodePreview(data) {
+
+            console.log(data);
             const codePreview = document.getElementById('codePreview');
             const formattedCode = JSON.stringify(data, null, 2);
             codePreview.innerHTML =

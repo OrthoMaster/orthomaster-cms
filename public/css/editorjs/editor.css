@@ -1,1 +1,7 @@
-Couldn't find the requested file /dist/editor.css in @editorjs/editorjs.
+.editor-title {
+    padding: 20px;
+}
+
+.editor-title h4 {
+    margin-top: 0px;
+}

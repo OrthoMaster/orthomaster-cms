@@ -30,7 +30,7 @@ class ImageController extends Controller
             $finalExtension = $processedImage['converted'] ? 'webp' : $file->getClientOriginalExtension();
 
             // Create file name unique
-            $fileName = env('AWS_ROOT') . '/formations/' . $request->id . '/contents/' . Str::uuid() . '.' . $finalExtension;
+            $fileName = 'formations/' . $request->id . "/contents/" . Str::uuid() . '.' . $finalExtension;
 
             // Upload S3
             $path = Storage::disk('s3')->put(

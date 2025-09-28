@@ -290,18 +290,20 @@
                                                 </td>
                                             @endforeach
                                             <td class="no-sort no-click bread-actions">
-                                                @foreach ($actions as $action)
-                                                    @if (!method_exists($action, 'massAction'))
-                                                        @include('voyager::bread.partials.actions', [
-                                                            'action' => $action,
-                                                        ])
-                                                    @endif
-                                                @endforeach
+                                                @can('delete', app($dataType->model_name))
+                                                    @foreach ($actions as $action)
+                                                        @if (!method_exists($action, 'massAction'))
+                                                            @include('voyager::bread.partials.actions', [
+                                                                'action' => $action,
+                                                            ])
+                                                        @endif
+                                                    @endforeach
+                                                @endcan
                                                 @can('edit', app($dataType->model_name))
                                                     <a class="btn btn-sm btn-success pull-right" style="margin-right: 5px"
-                                                        href={{ route('content.edit', $data->getKey()) }}>
-                                                        <i class="voyager-character"></i>
-                                                        <span class="hidden-xs hidden-sm">Contenu</span>
+                                                        href={{ route('lesson.index', $data->getKey()) }}>
+                                                        <i class="voyager-documentation"></i>
+                                                        <span class="hidden-xs hidden-sm">Leçons</span>
                                                     </a>
                                                 @endcan
                                             </td>

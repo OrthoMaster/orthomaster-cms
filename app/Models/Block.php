@@ -11,14 +11,14 @@ class Block extends Model
 
     protected $guarded = ['id'];
 
-    public static function getFirstByFormation($formationId) {
-        $blocks = Block::where('training_id', $formationId)->get();
+    public static function getFirstByLesson($lessonId) {
+        $blocks = Block::where('lesson_id', $lessonId)->get();
         if (sizeof($blocks) > 0) {
             return $blocks->first();
         }
 
         return Block::create([
-            'training_id' => $formationId
+            'lesson_id' => $lessonId
         ]);
     }
 }

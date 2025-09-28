@@ -28,3 +28,6 @@ Homestead.json
 .env.production
 .phpactor.json
 auth.json
+rds_ssh/ortho-ssh-2022.pem
+rds_ssh/README.md
+.DS_Store

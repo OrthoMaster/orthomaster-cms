@@ -17,14 +17,15 @@ class UsersTableSeeder extends Seeder
     public function run()
     {
         if (User::count() == 0) {
-            $role = Role::where('name', 'admin')->firstOrFail();
+            $role = Role::first();
 
             User::create([
                 'name'           => 'Admin',
-                'email'          => 'super@orthomaster.com',
+                'email'          => 'super@orthomaster.fr',
                 'password'       => bcrypt('password'),
                 'remember_token' => Str::random(60),
                 'role_id'        => $role->id,
+                'avatar'         => null
             ]);
         }
     }
