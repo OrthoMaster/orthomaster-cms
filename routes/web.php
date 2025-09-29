@@ -40,13 +40,19 @@ Route::group(['prefix' => 'admin', 'middleware' => 'admin.user'], function () {
     Route::delete('/delete-video-s3', [VideoController::class, 'delete'])->name('delete.video.s3');
 
     // Lessons
-    Route::get('/trainings/{formationId}/lessons', [LessonController::class, 'index'])->name('lesson.index');
+    Route::get('/trainings/{trainingId}/lesson/create', [LessonController::class, 'create'])->name('lessons.create');
+
+    Route::get('/trainings/{trainingId}/lessons', [LessonController::class, 'index'])->name('trainings.lessons.index');
+    Route::get('/trainings/{trainingId}/lessons/order', [LessonController::class, 'orderView'])->name('trainings.lessons.order');
+    Route::post('/trainings/{trainingId}/lessons/order', [LessonController::class, 'updateOrder'])->name('trainings.lessons.order.update');
+
+    
 
     Route::get('/lessons/{id}/content', [ContentController::class, 'edit'])->name('content.edit');
     Route::post('/lessons/{id}/content', [ContentController::class, 'update'])->name('content.update');
     Route::post('/lessons/{id}/content/updateAsDraft', [ContentController::class, 'updateAsDraft'])->name('content.update.draft');
 
-
+    
 
     // RPPS
     Route::get('/healthcare_professionals', [HealthcareProfessionalController::class, 'index'])->name('healthcare.index');
