@@ -5,7 +5,7 @@
 @section('page_header')
     <div class="container-fluid">
         <h1 class="page-title">
-            <i class="{{ $dataType->icon }}"></i> {{ $dataType->getTranslatedAttribute('display_name_plural') }}
+            <i class="voyager-book"></i> {{ $dataType->getTranslatedAttribute('display_name_plural') }}
         </h1>
         @can('add', app($dataType->model_name))
             <a href="{{ route('voyager.' . $dataType->slug . '.create') }}" class="btn btn-success btn-add-new">
@@ -299,9 +299,10 @@
                                                         @endif
                                                     @endforeach
                                                 @endcan
+                                                
                                                 @can('edit', app($dataType->model_name))
                                                     <a class="btn btn-sm btn-success pull-right" style="margin-right: 5px"
-                                                        href={{ route('lesson.index', $data->getKey()) }}>
+                                                        href={{ route('trainings.lessons.index', $data->getKey()) }}>
                                                         <i class="voyager-documentation"></i>
                                                         <span class="hidden-xs hidden-sm">Leçons</span>
                                                     </a>

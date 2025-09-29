@@ -1,0 +1,25 @@
+@extends('voyager::bread.edit-add')
+
+@section('javascript')
+    @parent
+    
+    @if(isset($preSelectedTraining))
+    <script>
+        $(document).ready(function() {
+            setTimeout(function() {
+                var $select = $('select[name="training_id"]');
+                
+                // Thêm option với data đã có
+                var option = new Option(
+                    '{{ $preSelectedTraining->name }}',
+                    '{{ $preSelectedTraining->id }}',
+                    true,
+                    true
+                );
+                
+                $select.empty().append(option).trigger('change');
+            }, 300);
+        });
+    </script>
+    @endif
+@endsection
