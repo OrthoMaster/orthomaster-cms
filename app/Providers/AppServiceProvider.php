@@ -9,6 +9,9 @@ use TCG\Voyager\Database\Schema\SchemaManager;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\Facades\Request;
 
+use App\Http\Middleware\TrustProxies;
+use Illuminate\Support\Facades\Route;
+
 class AppServiceProvider extends ServiceProvider
 {
     /**
@@ -22,7 +25,5 @@ class AppServiceProvider extends ServiceProvider
     /**
      * Bootstrap any application services.
      */
-    public function boot(): void
-    {
-    }
+    public function boot(): void {}
 }
