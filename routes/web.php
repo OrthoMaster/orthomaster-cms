@@ -5,11 +5,14 @@ use App\Http\Controllers\ContentController;
 use App\Http\Controllers\HealthcareProfessionalController;
 use App\Http\Controllers\ImageController;
 use App\Http\Controllers\LessonController;
+use App\Http\Controllers\MailController;
 use App\Http\Controllers\RegisterController;
 use App\Http\Controllers\VideoController;
+use App\Models\User;
 use Illuminate\Support\Facades\Route;
 use TCG\Voyager\Facades\Voyager;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
 
 
 Route::group(['prefix' => 'admin'], function () {
@@ -30,9 +33,20 @@ Route::get('/', function () {
     // return redirect('/admin');
 });
 
+
+
+Route::get('/test-mail', function () {
+    // $user = User::find(1);
+    // return view('emails.admin.has-new-user', compact('user'));
+    // return MailController::createdNewAccount($user);
+});
+
 Route::get('/register', [RegisterController::class, 'index'])->name('register.index');
 Route::post('/register', [RegisterController::class, 'submit'])->name('register.submit');
 Route::post('/register/check-email', [RegisterController::class, 'checkEmail'])->name('register.email.check');
+Route::get('/reset', [RegisterController::class, 'reset'])->name('reset');
+Route::post('/password', [RegisterController::class, 'reset'])->name('password.update');
+
 
 Route::group(['prefix' => 'admin', 'middleware' => ['cmsAdmin']], function () {
     // Images

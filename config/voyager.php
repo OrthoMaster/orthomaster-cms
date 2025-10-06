@@ -110,11 +110,7 @@ return [
         /*
          * Select languages that are supported.
          */
-        'locales' => [
-            'fr',
-            // 'vi'
-            //'pt',
-        ],
+        'locales' => ['fr'],
     ],
 
     /*

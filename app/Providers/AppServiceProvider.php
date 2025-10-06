@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\View;
 use Illuminate\Support\Facades\Request;
 
 use App\Http\Middleware\TrustProxies;
+use Illuminate\Support\Facades\App;
 use Illuminate\Support\Facades\Route;
 
 class AppServiceProvider extends ServiceProvider

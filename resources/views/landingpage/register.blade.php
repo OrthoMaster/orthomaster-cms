@@ -81,8 +81,8 @@
             <!-- Mobile Menu -->
             <div id="mobile-menu" class="hidden md:hidden py-4">
                 <div class="flex flex-col space-y-3 text-right">
-                    <a href="https://orthomaster.fr"
-                        class="text-gray-600 hover:text-primary transition-colors">Notre site</a>
+                    <a href="https://orthomaster.fr" class="text-gray-600 hover:text-primary transition-colors">Notre
+                        site</a>
                     <a href="javascript:void(0);" class="text-primary font-medium">S'inscrire</a>
                 </div>
             </div>
@@ -98,7 +98,8 @@
                 <p class="text-md text-gray-400">Merci de suivre les étapes ci-dessous</p>
             </div>
 
-            <form id="register-form" method="post" action="{{ route('register.submit') }}" enctype="multipart/form-data">
+            <form id="register-form" method="post" action="{{ route('register.submit') }}"
+                enctype="multipart/form-data">
                 @csrf
 
                 <!-- Progress Steps -->
@@ -162,7 +163,6 @@
                                     class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all"
                                     placeholder="votre-email@email.com" autofocus required>
                                 <p id="email-error" class="mt-2 text-sm text-red-600 hidden"></p>
-                                <p id="email-success" class="mt-2 text-sm text-green-600 hidden"></p>
                             </div>
                         </div>
 
@@ -394,7 +394,7 @@
                         </h3>
                         <p class="text-gray-600 mb-6">Merci d’avoir soumis votre demande d’inscription. Nous
                             vérifierons vos informations et créerons votre compte dans les plus brefs délais.</p>
-                        <button onclick="closeModal()"
+                        <button onclick="closeSuccessModal()"
                             class="w-full px-6 py-3 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 transition-colors">
                             Fermer
                         </button>
@@ -402,6 +402,37 @@
                 </div>
             </div>
 
+
+            <!-- Email Duplicate Modal -->
+            <div id="email-duplicate-modal"
+                class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+                <div class="bg-white rounded-lg shadow-xl max-w-md w-full p-6 md:p-8 transform transition-all">
+                    <div class="text-center">
+                        <div class="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-red-100 mb-4">
+                            <svg class="h-10 w-10 text-red-600" xmlns="http://www.w3.org/2000/svg" fill="none"
+                                viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round"
+                                    d="M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0v.243a2.25 2.25 0 0 1-1.07 1.916l-7.5 4.615a2.25 2.25 0 0 1-2.36 0L3.32 8.91a2.25 2.25 0 0 1-1.07-1.916V6.75" />
+                            </svg>
+
+                        </div>
+                        <h3 class="text-xl font-semibold text-gray-800 mb-2 font-heading">Email déjà utilisé
+                        </h3>
+                        <p class="text-gray-600 mb-6">Cette adresse email est déjà enregistrée dans notre système.
+                            Veuillez utiliser une autre adresse email ou récupérer votre mot de passe.</p>
+                        <div class="flex flex-col sm:flex-row gap-3">
+                            <button onclick="closeErrorModal()"
+                                class="w-full sm:w-1/3 px-6 py-3 bg-gray-200 text-gray-700 font-medium rounded-lg hover:bg-gray-300 transition-colors">
+                                Retour
+                            </button>
+                            <button onclick="redirectToPasswordReset()"
+                                class="flex-1 px-6 py-3 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 transition-colors">
+                                Récupérer le mot de passe
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
     </main>
 
     <!-- Footer -->
@@ -431,10 +462,13 @@
                     <h3 class="text-white font-semibold mb-4 font-heading">Liens</h3>
                     <ul class="space-y-2">
                         <li><a target="_blank" href="https://orthomaster.fr"
-                                class="text-sm hover:text-primary transition-colors">À propos de nous</a>
+                                class="text-sm hover:text-primary transition-colors">À propos</a>
                         </li>
+
                         <li><a target="_blank" href="https://www.orthomaster.fr/mentions-l%C3%A9gales"
                                 class="text-sm hover:text-primary transition-colors">Mentions légales</a></li>
+                        <li><a target="_blank" href="https://www.orthomaster.fr/terms-conditions"
+                                class="text-sm hover:text-primary transition-colors">Conditions générales</a></li>
                         <li><a target="_blank" href="https://www.orthomaster.fr/politique-de-confidentialit%C3%A9"
                                 class="text-sm hover:text-primary transition-colors">Politique de confidentialité</a>
                         </li>
@@ -476,7 +510,7 @@
             </div>
 
             <div class="border-t border-gray-700 mt-8 pt-6 text-center">
-                <p class="text-sm text-gray-400">&copy; 2021 par ORTHOMASTER ®</p>
+                <p class="text-sm text-gray-400">{{ setting('mail.copyright') }}</p>
             </div>
         </div>
     </footer>
@@ -559,7 +593,11 @@
                         nextButton.innerHTML = 'Suivant';
 
                         if (!data.success) {
+                            // Show error message
                             showError('email-error', data.message);
+                            if (data.code == 'email-exist') {
+                                document.getElementById('email-duplicate-modal').classList.remove('hidden');
+                            }
                         } else {
                             hideError('email-error');
                             // Move to step 2
@@ -834,8 +872,12 @@
             document.getElementById('success-modal').classList.remove('hidden');
         }
 
-        function closeModal() {
+        function closeSuccessModal() {
             document.getElementById('success-modal').classList.add('hidden');
+        }
+
+        function closeErrorModal() {
+            document.getElementById('email-duplicate-modal').classList.add('hidden');
         }
 
         // Add Enter to move step

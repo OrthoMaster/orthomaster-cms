@@ -59,7 +59,7 @@ class User extends \TCG\Voyager\Models\User
     public static function isDuplicateEmail(string $email) {
         return User::where('email', $email)->exists();
     }
-
+    
     /**
      * Get all admins
      */
