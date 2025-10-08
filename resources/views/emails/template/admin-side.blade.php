@@ -124,6 +124,14 @@
             margin: 5px 0;
         }
 
+        .text-success {
+            color: #22a7f0 !important;
+        }
+
+        .text-danger {
+            color: #c7254e !important;
+        }
+
         @media only screen and (max-width: 600px) {
             .email-wrapper {
                 padding: 20px 10px;

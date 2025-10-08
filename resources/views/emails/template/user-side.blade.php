@@ -113,6 +113,7 @@
             color: inherit !important;
             pointer-events: none !important;
         }
+
         .warning-box {
             background-color: #fff3cd;
             border: 1px solid #ffc107;
@@ -282,6 +283,18 @@
             background-color: #fff9f5;
         }
 
+        .action-button {
+            display: inline-block;
+            background-color: #eb7b0f;
+            color: white;
+            text-decoration: none;
+            padding: 12px 30px;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 14px;
+            margin: 10px 10px 10px 0;
+        }
+
         @media only screen and (max-width: 600px) {
             .email-wrapper {
                 padding: 20px 10px;
@@ -309,6 +322,12 @@
             .credential-value {
                 font-size: 14px;
                 word-break: break-all;
+            }
+
+            .action-button {
+                display: block;
+                text-align: center;
+                margin: 10px 0;
             }
         }
     </style>

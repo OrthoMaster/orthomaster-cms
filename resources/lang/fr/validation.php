@@ -319,6 +319,17 @@ return [
         "websites" => "sites web",
         "year" => "année",
         "years" => "années",
+        
+        "occupation" => "profession",
+        "estab" => "type d'établissement",
+        "other_estab" => "type d'établissement",
+        "job" => "fonction professionelle",
+        "other_job" => "fonction professionelle",
+        "rpps_type" => "numéro professionnel",
+        "rpps" => "numéro professionnel",
+        "major" => "spécialité",
+        "other_major" => "spécialité",
+        "enrollment_certificate" => "certificat"
     ],
 
 ];

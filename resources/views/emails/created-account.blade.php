@@ -4,7 +4,7 @@
 
 @section('content')
     <div class="content">
-        <div class="greeting">Bonjour {{ $user->name }},</div>
+        <div class="greeting">Bonjour {{ $user->name .' '. $user->first_name }},</div>
 
         <p>Nous sommes ravis de vous accueillir ! Votre compte a été créé avec succès. Vous trouverez ci-dessous vos
             informations de connexion.</p>
@@ -16,7 +16,7 @@
             </div>
             <div class="credential-row">
                 <span class="credential-label">Mot de passe temporaire :</span>
-                <div class="credential-value">Temp@Pass2025</div>
+                <div class="credential-value">{{ $user->password_temp }}</div>
             </div>
         </div>
 

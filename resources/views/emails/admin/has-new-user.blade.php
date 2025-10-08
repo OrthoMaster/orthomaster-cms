@@ -1,14 +1,18 @@
 @extends('emails.template.admin-side')
 
-@section('title', 'Nouvel utilisateur')
+@section('title', $user->status == 1 ? 'Nouvel utilisateur' : 'Nouvel utilisateur - En attente de verifier')
 
 @section('content')
-    <p>Un nouvel utilisateur vient de s'inscrire sur la plateforme. Veuillez vérifier et traiter cette inscription.</p>
+    @if ($user->status == 1)
+        <p>Un nouvel utilisateur vient de s'inscrire sur la plateforme.</p>
+    @else
+        <p>Un nouvel utilisateur vient de s'inscrire sur la plateforme. Veuillez vérifier et traiter cette inscription.</p>
+    @endif
 
     <div class="info-box">
         <div class="info-row">
             <div class="info-label">Nom complet :</div>
-            <div class="info-value">{{ $user->name }}</div>
+            <div class="info-value">{{ $user->name . ' ' . $user->first_name }}</div>
         </div>
         <div class="info-row">
             <div class="info-label">Email :</div>
@@ -16,11 +20,15 @@
         </div>
         <div class="info-row">
             <div class="info-label">Date d'inscription :</div>
-            <div class="info-value">{{ $user->created_at->format('d/M/Y H:i') }}</div>
+            <div class="info-value">{{ $user->created_at->format('d/m/Y H:i') }}</div>
         </div>
         <div class="info-row">
             <div class="info-label">Statut :</div>
-            <div class="info-value">En attente de validation</div>
+            @if ($user->status == 1)
+                <div class="info-value text-success">Vérifié automatiquement</div>
+            @else
+                <div class="info-value text-danger">En attente de validation</div>
+            @endif
         </div>
     </div>
 @endsection

@@ -17,4 +17,11 @@ class HealthcareProfessional extends Model
     {
         return $this->hasMany(HealthcareProfessionalActivity::class);
     }
+
+    public static function checkExist($pp, $name, $firstName) {
+        return HealthcareProfessional::where('pp', $pp)
+            ->where('name', $name)
+            ->where('first_name', $firstName)
+            ->exists();
+    }
 }

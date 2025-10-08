@@ -261,7 +261,7 @@
                                 formData.append('image', file);
                                 formData.append('id', {{ $lesson->id }});
 
-                                return fetch("{{ route('upload.image.s3') }}", {
+                                return fetch("{{ route('upload.image.s3.lesson') }}", {
                                         method: 'POST',
                                         headers: {
                                             'X-CSRF-TOKEN': '{{ csrf_token() }}',

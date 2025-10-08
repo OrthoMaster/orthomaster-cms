@@ -6,7 +6,7 @@ use App\Http\Controllers\HealthcareProfessionalController;
 use App\Http\Controllers\ImageController;
 use App\Http\Controllers\LessonController;
 use App\Http\Controllers\MailController;
-use App\Http\Controllers\RegisterController;
+use App\Http\Controllers\AuthController;
 use App\Http\Controllers\VideoController;
 use App\Models\User;
 use Illuminate\Support\Facades\Route;
@@ -41,16 +41,20 @@ Route::get('/test-mail', function () {
     // return MailController::createdNewAccount($user);
 });
 
-Route::get('/register', [RegisterController::class, 'index'])->name('register.index');
-Route::post('/register', [RegisterController::class, 'submit'])->name('register.submit');
-Route::post('/register/check-email', [RegisterController::class, 'checkEmail'])->name('register.email.check');
-Route::get('/reset', [RegisterController::class, 'reset'])->name('reset');
-Route::post('/password', [RegisterController::class, 'reset'])->name('password.update');
+Route::get('/register', [AuthController::class, 'register'])->name('register.index');
+Route::post('/register', [AuthController::class, 'submit'])->name('register.submit');
+Route::post('/register/check-email', [AuthController::class, 'checkEmail'])->name('register.email.check');
+
+Route::get('/forgot-password', [AuthController::class, 'viewForgotPage'])->name('password.request');
+Route::post('/forgot-password', [AuthController::class, 'sendResetLink'])->name('password.email');
+Route::get('/reset-password', [AuthController::class, 'viewResetPage'])->name('password.reset');
+Route::post('/password', [AuthController::class, 'reset'])->name('password.update');
 
 
 Route::group(['prefix' => 'admin', 'middleware' => ['cmsAdmin']], function () {
     // Images
-    Route::post('/upload-image-s3', [ImageController::class, 'uploadToS3'])->name('upload.image.s3');
+    Route::post('/upload-image-s3/lesson', [ImageController::class, 'uploadLessonImageToS3'])->name('upload.image.s3.lesson');
+    Route::post('/upload-image-s3/student-certificate', [ImageController::class, 'uploadStudentCertificateToS3'])->name('upload.image.s3.student');
     Route::delete('/delete-image-s3', [ImageController::class, 'deleteFromS3'])->name('delete.image.s3');
 
     // Videos

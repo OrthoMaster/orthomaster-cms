@@ -4,42 +4,23 @@ namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
-use Illuminate\Support\Facades\DB;
 use Laravel\Sanctum\HasApiTokens;
 use TCG\Voyager\Models\Role;
+use App\Mail\ResetPasswordMail;
+use Illuminate\Support\Facades\Mail;
 
 class User extends \TCG\Voyager\Models\User
 {
     use HasFactory, Notifiable, HasApiTokens;
 
-    /**
-     * The attributes that are mass assignable.
-     *
-     * @var list<string>
-     */
-    protected $fillable = [
-        'name',
-        'email',
-        'password',
-    ];
+    protected $guarded = ['id'];
 
-    /**
-     * The attributes that should be hidden for serialization.
-     *
-     * @var list<string>
-     */
     protected $hidden = [
         'password',
         'remember_token',
     ];
 
-    /**
-     * Get the attributes that should be cast.
-     *
-     * @return array<string, string>
-     */
     protected function casts(): array
     {
         return [
@@ -54,10 +35,20 @@ class User extends \TCG\Voyager\Models\User
     }
 
     /**
+     * Send email reset password notification
+     */
+    public function sendPasswordResetNotification($token)
+    {
+        Mail::to($this->email)->send(new ResetPasswordMail($token, $this->email));
+    }
+
+    /**
      * Check email
      */
-    public static function isDuplicateEmail(string $email) {
-        return User::where('email', $email)->exists();
+    public static function checkRegEmail(string $email) {
+        $user = User::where('email', $email)->first();
+        
+        return $user ? $user->status : null;
     }
     
     /**

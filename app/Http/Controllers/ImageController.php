@@ -10,12 +10,12 @@ use Illuminate\Support\Facades\Log;
 
 class ImageController extends Controller
 {
-    public function uploadToS3(Request $request): JsonResponse
+    public function uploadLessonImageToS3(Request $request): JsonResponse
     {
         try {
             $request->validate([
                 'image' => 'required|image|mimes:jpeg,png,jpg,gif,webp|max:5120', // 5MB max
-                'id' => 'required|exists:trainings,id'
+                'id' => 'required|exists:lessons,id'
             ]);
 
             $file = $request->file('image');
@@ -30,12 +30,12 @@ class ImageController extends Controller
             $finalExtension = $processedImage['converted'] ? 'webp' : $file->getClientOriginalExtension();
 
             // Create file name unique
-            $fileName = 'formations/' . $request->id . "/contents/" . Str::uuid() . '.' . $finalExtension;
+            $fileName = 'lessons/' . $request->id . '/' . Str::uuid() . '.' . $finalExtension;
 
             // Upload S3
             $path = Storage::disk('s3')->put(
-                $fileName, 
-                $processedImage['content'], 
+                $fileName,
+                $processedImage['content'],
                 'public'
             );
 
@@ -69,6 +69,67 @@ class ImageController extends Controller
                 'success' => false,
                 'message' => $e->getMessage()
             ], 400);
+        }
+    }
+
+    public function uploadStudentCertificateToS3($userId, $file)
+    {
+        try {
+            $originalName = $file->getClientOriginalName();
+            $mimeType = $file->getMimeType();
+            $originalSize = $file->getSize();
+
+            // Process image (convert to WebP if beneficial)
+            $processedImage = $this->processImage($file, $mimeType);
+
+            // Determine final extension
+            $finalExtension = $processedImage['converted'] ? 'webp' : $file->getClientOriginalExtension();
+
+            // Create file name unique
+            $fileName = 'student-certificates/' . $userId . '/' . Str::uuid() . '.' . $finalExtension;
+
+            // Upload S3
+            $path = Storage::disk('s3')->put(
+                $fileName,
+                $processedImage['content'],
+                'public'
+            );
+
+            if ($path) {
+                $url = Storage::disk('s3')->url($fileName);
+
+                // Log conversion stats
+                if ($processedImage['converted']) {
+                    Log::info("Student certificate converted to WebP", [
+                        'original_size' => $originalSize,
+                        'new_size' => $processedImage['size'],
+                        'compression' => round(($originalSize - $processedImage['size']) / $originalSize * 100, 2) . '%',
+                        'mime_type' => $mimeType
+                    ]);
+                }
+
+                // Return
+                return [
+                    'success' => true,
+                    'file' => [
+                        'url' => $url,
+                        'name' => $originalName,
+                        'path' => $fileName
+                    ]
+                ];
+            }
+
+            Log::error('Error handle student certificate.', ['register', 'user-certificate']);
+            return [
+                'success' => false,
+                'message' => "Échec du téléchargement de certificate!"
+            ];
+        } catch (\Exception $e) {
+            Log::error($e->getMessage(), ['register', 'user-certificate']);
+            return [
+                'success' => false,
+                'message' => $e->getMessage()
+            ];
         }
     }
 
