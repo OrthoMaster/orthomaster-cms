@@ -5,8 +5,8 @@
             <div>
                 <div class="flex items-center space-x-2 mb-4">
                     <img src="https://content-orthomaster-prod.s3.eu-west-1.amazonaws.com/application-data/logo-v2/web/logo_white_no_bg_40.webp"
-                        alt="Orthomaster" width="30" height="30" />
-                    <span class="text-lg text-white font-heading">Orthomaster</span>
+                        alt="OrthoMaster" width="30" height="30" />
+                    <span class="text-lg text-white font-heading">OrthoMaster</span>
                 </div>
                 <p class="text-sm text-gray-400">
                     Plateforme digitale dédiée aux professionnels de santé, spécialisés en orthopédie.

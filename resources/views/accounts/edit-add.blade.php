@@ -1,0 +1,345 @@
+@extends('voyager::master')
+
+@section('page_title', __('voyager::generic.' . ($edit ? 'edit' : 'add')) . ' Utilisateur')
+
+@section('page_header')
+    <h1 class="page-title">
+        <i class="voyager-people"></i>
+        {{ __('voyager::generic.' . ($edit ? 'edit' : 'add')) . ' Utilisateur' }}
+    </h1>
+@stop
+
+@section('content')
+    <div class="page-content edit-add container-fluid">
+        <div class="row">
+            <div class="col-lg-8 col-md-10">
+                <div class="panel panel-bordered">
+                    <!-- form start -->
+                    <form id="main-form" role="form" class="form-edit-add"
+                        action="{{ $edit ? route('account.edit', $user->id) : route('account.store') }}" method="POST"
+                        enctype="multipart/form-data">
+                        <!-- PUT Method if we are editing -->
+                        @if ($edit)
+                            {{ method_field('PUT') }}
+                        @endif
+
+                        <!-- CSRF TOKEN -->
+                        {{ csrf_field() }}
+
+                        <div class="panel-body">
+                            @if (count($errors) > 0)
+                                <div class="alert alert-danger">
+                                    <ul>
+                                        @foreach ($errors->all() as $error)
+                                            <li>{{ $error }}</li>
+                                        @endforeach
+                                    </ul>
+                                </div>
+                            @endif
+
+                            <div class="row">
+                                @if ($edit)
+                                    <div class="form-group col-md-12 text-right">
+                                        @if ($user->status == 2)
+                                            <span class="label label-warning">{{ App\Status::PENDING->label() }}</span>
+                                        @endif
+                                        @if ($user->status == 1)
+                                            <span class="label label-success">{{ App\Status::ACTIVE->label() }}</span>
+                                        @endif
+                                    </div>
+                                @endif
+                                <div class="form-group col-md-6">
+                                    <label class="control-label" for="name">Nom</label>
+                                    <input id="name" name="name" type="text" class="form-control" required
+                                        autofocus value="{{ old('name', $user->name ?? '') }}">
+                                </div>
+                                <div class="form-group col-md-6">
+                                    <label class="control-label" for="first-name">Prénom</label>
+                                    <input id="first-name" name="first_name" type="text" class="form-control" required
+                                        value="{{ old('first_name', $user->first_name ?? '') }}">
+                                </div>
+                                <div class="form-group col-md-4">
+                                    <label class="control-label" for="name">Email</label>
+                                    <input id="email" name="email" type="email" class="form-control" required
+                                        value="{{ old('email', $user->email ?? '') }}">
+                                </div>
+                                <div class="form-group col-md-4">
+                                    <label class="control-label" for="password">Mot de passe (Défaut)</label>
+                                    <input id="password" type="text" class="form-control" disabled
+                                        value="{{ $edit ? $user->password_temp : '' }}">
+                                </div>
+
+                                <div class="form-group col-md-4">
+                                    <label class="control-label" for="phone">Numéro de téléphone</label>
+                                    <div>
+                                        <input id="phone" name="phone" type="tel" class="form-control"
+                                            value="{{ old('phone', $user->phone ?? '') }}">
+                                    </div>
+                                </div>
+                                <div class="form-group col-md-4">
+                                    <label class="control-label" for="country">Pays</label>
+                                    <select class="form-control select2" id="country" name="country">
+                                        @foreach ($countries as $code => $country)
+                                            <option value="{{ $code }}" @selected(old('country', $user->country_code ?? 'FR') == $code)>
+                                                {{ $country }}
+                                            </option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                                <div class="form-group col-md-4">
+                                    <label class="control-label" for="postal-code">Code postal</label>
+                                    <div>
+                                        <input id="postal-code" name="postal_code" type="text" class="form-control"
+                                            value="{{ old('postal_code', $user->postal_code ?? '') }}">
+                                    </div>
+                                </div>
+                                <div class="form-group col-md-4">
+                                    <label class="control-label" for="city">Ville</label>
+                                    <div>
+                                        <input id="city" name="city" type="text" class="form-control"
+                                            value="{{ old('city', $user->city ?? '') }}">
+                                    </div>
+                                </div>
+
+                                <div class="form-group col-md-6">
+                                    <label class="control-label" for="occupation">Type de compte</label>
+                                    <ul id="occupation" class="radio">
+                                        <li>
+                                            <input type="radio" id="option-professor" name="occupation" value="professor"
+                                                @checked ((!$edit && old('occupation') == 'professor') || ($edit && !$user->student_flg)) onchange="toggleOccupationFields('professor')">
+                                            <label for="option-professor">Professionnel(le) de santé</label>
+                                            <div class="check"></div>
+                                        </li>
+                                        <li>
+                                            <input type="radio" id="option-student" name="occupation" value="student"
+                                                @checked ((!$edit && old('occupation') == 'student') || ($edit && $user->student_flg)) onchange="toggleOccupationFields('student')">
+                                            <label for="option-student">Étudiant(e)</label>
+                                            <div class="check"></div>
+                                        </li>
+                                    </ul>
+                                </div>
+                                <br/>
+                                <!-- Professionelle -->
+                                <div id="professor-field" class="col-md-12 row">
+                                    <h5 class="col-md-12">Professionnel de santé</h5>
+                                    <div class="form-group col-md-6">
+                                        <label class="control-label" for="estab">Type d'établissement</label>
+                                        <select class="form-control select2" name="estab">
+                                            <option value="" selected>---</option>
+                                            @foreach ($estabs as $estab)
+                                                <option value="{{ $estab->id }}" @selected(old('estab', $user->establishment_id ?? '') == $estab->id)>
+                                                    {{ $estab->name }}</option>
+                                            @endforeach
+                                            <option value="other" @selected((!$edit && old('estab') == 'other') || ($edit && $user->other_establishment))>Autre</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group col-md-6">
+                                        <label class="control-label" for="other-estab">Autre</label>
+                                        <div>
+                                            <input id="other-estab" name="other_estab" type="text"
+                                                class="form-control"
+                                                value="{{ old('other_estab', $user->other_establishment ?? '') }}">
+                                        </div>
+                                    </div>
+
+                                    <div class="form-group col-md-6">
+                                        <label class="control-label" for="job">Fonction professionelle</label>
+                                        <select class="form-control select2" id="job" name="job">
+                                            <option value="" selected>---</option>
+                                            @foreach ($professions as $prof)
+                                                @if ($prof->hasChildren())
+                                                    <option value="" disabled>{{ $prof->name }}</option>
+                                                @else
+                                                    @if ($prof->child_flg)
+                                                        <option value="{{ $prof->id }}" @selected(old('job', $user->profession_id ?? '') == $prof->id)>
+                                                            &#160;&#160;&#160;&#160;{{ $prof->name }}</option>
+                                                    @else
+                                                        <option value="{{ $prof->id }}" @selected(old('job', $user->profession_id ?? '') == $prof->id)>
+                                                            {{ $prof->name }}</option>
+                                                    @endif
+                                                @endif
+                                            @endforeach
+                                            <option value="other" @selected((!$edit && old('job') == 'other') || ($edit && $user->other_profession))>Autre</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group col-md-6">
+                                        <label class="control-label" for="other-job">Autre</label>
+                                        <div>
+                                            <input id="other-job" name="other_job" type="text" class="form-control"
+                                                value="{{ old('other_job', $user->other_profession ?? '') }}">
+                                        </div>
+                                    </div>
+
+                                    <div class="form-group col-md-4">
+                                        <label class="control-label" for="rpps-type">Type de numéro</label>
+                                        <select class="form-control select2" id="rpps-type" name="rpps_type">
+                                            @foreach ($noProfTypes as $npt)
+                                                <option value="{{ $npt->id }}" @selected(old('rpps_type', $user->no_prof_type_id ?? '') == $npt->id)>
+                                                    {{ $npt->name }}</option>
+                                            @endforeach
+                                            <option value="other" @selected((!$edit && old('rpps_type') == 'other') || ($edit && !$user->no_prof_type_id))>Autre</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group col-md-8">
+                                        <label class="control-label" for="rpps">Numéro professionnel</label>
+                                        <div>
+                                            <input id="rpps" name="rpps" type="text" class="form-control"
+                                                value="{{ old('rpps', $user->no_prof ?? '') }}">
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Student -->
+                                <div id="student-field" class="col-md-12 row">
+                                    <h5 class="col-md-12">Étudiant</h5>
+                                    <div class="form-group col-md-6">
+                                        <label class="control-label" for="major">Spécialité</label>
+                                        <select class="form-control select2" id="major" name="major">
+                                            @foreach ($professions as $prof)
+                                                @if ($prof->hasChildren())
+                                                    <option value="" disabled>{{ $prof->name }}</option>
+                                                @else
+                                                    @if ($prof->child_flg)
+                                                        <option value="{{ $prof->id }}" @selected(old('major', $user->profession_id ?? '') == $prof->id)>
+                                                            &#160;&#160;&#160;&#160;{{ $prof->name }}</option>
+                                                    @else
+                                                        <option value="{{ $prof->id }}" @selected(old('major', $user->profession_id ?? '') == $prof->id)>
+                                                            {{ $prof->name }}</option>
+                                                    @endif
+                                                @endif
+                                            @endforeach
+                                            <option value="other" @selected((!$edit && old('major') == 'other') || ($edit && $user->other_profession))>Autre</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group col-md-6">
+                                        <label class="control-label" for="other-major">Autre</label>
+                                        <div>
+                                            <input id="other-major" name="other_major" type="text"
+                                                class="form-control"
+                                                value="{{ old('other_major', $user->other_profession ?? '') }}">
+                                        </div>
+                                    </div>
+
+                                    <div class="form-group col-md-12">
+                                        <label class="control-label" for="enrollment-certificate">Certificat de
+                                            scolarité</label>
+
+                                        @if ($edit && $user->certificate)
+                                            <div>
+                                                <a class="fileType" target="_blank" href="{{ $user->certificate }}"
+                                                    data-file-name="{{ $user->certificate }}">
+                                                    {{ $user->certificate }}
+                                                </a>
+                                            </div>
+                                        @endif
+                                        <input id="enrollment-certificate" name="enrollment_certificate" type="file"
+                                            accept=".pdf,.jpg,.jpeg,.png">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="panel-footer">
+                            @if ($edit)
+                                @if ($user->status == 2)
+                                    <button id="confirm-button" type="button" class="btn btn-warning"
+                                        onclick="confirmAccount();">Confirmer</button>
+                                @endif
+                            @else
+                                <button type="submit"
+                                    class="btn btn-primary save">{{ __('voyager::generic.save') }}</button>
+                            @endif
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @if ($edit && $user->status == 2)
+        <form id="confirm-form" method="post" action="{{ route('account.confirm', $user->id) }}">@csrf</form>
+    @endif
+@endsection
+
+@section('css')
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/18.2.1/css/intlTelInput.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/18.2.1/js/intlTelInput.min.js"></script>
+
+    <style>
+        .iti {
+            width: 100%;
+        }
+
+        .iti__selected-flag {
+            padding: 0 10px 0 15px;
+        }
+
+        .iti--allow-dropdown input[type=tel] {
+            padding-left: 60px;
+        }
+    </style>
+@endsection
+
+@section('javascript')
+    <script>
+        const phoneInput = document.querySelector("#phone");
+        const iti = window.intlTelInput(phoneInput, {
+            initialCountry: "fr",
+            preferredCountries: ["fr", "de", "ch", "be"],
+            nationalMode: false,
+            formatOnDisplay: true,
+            autoPlaceholder: "aggressive",
+            separateDialCode: false,
+            utilsScript: "https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/18.2.1/js/utils.js"
+        });
+        phoneInput.addEventListener('blur', function() {
+            const value = phoneInput.value.trim();
+            if (value && !value.startsWith('+')) {
+                const dialCode = iti.getSelectedCountryData().dialCode;
+                iti.setNumber('+' + dialCode + value.replace(/\D/g, ''));
+            }
+        });
+
+        function toggleOccupationFields(type) {
+            const professorField = document.getElementById('professor-field');
+            const studentField = document.getElementById('student-field');
+
+            if (type === 'professor') {
+                professorField.classList.remove('hidden');
+                studentField.classList.add('hidden');
+            } else {
+                professorField.classList.add('hidden');
+                studentField.classList.remove('hidden');
+            }
+        }
+
+        function confirmAccount() {
+            let form = document.getElementById('confirm-form');
+            form.submit();
+        }
+
+        $('document').ready(function() {
+            $('.toggleswitch').bootstrapToggle();
+            $('[data-toggle="tooltip"]').tooltip();
+
+            @if ($edit)
+                const form = document.getElementById('main-form');
+                const inputsAndSelects = form.querySelectorAll('input, select, textarea, button');
+                inputsAndSelects.forEach(el => el.disabled = true);
+            @endif
+
+            const occupation = document.querySelector('input[name="occupation"]:checked');
+            if (!occupation) {
+                document.querySelector('input[name="occupation"][value="professor"]').checked = true;
+                toggleOccupationFields('professor');
+            }
+            if (occupation && occupation.value === 'professor') {
+                toggleOccupationFields('professor');
+            }
+            if (occupation && occupation.value === 'student') {
+                toggleOccupationFields('student');
+            }
+        });
+    </script>
+@endsection

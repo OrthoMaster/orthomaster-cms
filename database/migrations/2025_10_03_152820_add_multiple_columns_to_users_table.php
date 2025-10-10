@@ -20,8 +20,8 @@ return new class extends Migration
             $table->string('password_temp', 15)->nullable()->after('password');
             $table->string('phone', 30)->nullable()->after('password_temp');
             $table->string('country_code', 3)->nullable()->after('phone');
-            $table->string('code_postal', 20)->nullable()->after('country_code');
-            $table->string('city', 50)->nullable()->after('code_postal');
+            $table->string('postal_code', 20)->nullable()->after('country_code');
+            $table->string('city', 50)->nullable()->after('postal_code');
             $table->boolean('student_flg')->nullable()->after('city');
             
             $table->foreignIdFor(Establishment::class)->nullable()->after('student_flg');
@@ -52,7 +52,7 @@ return new class extends Migration
                 'password_temp',
                 'phone',
                 'country_code',
-                'code_postal',
+                'postal_code',
                 'city',
                 'student_flg',
                 'establishment_id',

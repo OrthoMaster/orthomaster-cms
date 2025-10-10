@@ -12,25 +12,27 @@ use Illuminate\Support\Facades\Mail;
 
 class MailController extends Controller
 {
-    public static function createdNewAccount(User $user)
+    public static function createdNewAccount(User $user, bool $isAdmin = false)
     {
         try {
             // Mail to user
             if ($user->status == Status::ACTIVE->value) {
                 // Active automatically
-                Mail::to('fx.tiennguyen92@gmail.com')->send(new CreatedAccountMail($user->email, $user));
+                Mail::to($user->email)->send(new CreatedAccountMail($user->email, $user));
             } else {
                 // Pending to verify
-                Mail::to('fx.tiennguyen92@gmail.com')->send(new ConfirmedRegRequestMail($user->email, $user));
+                Mail::to($user->email)->send(new ConfirmedRegRequestMail($user->email, $user));
+
+                // Notification admin
+                if (!$isAdmin && setting('mail.notification_email')) {
+                    $notiEmails = array_map('trim', array_filter(explode(';', setting('mail.notification_email'))));
+                    Mail::to($notiEmails)->send(new NotificationHasNewUserMail($user));
+
+                    Log::channel('mail')->info('Noti admin', ['register', 'noti', $notiEmails]);
+                }
             }
 
-            // Mail::to($user->email)->send(new CreatedAccountMail($user->email, $user));
             Log::channel('mail')->info('After registered: ' . $user->email, ['register']);
-
-            // Notification to Admin
-            if (setting('mail.notification_email')) {
-                Mail::to(array_map('trim', explode(';', setting('mail.notification_email'))))->send(new NotificationHasNewUserMail($user));
-            }
         } catch (\Throwable $e) {
             Log::channel('mail')->emergency($e->getMessage(), ['register']);
         }

@@ -4,8 +4,8 @@
             <!-- Logo and Brand -->
             <div class="flex items-center space-x-2">
                 <img src="https://content-orthomaster-prod.s3.eu-west-1.amazonaws.com/application-data/logo-v2/web/logo_orange_no_bg_40.webp"
-                    alt="Orthomaster" width="30" height="30" />
-                <span class="text-xl text-primary font-heading">Orthomaster</span>
+                    alt="OrthoMaster" width="30" height="30" />
+                <span class="text-xl text-primary font-heading">OrthoMaster</span>
             </div>
 
             <!-- Desktop Menu -->

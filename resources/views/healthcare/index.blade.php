@@ -13,37 +13,42 @@
 @section('content')
     <div class="page-content browse container-fluid">
         @include('voyager::alerts')
-        <div class="panel">
-            <div class="panel-heading">
-                <h3 class="panel-title"><i class="voyager-search"></i> Filtres</h3>
-            </div>
-            <div class="panel-body">
-                <form class="row" action="{{ route('healthcare.index') }}" method="GET">
-                    <div class="col-md-4">
-                        <label for="display_name">RPPS</label>
-                        <input type="text" class="form-control" name="pp" value="{{ request('pp') }}"
-                            placeholder="Au moins 3 chiffres">
+        <div class="row">
+            <div class="col-md-12">
+                <div class="panel panel-bordered">
+                    <div class="panel-heading">
+                        <h3 class="panel-title"><i class="voyager-search"></i> Filtres</h3>
                     </div>
-                    <div class="col-md-4">
-                        <label for="display_name">Nom</label>
-                        <input type="text" class="form-control" name="name" value="{{ request('name') }}"
-                            placeholder="Nom">
+                    <div class="panel-body">
+                        <form class="row" action="{{ route('healthcare.index') }}" method="GET">
+                            <div class="col-md-4">
+                                <label for="display_name">RPPS</label>
+                                <input type="text" class="form-control" name="pp" value="{{ request('pp') }}"
+                                    placeholder="Au moins 3 chiffres">
+                            </div>
+                            <div class="col-md-4">
+                                <label for="display_name">Nom</label>
+                                <input type="text" class="form-control" name="name" value="{{ request('name') }}"
+                                    placeholder="Nom">
+                            </div>
+                            <div class="col-md-4">
+                                <label for="display_name">Prénom</label>
+                                <input type="text" class="form-control" name="first_name"
+                                    value="{{ request('first_name') }}" placeholder="Prénom">
+                            </div>
+                            <div class="col-md-12" style="margin-bottom: 0">
+                                <button type="submit" class="btn btn-primary pull-right">
+                                    Cherchez
+                                </button>
+                            </div>
+                        </form>
                     </div>
-                    <div class="col-md-4">
-                        <label for="display_name">Prénom</label>
-                        <input type="text" class="form-control" name="first_name" value="{{ request('first_name') }}"
-                            placeholder="Prénom">
-                    </div>
-                    <div class="col-md-12" style="margin-bottom: 0">
-                        <button type="submit" class="btn btn-primary pull-right">
-                            Cherchez
-                        </button>
-                    </div>
-                </form>
+                </div>
             </div>
         </div>
 
-        
+
+
         @if (isset($hcps) && !$hcps->count() > 0)
             <div class="alert alert-warning">
                 <strong>Aucune information n'est disponible !</strong>
@@ -71,7 +76,6 @@
                                 <th>RPPS</th>
                                 <th>Professionnel de la santé</th>
                                 <th>Profession</th>
-                                <th>Diplôme</th>
                                 <th>Système ID</th>
                             </tr>
                         </thead>
@@ -86,11 +90,11 @@
                                             @endif
                                             @if ($hcp->activities->first()->civility_pro_code !== 'nan')
                                                 @if ($hcp->activities->first()->civility_pro_code == 'PR')
-                                                <small
-                                                    class="label label-info">{{ $hcp->activities->first()->civility_pro_label }}</small>
+                                                    <small
+                                                        class="label label-info">{{ $hcp->activities->first()->civility_pro_label }}</small>
                                                 @else
-                                                <small
-                                                    class="label label-info">{{ $hcp->activities->first()->civility_pro_label }}</small>
+                                                    <small
+                                                        class="label label-info">{{ $hcp->activities->first()->civility_pro_label }}</small>
                                                 @endif
                                             @endif
                                         @endif
@@ -98,21 +102,8 @@
                                     </td>
                                     <td>
                                         @if ($hcp->activities->isNotEmpty())
-                                            <small>{{ $hcp->activities->first()->category_label }}</small>
                                             <p>{{ $hcp->activities->first()->label }}</p>
                                         @endif
-                                    </td>
-                                    <td>
-                                        @foreach ($hcp->diplomes as $dip)
-                                            @if ($dip->label !== 'nan')
-                                                <small>{{ $dip->type_label }}</small>
-                                                <p>{{ $dip->label }}</p>
-                                            @endif
-
-                                            @if ($dip->authorization_type_label !== 'nan')
-                                                <i>{{ $dip->authorization_type_label }}</i>
-                                            @endif
-                                        @endforeach
                                     </td>
                                     <td>{{ $hcp->id }}</td>
                                 </tr>

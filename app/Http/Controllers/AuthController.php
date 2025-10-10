@@ -28,7 +28,15 @@ class AuthController extends Controller
         $professions = Profession::getAll();
         $noProfTypes = NoProfType::getAll();
 
-        return view('landingpage.register', compact('estabs', 'professions', 'noProfTypes'));
+        // Countries
+        $path = public_path('countries.json');
+        $json = file_get_contents($path);
+        $countries = json_decode($json, true);
+
+        return view(
+            'landingpage.register',
+            compact('estabs', 'professions', 'noProfTypes', 'countries')
+        );
     }
 
     /**
@@ -44,13 +52,16 @@ class AuthController extends Controller
             'phone' => 'nullable|regex:/^\+?[0-9]{1,3}[\s\-]?(\(?\d{1,4}\)?[\s\-]?){1,}[0-9]{1,}$/|min:10|max:20',
             'occupation' => 'required|in:professor,student',
 
+            'country' => 'nullable|max:3',
+            'postal_code' => 'nullable|max:10',
+            'city' => 'nullable|max:30',
+
             // Professor
             'estab' => 'required_if:occupation,professor',
             'other_estab' => 'nullable|required_if:estab,other|string|max:100',
             'job' => 'required_if:occupation,professor',
             'other_job' => 'nullable|required_if:job,other|string|max:100',
-            'rpps_type' => 'required_if:occupation,professor',
-            'rpps' => 'nullable|required_if:occupation,professor|string|max:100',
+            'rpps' => 'nullable|string|max:100',
 
             // Student
             'major' => 'required_if:occupation,student',
@@ -105,7 +116,7 @@ class AuthController extends Controller
             $otherProfession = null;
             if ($professionId == 'other') {
                 $professionId = null;
-                $otherProfession = $isStudent ? $request->other_major : $request->orther_job;
+                $otherProfession = $isStudent ? $request->other_major : $request->other_job;
             }
 
             // Init establishment
@@ -114,6 +125,13 @@ class AuthController extends Controller
             if ($estabId == 'other') {
                 $estabId = null;
                 $otherEstab = $request->other_estab;
+            }
+
+            // Init no prof
+            $noProfType = $isStudent ?  null : $request->rpps_type;
+            $noProf = null;
+            if ($noProfType !== 'other') {
+                $noProf = $request->rpps;
             }
 
             // Create new user
@@ -125,12 +143,19 @@ class AuthController extends Controller
                 'password_temp' => $passwordTemp,
                 'password' => bcrypt($passwordTemp),
                 'phone' => $request->phone,
+                'country_code' => $request->country,
+                'postal_code' => trim($request->postal_code),
+                'city' => mb_convert_case(trim($request->city), MB_CASE_TITLE, 'UTF-8'),
+
                 'student_flg' => $isStudent,
 
                 'establishment_id' => $estabId,
                 'other_establishment' => $otherEstab,
                 'profession_id' => $professionId,
                 'other_profession' => $otherProfession,
+
+                'no_prof_type_id' => $noProfType,
+                'no_prof' => $noProf,
 
                 'status' => (!$isStudent && $checkedRpps ? Status::ACTIVE->value : Status::PENDING->value)
             ]);
@@ -163,11 +188,17 @@ class AuthController extends Controller
         }
     }
 
+    /**
+     * View forgot password page
+     */
     public function viewForgotPage()
     {
         return view('landingpage.password-request');
     }
 
+    /**
+     * Handle sent link reset password
+     */
     public function sendResetLink(Request $request)
     {
         // Check honeypot - anti autobot
@@ -195,9 +226,13 @@ class AuthController extends Controller
                 'status' => 'failed',
                 'error' => $validator->errors()
             ], 422);
+        };
+
+        // Pending user - checking
+        $user = User::where('email', $request->email)->first();
+        if ($user->status == Status::PENDING->value) {
+            return response()->json(['status' => 'success'], 200);
         }
-
-
 
         // Send reset link
         $status = Password::sendResetLink($request->only('email'));
@@ -215,6 +250,9 @@ class AuthController extends Controller
         return response()->json(['status' => 'success'], 200);
     }
 
+    /**
+     * View update new password
+     */
     public function viewResetPage(Request $request)
     {
         $status = 'valid';
@@ -247,6 +285,9 @@ class AuthController extends Controller
         ]);
     }
 
+    /**
+     * Reset password
+     */
     public function reset(Request $request)
     {
         $validator = Validator::make($request->all(), [

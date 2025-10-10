@@ -121,6 +121,38 @@
                                     class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all">
                                 <p id="phone-error" class="mt-2 text-sm text-red-600 hidden"></p>
                             </div>
+
+                            <div>
+                                <label for="country" class="block text-sm font-medium text-gray-700 mb-2">
+                                    Pays
+                                </label>
+                                <select id="country" name="country"
+                                    class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all bg-white">
+                                    @foreach ($countries as $code => $country)
+                                        <option value="{{ $code }}" @selected('FR' == $code)>{{ $country }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                            </div>
+
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label for="postal-code" class="block text-sm font-medium text-gray-700 mb-2">
+                                        Code postal
+                                    </label>
+                                    <input type="text" id="postal-code" name="postal_code"
+                                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all"
+                                        placeholder="Code postal" maxlength="10">
+                                </div>
+                                <div>
+                                    <label for="city" class="block text-sm font-medium text-gray-700 mb-2">
+                                        Ville
+                                    </label>
+                                    <input type="text" id="city" name="city"
+                                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all"
+                                        placeholder="Ville" maxlength="30">
+                                </div>
+                            </div>
                         </div>
 
                         <div class="mt-8 flex justify-between">
@@ -180,7 +212,8 @@
                                         onchange="toggleOtherEstab()">
                                         <option value="" disabled selected>-- Veuillez sélectionner --</option>
                                         @foreach ($estabs as $estab)
-                                            <option value="{{ $estab->id }}">{{ $estab->name }}</option>
+                                            <option value="{{ $estab->id }}">&#160;&#160;&#160;&#160;{{ $estab->name }}
+                                            </option>
                                         @endforeach
                                         <option value="other">Autre</option>
                                     </select>
@@ -228,7 +261,7 @@
                                 <!-- RPPS -->
                                 <div>
                                     <label for="rpps" class="block text-sm font-medium text-gray-700 mb-2">
-                                        Numéro professionnel <span class="text-red-500">*</span>
+                                        Numéro professionnel
                                     </label>
                                     <div class="flex flex-col sm:flex-row sm:gap-2 gap-3">
                                         <select id="rpps-type" name="rpps_type"
@@ -236,6 +269,7 @@
                                             @foreach ($noProfTypes as $npt)
                                                 <option value="{{ $npt->id }}">{{ $npt->name }}</option>
                                             @endforeach
+                                            <option value="other">Autre</option>
                                         </select>
                                         <input type="text" id="rpps" name="rpps" maxlength="100"
                                             class="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all"
@@ -330,10 +364,10 @@
                                 </path>
                             </svg>
                         </div>
-                        <h3 class="text-xl font-semibold text-gray-800 mb-2 font-heading">Demande envoyée avec succès !
+                        <h3 class="text-xl font-semibold text-gray-800 mb-2 font-heading">Inscription validée !
                         </h3>
-                        <p class="text-gray-600 mb-6">Merci d’avoir soumis votre demande d’inscription. Nous
-                            vérifierons vos informations et créerons votre compte dans les plus brefs délais.</p>
+                        <p class="text-gray-600 mb-6">Regardez vos mails, nous vous avons envoyé un mot de passe provisoire
+                            pour vous connecter à l'application ORTHOMASTER.</p>
                         <button onclick="closeSuccessModal()"
                             class="w-full px-6 py-3 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 transition-colors">
                             Fermer
@@ -460,8 +494,8 @@
                             </svg>
                         </div>
                         <h3 class="text-xl font-semibold text-gray-800 mb-2 font-heading">Demande en attente</h3>
-                        <p class="text-gray-600 mb-6">Votre demande d'inscription est en cours de traitement. Nous vous
-                            contacterons une fois la vérification terminée.</p>
+                        <p class="text-gray-600 mb-6">Votre demande est en cours de traitement. Nous vous
+                            confirmerons votre inscription une fois la vérification terminée.</p>
                         <button onclick="closePendingModal()"
                             class="w-full px-6 py-3 bg-yellow-600 text-white font-medium rounded-lg hover:bg-yellow-700 transition-colors">
                             Fermer
@@ -678,6 +712,7 @@
                 if (occupation.value === 'professor') {
                     const estab = document.getElementById('estab').value;
                     const job = document.getElementById('job').value;
+                    const rppsType = document.getElementById('rpps-type').value;
                     const rpps = document.getElementById('rpps').value;
 
                     // Estab
@@ -713,7 +748,7 @@
                     hideError('other-job-error');
 
                     // RPPS
-                    if (!rpps) {
+                    if (rppsType !== 'other' && !rpps) {
                         showError('rpps-error', "Veuillez saisir votre numéro professionnel !");
                         return;
                     }
@@ -954,6 +989,12 @@
         function closePendingModal() {
             window.location.href = "https://orthomaster.fr";
             // document.getElementById('pending-modal').classList.add('hidden');
+        }
+
+        function redirectToPasswordReset() {
+            const email = document.getElementById('email').value;
+            const pwdResetUrl = "{{ route('password.request') }}" + '?email=' + email;
+            window.location.href = pwdResetUrl;
         }
 
         function closeDuplicateModal() {

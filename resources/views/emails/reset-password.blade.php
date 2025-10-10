@@ -17,12 +17,10 @@
         </div>
 
 
-        <div class="warning-box">
-            <p>Vous rencontrez un problème avec le bouton ci-dessus ? Copiez et collez l'URL suivante dans votre navigateur
-                :<br>
-                <strong><a href="{{ $url }}">{{ $url }}</a>
-            </p>
-        </div>
+        <p>Vous rencontrez un problème avec le bouton ci-dessus ? Copiez et collez l'URL suivante dans votre navigateur
+            :<br>
+            <strong><a href="{{ $url }}">{{ $url }}</a>
+        </p>
         <p style="font-size: 14px;"><i> Ce lien expirera dans <strong>{{ $expireMinutes }} minutes.</i></p>
 
         <div class="divider"></div>

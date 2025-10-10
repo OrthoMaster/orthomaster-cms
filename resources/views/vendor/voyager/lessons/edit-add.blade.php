@@ -9,7 +9,7 @@
             setTimeout(function() {
                 var $select = $('select[name="training_id"]');
                 
-                // Thêm option với data đã có
+                // Add mores option
                 var option = new Option(
                     '{{ $preSelectedTraining->name }}',
                     '{{ $preSelectedTraining->id }}',

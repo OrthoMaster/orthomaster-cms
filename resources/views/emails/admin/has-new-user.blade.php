@@ -15,6 +15,10 @@
             <div class="info-value">{{ $user->name . ' ' . $user->first_name }}</div>
         </div>
         <div class="info-row">
+            <div class="info-label">Profession :</div>
+            <div class="info-value">{{ $user->student_flg ? 'Étudiant' : 'Professionel de santé' }}</div>
+        </div>
+        <div class="info-row">
             <div class="info-label">Email :</div>
             <div class="info-value">{{ $user->email }}</div>
         </div>

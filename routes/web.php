@@ -1,44 +1,44 @@
 <?php
 
+use App\Http\Controllers\AccountController;
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\ContentController;
 use App\Http\Controllers\HealthcareProfessionalController;
 use App\Http\Controllers\ImageController;
 use App\Http\Controllers\LessonController;
-use App\Http\Controllers\MailController;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\VideoController;
-use App\Models\User;
 use Illuminate\Support\Facades\Route;
 use TCG\Voyager\Facades\Voyager;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Mail;
 
 
 Route::group(['prefix' => 'admin'], function () {
     Voyager::routes();
 });
 
-Route::get('/db', function () {
-    try {
-        DB::connection()->getPdo();
-        return 'Connected!';
-    } catch (\Exception $e) {
-        return 'Error: ' . $e->getMessage();
-    }
-});
+// Route::get('/db', function () {
+//     try {
+//         DB::connection()->getPdo();
+//         return 'Connected!';
+//     } catch (\Exception $e) {
+//         return 'Error: ' . $e->getMessage();
+//     }
+// });
 
 Route::get('/', function () {
+    $domain = request()->getHost();
+
+    if ($domain === 'cms.orthomaster.fr') {
+        return redirect('/admin');
+    }
+
+    if ($domain === 'auth.orthomaster.fr') {
+        return redirect('/register');
+    }
+
     return view('welcome');
-    // return redirect('/admin');
-});
-
-
-
-Route::get('/test-mail', function () {
-    // $user = User::find(1);
-    // return view('emails.admin.has-new-user', compact('user'));
-    // return MailController::createdNewAccount($user);
 });
 
 Route::get('/register', [AuthController::class, 'register'])->name('register.index');
@@ -52,6 +52,9 @@ Route::post('/password', [AuthController::class, 'reset'])->name('password.updat
 
 
 Route::group(['prefix' => 'admin', 'middleware' => ['cmsAdmin']], function () {
+    Route::get('/', [DashboardController::class, 'index'])->name('voyager.dashboard');
+
+
     // Images
     Route::post('/upload-image-s3/lesson', [ImageController::class, 'uploadLessonImageToS3'])->name('upload.image.s3.lesson');
     Route::post('/upload-image-s3/student-certificate', [ImageController::class, 'uploadStudentCertificateToS3'])->name('upload.image.s3.student');
@@ -78,4 +81,14 @@ Route::group(['prefix' => 'admin', 'middleware' => ['cmsAdmin']], function () {
 
     // Admin
     Route::get('/admins', [AdminController::class, 'index'])->name('cmsAdmin.index');
+
+    // User accounts
+    Route::get('/accounts', [AccountController::class, 'index'])->name('accounts.index');
+    Route::get('/account', [AccountController::class, 'create'])->name('account.create');
+    Route::post('/account', [AccountController::class, 'store'])->name('account.store');
+    Route::get('/account/{id}', [AccountController::class, 'edit'])->name('account.edit');
+    Route::put('/account/{id}', [AccountController::class, 'update'])->name('account.update');
+
+    Route::post('/account/{id}/confirm', [AccountController::class, 'confirm'])->name('account.confirm');
+    Route::post('/account/{id}/resend', [AccountController::class, 'resend'])->name('account.resend');
 });
