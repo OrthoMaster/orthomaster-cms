@@ -11,21 +11,32 @@
 
 @section('content')
     <div class="page-content edit-add container-fluid">
-        <div class="row">
-            <div class="col-lg-8 col-md-10">
-                <div class="panel panel-bordered">
-                    <!-- form start -->
-                    <form id="main-form" role="form" class="form-edit-add"
-                        action="{{ $edit ? route('account.edit', $user->id) : route('account.store') }}" method="POST"
-                        enctype="multipart/form-data">
-                        <!-- PUT Method if we are editing -->
-                        @if ($edit)
-                            {{ method_field('PUT') }}
-                        @endif
+        <!-- form start -->
+        <form id="main-form" role="form" class="form-edit-add"
+            action="{{ $edit ? route('account.edit', $user->id) : route('account.store') }}" method="POST"
+            enctype="multipart/form-data">
+            <!-- PUT Method if we are editing -->
+            @if ($edit)
+                {{ method_field('PUT') }}
+            @endif
+            <!-- CSRF TOKEN -->
+            {{ csrf_field() }}
 
-                        <!-- CSRF TOKEN -->
-                        {{ csrf_field() }}
-
+            <div class="row">
+                <div class="col-lg-8 col-md-10">
+                    <div class="panel panel-bordered">
+                        <div class="panel-heading">
+                            <h4 class="panel-title">Information
+                                @if ($edit)
+                                    @if ($user->status == 2)
+                                        <span class="label label-warning">{{ App\Status::PENDING->label() }}</span>
+                                    @endif
+                                    @if ($user->status == 1)
+                                        <span class="label label-success">{{ App\Status::ACTIVE->label() }}</span>
+                                    @endif
+                                @endif
+                            </h4>
+                        </div>
                         <div class="panel-body">
                             @if (count($errors) > 0)
                                 <div class="alert alert-danger">
@@ -38,16 +49,6 @@
                             @endif
 
                             <div class="row">
-                                @if ($edit)
-                                    <div class="form-group col-md-12 text-right">
-                                        @if ($user->status == 2)
-                                            <span class="label label-warning">{{ App\Status::PENDING->label() }}</span>
-                                        @endif
-                                        @if ($user->status == 1)
-                                            <span class="label label-success">{{ App\Status::ACTIVE->label() }}</span>
-                                        @endif
-                                    </div>
-                                @endif
                                 <div class="form-group col-md-6">
                                     <label class="control-label" for="name">Nom</label>
                                     <input id="name" name="name" type="text" class="form-control" required
@@ -107,21 +108,20 @@
                                         <li>
                                             <input type="radio" id="option-professor" name="occupation" value="professor"
                                                 @checked ((!$edit && old('occupation') == 'professor') || ($edit && !$user->student_flg)) onchange="toggleOccupationFields('professor')">
-                                            <label for="option-professor">Professionnel(le) de santé</label>
+                                            <label for="option-professor">Professionnel de santé</label>
                                             <div class="check"></div>
                                         </li>
                                         <li>
                                             <input type="radio" id="option-student" name="occupation" value="student"
                                                 @checked ((!$edit && old('occupation') == 'student') || ($edit && $user->student_flg)) onchange="toggleOccupationFields('student')">
-                                            <label for="option-student">Étudiant(e)</label>
+                                            <label for="option-student">Étudiant</label>
                                             <div class="check"></div>
                                         </li>
                                     </ul>
                                 </div>
-                                <br/>
+                                <br />
                                 <!-- Professionelle -->
                                 <div id="professor-field" class="col-md-12 row">
-                                    <h5 class="col-md-12">Professionnel de santé</h5>
                                     <div class="form-group col-md-6">
                                         <label class="control-label" for="estab">Type d'établissement</label>
                                         <select class="form-control select2" name="estab">
@@ -191,35 +191,6 @@
 
                                 <!-- Student -->
                                 <div id="student-field" class="col-md-12 row">
-                                    <h5 class="col-md-12">Étudiant</h5>
-                                    <div class="form-group col-md-6">
-                                        <label class="control-label" for="major">Spécialité</label>
-                                        <select class="form-control select2" id="major" name="major">
-                                            @foreach ($professions as $prof)
-                                                @if ($prof->hasChildren())
-                                                    <option value="" disabled>{{ $prof->name }}</option>
-                                                @else
-                                                    @if ($prof->child_flg)
-                                                        <option value="{{ $prof->id }}" @selected(old('major', $user->profession_id ?? '') == $prof->id)>
-                                                            &#160;&#160;&#160;&#160;{{ $prof->name }}</option>
-                                                    @else
-                                                        <option value="{{ $prof->id }}" @selected(old('major', $user->profession_id ?? '') == $prof->id)>
-                                                            {{ $prof->name }}</option>
-                                                    @endif
-                                                @endif
-                                            @endforeach
-                                            <option value="other" @selected((!$edit && old('major') == 'other') || ($edit && $user->other_profession))>Autre</option>
-                                        </select>
-                                    </div>
-                                    <div class="form-group col-md-6">
-                                        <label class="control-label" for="other-major">Autre</label>
-                                        <div>
-                                            <input id="other-major" name="other_major" type="text"
-                                                class="form-control"
-                                                value="{{ old('other_major', $user->other_profession ?? '') }}">
-                                        </div>
-                                    </div>
-
                                     <div class="form-group col-md-12">
                                         <label class="control-label" for="enrollment-certificate">Certificat de
                                             scolarité</label>
@@ -242,18 +213,111 @@
                         <div class="panel-footer">
                             @if ($edit)
                                 @if ($user->status == 2)
-                                    <button id="confirm-button" type="button" class="btn btn-warning"
-                                        onclick="confirmAccount();">Confirmer</button>
+                                    <button id="confirm-button" type="button" class="btn btn-primary"
+                                        style="margin-right: 5px" onclick="confirmAccount();">Confirmer & Activer</button>
                                 @endif
+                                <button type="submit" class="btn btn-warning">{{ __('voyager::generic.edit') }}</button>
                             @else
-                                <button type="submit"
-                                    class="btn btn-primary save">{{ __('voyager::generic.save') }}</button>
+                                <button type="submit" class="btn btn-primary">{{ __('voyager::generic.save') }}</button>
                             @endif
                         </div>
-                    </form>
+
+                    </div>
                 </div>
+
+                <div class="col-lg-4 col-md-2">
+                    <div class="panel panel-bordered">
+                        <div class="panel-heading">
+                            <h4 class="panel-title">Société</h4>
+                        </div>
+                        <div class="panel-body">
+                            <div class="row">
+                                <div class="form-group col-md-12">
+                                    <label class="control-label" for="company">Société</label>
+                                    <select class="form-control select2" id="company" name="company">
+                                        <option value="">---</option>
+                                        @foreach ($companies as $company)
+                                            <option value="{{ $company->id }}" @selected(old('company', $storedCompanyId) == $company->id)>
+                                                {{ $company->name . ' | ' . $company->city }}</option>
+                                        @endforeach
+                                    </select>
+                                </div>
+
+                                @if ($storedCompany)
+                                    <div class="form-group col-md-12">
+                                        <h5>Société actuelle</h5>
+                                        <div>
+                                            <a target="_blank"
+                                                href="{{ route('voyager.companies.edit', $storedCompany->id) }}">
+                                                <h4 style="margin-bottom: 0">{{ $storedCompany->name }}</h4>
+                                            </a>
+                                            <small>{{ $storedCompany->establishment->name }}</small>
+                                            <div style="padding-left: 5px"><small>Adresse:</small>
+                                                {{ $storedCompany->address . ' , ' . $storedCompany->postal_code . ' ' . $storedCompany->city . ' , ' . $storedCompany->country }}
+                                            </div>
+                                            @if ($storedCompany->phone)
+                                                <div style="padding-left: 5px"><small>Téléphone:</small>
+                                                    {{ $storedCompany->phone }}</div>
+                                            @endif
+                                        </div>
+                                    </div>
+                                @endif
+                            </div>
+                        </div>
+                        @if ($edit)
+                            <div class="panel-footer">
+                                <button type="submit" class="btn btn-warning">{{ __('voyager::generic.edit') }}</button>
+                            </div>
+                        @endif
+                    </div>
+
+                    <div class="panel panel-bordered">
+                        <div class="panel-heading">
+                            <h4 class="panel-title">Organisme de formation</h4>
+                        </div>
+                        <div class="panel-body">
+                            <div class="row">
+                                <div class="form-group col-md-12">
+                                    <label class="control-label" for="organization">Organisme de formation</label>
+                                    <select class="form-control select2" id="organization" name="organization">
+                                        <option value="">---</option>
+                                        @foreach ($organizations as $organization)
+                                            <option value="{{ $organization->id }}" @selected(old('organization', $user->funding_organization_id ?? '') == $organization->id)>
+                                                {{ $organization->name }}</option>
+                                        @endforeach
+                                    </select>
+                                </div>
+
+                                <div class="form-group col-md-6">
+                                    <label class="control-label" for="first-name-birth">Nom jeune fille</label>
+                                    <input id="first-name-birth" name="first_name_birth" type="text"
+                                        class="form-control"
+                                        value="{{ old('first_name_birth', $user->first_name_birth ?? '') }}">
+                                </div>
+
+                                <div class="form-group col-md-6">
+                                    <label class="control-label" for="date-of-birth">Date naissance</label>
+                                    <input id="date-of-birth" name="date_of_birth" type="date" class="form-control"
+                                        value="{{ old('date_of_birth', $edit && $user->date_of_birth ? $user->date_of_birth->format('Y-m-d') : '') }}">
+                                </div>
+
+                                <div class="form-group col-md-12">
+                                    <label class="control-label" for="no-secu">Numéro SECU</label>
+                                    <input id="no-secu" name="no_secu" type="text" class="form-control"
+                                        value="{{ old('no_secu', $user->no_secu ?? '') }}">
+                                </div>
+                            </div>
+                        </div>
+                        @if ($edit)
+                            <div class="panel-footer">
+                                <button type="submit" class="btn btn-warning">{{ __('voyager::generic.edit') }}</button>
+                            </div>
+                        @endif
+                    </div>
+                </div>
+                <!-- Organization -->
             </div>
-        </div>
+        </form>
     </div>
 
     @if ($edit && $user->status == 2)
@@ -302,16 +366,16 @@
         });
 
         function toggleOccupationFields(type) {
-            const professorField = document.getElementById('professor-field');
-            const studentField = document.getElementById('student-field');
+            // const professorField = document.getElementById('professor-field');
+            // const studentField = document.getElementById('student-field');
 
-            if (type === 'professor') {
-                professorField.classList.remove('hidden');
-                studentField.classList.add('hidden');
-            } else {
-                professorField.classList.add('hidden');
-                studentField.classList.remove('hidden');
-            }
+            // if (type === 'professor') {
+            //     professorField.classList.remove('hidden');
+            //     studentField.classList.add('hidden');
+            // } else {
+            //     professorField.classList.add('hidden');
+            //     studentField.classList.remove('hidden');
+            // }
         }
 
         function confirmAccount() {
@@ -324,22 +388,22 @@
             $('[data-toggle="tooltip"]').tooltip();
 
             @if ($edit)
-                const form = document.getElementById('main-form');
-                const inputsAndSelects = form.querySelectorAll('input, select, textarea, button');
-                inputsAndSelects.forEach(el => el.disabled = true);
+                // const form = document.getElementById('main-form');
+                // const inputsAndSelects = form.querySelectorAll('input, select, textarea, button');
+                // inputsAndSelects.forEach(el => el.disabled = true);
             @endif
 
-            const occupation = document.querySelector('input[name="occupation"]:checked');
-            if (!occupation) {
-                document.querySelector('input[name="occupation"][value="professor"]').checked = true;
-                toggleOccupationFields('professor');
-            }
-            if (occupation && occupation.value === 'professor') {
-                toggleOccupationFields('professor');
-            }
-            if (occupation && occupation.value === 'student') {
-                toggleOccupationFields('student');
-            }
+            // const occupation = document.querySelector('input[name="occupation"]:checked');
+            // if (!occupation) {
+            //     document.querySelector('input[name="occupation"][value="professor"]').checked = true;
+            //     toggleOccupationFields('professor');
+            // }
+            // if (occupation && occupation.value === 'professor') {
+            //     toggleOccupationFields('professor');
+            // }
+            // if (occupation && occupation.value === 'student') {
+            //     toggleOccupationFields('student');
+            // }
         });
     </script>
 @endsection

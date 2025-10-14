@@ -3,11 +3,14 @@
 namespace App\Http\Controllers;
 
 use App\Mail\CreatedAccountMail;
+use App\Models\Company;
 use App\Models\Establishment;
+use App\Models\FundingOrganization;
 use App\Models\NoProfType;
 use App\Models\Profession;
 use App\Models\User;
 use App\Status;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use TCG\Voyager\Models\Role;
@@ -16,6 +19,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Password;
+use Illuminate\Validation\Rule;
 
 class AccountController extends Controller
 {
@@ -56,11 +60,13 @@ class AccountController extends Controller
     /**
      * Show the form for creating a new resource.
      */
-    public function create()
+    public function create(Request $request)
     {
         $estabs = Establishment::getAll();
         $professions = Profession::getAll();
         $noProfTypes = NoProfType::getAll();
+        $organizations = FundingOrganization::getAll();
+        $companies = Company::getAll();
         $edit = false;
 
         // Countries
@@ -68,9 +74,29 @@ class AccountController extends Controller
         $json = file_get_contents($path);
         $countries = json_decode($json, true);
 
+        // Stored company
+        $storedCompany = null;
+        $storedCompanyId = null;
+        if ($request->has('company')) {
+            $storedCompany = Company::findById($request->company);
+            if ($storedCompany) {
+                $storedCompanyId = $storedCompany->id;
+            }
+        }
+
         return view(
             'accounts.edit-add',
-            compact('edit', 'countries', 'estabs', 'professions', 'noProfTypes')
+            compact(
+                'edit',
+                'countries',
+                'estabs',
+                'professions',
+                'noProfTypes',
+                'organizations',
+                'companies',
+                'storedCompany',
+                'storedCompanyId'
+            )
         );
     }
 
@@ -87,21 +113,20 @@ class AccountController extends Controller
             'phone' => 'nullable|regex:/^\+?[0-9]{1,3}[\s\-]?(\(?\d{1,4}\)?[\s\-]?){1,}[0-9]{1,}$/|min:10|max:20',
             'occupation' => 'required|in:professor,student',
 
+            'date_of_birth' => 'nullable|date_format:Y-m-d',
+            'first_name_birth' => 'nullable|string|max:100',
+
             'country' => 'nullable|max:3',
             'postal_code' => 'nullable|max:10',
             'city' => 'nullable|max:30',
 
             // Professor
-            'estab' => 'required_if:occupation,professor',
             'other_estab' => 'nullable|required_if:estab,other|string|max:100',
-            'job' => 'required_if:occupation,professor',
             'other_job' => 'nullable|required_if:job,other|string|max:100',
             'rpps' => 'nullable|string|max:100',
 
             // Student
-            'major' => 'required_if:occupation,student',
-            'other_major' => 'nullable|required_if:major,other|string|max:100',
-            'enrollment_certificate' => 'nullable|required_if:occupation,student|file|mimes:jpg,jpeg,png,pdf|max:5120', // Max 5MB
+            'enrollment_certificate' => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120', // Max 5MB
         ], [
 
             'email.required' => 'L\'email est obligatoire',
@@ -114,15 +139,9 @@ class AccountController extends Controller
             'occupation.required' => 'Le profession est obligatoire',
             'occupation.in' => 'Le profession est invalide',
 
-            'estab.required_if' => "Le type d'établissement est obligatoire",
             'other_estab.required_if' => "Le type d'établissement est obligatoire",
-            'job.required_if' => "La fonction professionelle est obligatoire",
             'other_job.required_if' => "La fonction professionelle est obligatoire",
-            'rpps.required_if' => "Le numéro professionnel est obligatoire",
 
-            'major.required_if' => "La spécialité est obligatoire",
-            'other_major.required_if' => "La spécialité est obligatoire",
-            'enrollment_certificate.required_if' => 'Le certificat est obligatoire',
             'enrollment_certificate.mimes' => 'Le fichier doit être au format: jpg, jpeg, png, pdf',
             'enrollment_certificate.max' => 'Le fichier ne doit pas dépasser 5 Mo',
         ]);
@@ -133,15 +152,15 @@ class AccountController extends Controller
             $isStudent = ($request->occupation == 'student');
 
             // Init profession
-            $professionId = $isStudent ? $request->major : $request->job;
+            $professionId = $request->job;
             $otherProfession = null;
             if ($professionId === 'other') {
                 $professionId = null;
-                $otherProfession = $isStudent ? $request->other_major : $request->other_job;
+                $otherProfession = $request->other_job;
             }
 
             // Init establishment
-            $estabId = $isStudent ? null : $request->estab;
+            $estabId = $request->estab;
             $otherEstab = null;
             if ($estabId == 'other') {
                 $estabId = null;
@@ -149,10 +168,10 @@ class AccountController extends Controller
             }
 
             // Init no prof
-            $noProfType = $isStudent ?  null : $request->rpps_type;
-            $noProf = null;
-            if ($noProfType !== 'other') {
-                $noProf = $request->rpps;
+            $noProfType = $request->rpps_type;
+            $noProf = $request->rpps;
+            if ($noProfType == 'other') {
+                $noProfType = null;
             }
 
             // Create new user
@@ -175,10 +194,18 @@ class AccountController extends Controller
                 'profession_id' => $professionId,
                 'other_profession' => $otherProfession,
 
-                'no_prof_type_id' => (!$isStudent ? $request->rpps_type : null),
-                'no_prof' => (!$isStudent ? $request->rpps : null),
+                'no_prof_type_id' => $noProfType,
+                'no_prof' => $noProf,
 
-                'status' => Status::PENDING->value
+                'status' => Status::PENDING->value,
+
+                'company_id' => $request->company,
+                'funding_organization_id' => $request->organization,
+                'first_name_birth' => mb_convert_case(trim($request->first_name_birth), MB_CASE_TITLE, 'UTF-8'),
+                'date_of_birth' => $request->date_of_birth ? $request->date_of_birth : null,
+                'no_secu' => $request->no_secu,
+
+                'created_by' => Auth::user()->id,
             ]);
 
             // Upload certificate
@@ -193,7 +220,10 @@ class AccountController extends Controller
             }
 
             // Return success
-            return redirect()->route('accounts.index');
+            return redirect()->route('account.edit', $user->id)->with([
+                'message' => 'Nouveau compte créé avec succès',
+                'alert-type' => 'success'
+            ]);
         } catch (\Exception $e) {
             Log::error($e->getMessage(), ['admin', 'create-account', Auth::user()->id]);
 
@@ -208,10 +238,16 @@ class AccountController extends Controller
      */
     public function edit(string $id)
     {
-        $user = User::findOrFail($id);
+        $user = User::findById($id);
+        if (!$user) {
+            return abort(404);
+        }
+
         $estabs = Establishment::getAll();
         $professions = Profession::getAll();
         $noProfTypes = NoProfType::getAll();
+        $organizations = FundingOrganization::getAll();
+        $companies = Company::getAll();
         $edit = true;
 
         // Countries
@@ -219,9 +255,28 @@ class AccountController extends Controller
         $json = file_get_contents($path);
         $countries = json_decode($json, true);
 
+        // Stored company
+        $storedCompany = null;
+        $storedCompanyId = null;
+        if ($user->company_id) {
+            $storedCompany = $user->company;
+            $storedCompanyId = $user->company_id;
+        }
+
         return view(
             'accounts.edit-add',
-            compact('edit', 'user', 'countries', 'estabs', 'professions', 'noProfTypes')
+            compact(
+                'edit',
+                'user',
+                'countries',
+                'estabs',
+                'professions',
+                'noProfTypes',
+                'organizations',
+                'companies',
+                'storedCompany',
+                'storedCompanyId',
+            )
         );
     }
 
@@ -230,7 +285,122 @@ class AccountController extends Controller
      */
     public function update(Request $request, string $id)
     {
-        //
+        $user = User::findOrFail($id);
+        $validator = $request->validate([
+            'email' => [
+                'required',
+                'email',
+                Rule::unique('users', 'email')->ignore($user->id), // bỏ qua user hiện tại
+            ],
+            'name' => 'required|string|max:100',
+            'first_name' => 'required|string|max:100',
+            'phone' => 'nullable|regex:/^\+?[0-9]{1,3}[\s\-]?(\(?\d{1,4}\)?[\s\-]?){1,}[0-9]{1,}$/|min:10|max:20',
+            'occupation' => 'required|in:professor,student',
+
+            'date_of_birth' => 'nullable|date_format:Y-m-d',
+            'first_name_birth' => 'nullable|string|max:100',
+
+            'country' => 'nullable|max:3',
+            'postal_code' => 'nullable|max:10',
+            'city' => 'nullable|max:30',
+
+            // Professor
+            'other_estab' => 'nullable|required_if:estab,other|string|max:100',
+            'other_job' => 'nullable|required_if:job,other|string|max:100',
+            'rpps' => 'nullable|string|max:100',
+
+            // Student
+            'enrollment_certificate' => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120', // Max 5MB
+        ], [
+            'email.required' => 'L\'email est obligatoire',
+            'email.email' => 'Le format de l\'email est invalide',
+            'email.unique' => 'Cet email existe déjà dans le système',
+
+            'name.required' => 'Le nom est obligatoire',
+
+            'first_name.required' => 'Le prénom est obligatoire',
+            'occupation.required' => 'Le profession est obligatoire',
+            'occupation.in' => 'Le profession est invalide',
+
+            'other_estab.required_if' => "Le type d'établissement est obligatoire",
+            'other_job.required_if' => "La fonction professionelle est obligatoire",
+
+            'enrollment_certificate.mimes' => 'Le fichier doit être au format: jpg, jpeg, png, pdf',
+            'enrollment_certificate.max' => 'Le fichier ne doit pas dépasser 5 Mo',
+        ]);
+
+
+        $isStudent = ($request->occupation == 'student');
+        // Init profession
+        $professionId = $request->job;
+        $otherProfession = null;
+        if ($professionId === 'other') {
+            $professionId = null;
+            $otherProfession = $request->other_job;
+        }
+
+        // Init establishment
+        $estabId = $request->estab;
+        $otherEstab = null;
+        if ($estabId == 'other') {
+            $estabId = null;
+            $otherEstab = $request->other_estab;
+        }
+
+        // Init no prof
+        $noProfType = $request->rpps_type;
+        $noProf = $request->rpps;
+        if ($noProfType == 'other') {
+            $noProfType = null;
+        }
+
+        try {
+            // Create new user
+            $user->update([
+                'name' => mb_convert_case(trim($request->name), MB_CASE_TITLE, 'UTF-8'),
+                'first_name' => mb_convert_case(trim($request->first_name), MB_CASE_TITLE, 'UTF-8'),
+                'email' => $request->email,
+                'phone' => $request->phone,
+                'country_code' => $request->country,
+                'postal_code' => trim($request->postal_code),
+                'city' => mb_convert_case(trim($request->city), MB_CASE_TITLE, 'UTF-8'),
+
+                'student_flg' => $isStudent,
+
+                'establishment_id' => $estabId,
+                'other_establishment' => $otherEstab,
+                'profession_id' => $professionId,
+                'other_profession' => $otherProfession,
+
+                'no_prof_type_id' => $noProfType,
+                'no_prof' => $noProf,
+
+                'company_id' => $request->company,
+                'funding_organization_id' => $request->organization,
+                'first_name_birth' => mb_convert_case(trim($request->first_name_birth), MB_CASE_TITLE, 'UTF-8'),
+                'date_of_birth' => $request->date_of_birth ? $request->date_of_birth : null,
+                'no_secu' => $request->no_secu,
+            ]);
+
+            // Upload certificate
+            if ($isStudent && $request->hasFile('enrollment_certificate')) {
+                $imageController = new ImageController();
+                $uploadResult = $imageController->uploadStudentCertificateToS3($user->id, $request->file('enrollment_certificate'));
+
+                if ($uploadResult['success']) {
+                    $user->certificate = $uploadResult['file']['url'];
+                    $user->save();
+                }
+            }
+
+            return back();
+        } catch (\Exception $e) {
+            Log::error($e->getMessage(), ['admin', 'create-account', Auth::user()->id]);
+
+            return back()->withInput()->withErrors([
+                'system' => $e->getMessage()
+            ]);
+        }
     }
 
     /**

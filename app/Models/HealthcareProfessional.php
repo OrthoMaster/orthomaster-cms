@@ -20,6 +20,7 @@ class HealthcareProfessional extends Model
 
     public static function checkExist($pp, $name, $firstName) {
         return HealthcareProfessional::where('pp', $pp)
+            ->orWhere('national_pp', $pp)
             ->where('name', $name)
             ->where('first_name', $firstName)
             ->exists();

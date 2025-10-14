@@ -17,7 +17,7 @@ class CmsAdminMiddleware
     public function handle(Request $request, Closure $next): Response
     {
         if (!Auth::check()) {
-            return abort(404);
+            return redirect()->route('voyager.login');
         }
 
         auth()->setDefaultDriver(app('VoyagerGuard'));

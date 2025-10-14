@@ -50,11 +50,11 @@
                                                     <span class="hidden-xs hidden-sm">Contenu</span>
                                                 </a>
                                                 @can('delete', app('App\Models\Training'))
-                                                <a href="{{ route('voyager.lessons.edit', $lesson->id) }}"
-                                                    class="btn btn-sm btn-warning">
-                                                    <i class="voyager-edit"></i>
-                                                    <span class="hidden-xs hidden-sm">Modifier</span>
-                                                </a>
+                                                    <a href="{{ route('voyager.lessons.edit', $lesson->id) }}"
+                                                        class="btn btn-sm btn-warning">
+                                                        <i class="voyager-edit"></i>
+                                                        <span class="hidden-xs hidden-sm">Modifier</span>
+                                                    </a>
                                                 @endcan
                                             </td>
                                         </tr>

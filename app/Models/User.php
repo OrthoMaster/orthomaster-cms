@@ -24,6 +24,7 @@ class User extends \TCG\Voyager\Models\User
     protected function casts(): array
     {
         return [
+            'date_of_birth' => 'datetime',
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
         ];
@@ -34,6 +35,22 @@ class User extends \TCG\Voyager\Models\User
         return $this->hasOne(Role::class, 'id', 'role_id');
     }
 
+    public function company() {
+        return $this->hasOne(Company::class, 'id', 'company_id');
+    }
+
+    public function profession() {
+        return $this->hasOne(Profession::class, 'id', 'profession_id');
+    }
+
+    public function establishment() {
+        return $this->hasOne(Establishment::class, 'id', 'establishment_id');
+    }
+
+    public function organization() {
+        return $this->hasOne(FundingOrganization::class, 'id', 'funding_organization_id');
+    }
+ 
     /**
      * Send email reset password notification
      */
@@ -63,5 +80,12 @@ class User extends \TCG\Voyager\Models\User
                 ->join('permissions', 'permission_role.permission_id', '=', 'permissions.id')
                 ->where('permissions.key', 'browse_admin');
         })->with('role')->get();
+    }
+
+    public static function findById($id)
+    {
+        return User::where('id', $id)
+            ->with(['role', 'company', 'organization'])
+            ->first();
     }
 }

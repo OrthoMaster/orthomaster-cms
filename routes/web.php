@@ -7,6 +7,7 @@ use App\Http\Controllers\HealthcareProfessionalController;
 use App\Http\Controllers\ImageController;
 use App\Http\Controllers\LessonController;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\CompanyController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\VideoController;
 use Illuminate\Support\Facades\Route;
@@ -91,4 +92,9 @@ Route::group(['prefix' => 'admin', 'middleware' => ['cmsAdmin']], function () {
 
     Route::post('/account/{id}/confirm', [AccountController::class, 'confirm'])->name('account.confirm');
     Route::post('/account/{id}/resend', [AccountController::class, 'resend'])->name('account.resend');
+
+    // Companies
+    Route::get('/companies/{id}', [CompanyController::class, 'show'])->name('voyager.companies.show');
+    Route::post('/companies/{id}/user/{userId}/update-manager', [CompanyController::class, 'updateManager'])->name('companies.manager.update');
+
 });
