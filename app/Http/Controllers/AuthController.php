@@ -191,9 +191,10 @@ class AuthController extends Controller
     /**
      * View forgot password page
      */
-    public function viewForgotPage()
+    public function viewForgotPage(Request $request)
     {
-        return view('landingpage.password-request');
+
+        return view('landingpage.password-request', ['email' => $request->email]);
     }
 
     /**

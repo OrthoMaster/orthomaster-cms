@@ -7,25 +7,126 @@
         <h1 class="page-title">
             <i class="voyager-company"></i> {{ $company->name }}
         </h1>
-        <a target="_blank" href="{{ route('account.create', ['company' => $company->id]) }}" class="btn btn-success btn-add-new"
-            style="margin-right: 5px">
-            <i class="voyager-plus"></i> <span>Ajouter compte</span>
-        </a>
-        <a href="#" class="btn btn-warning">
-            <i class="voyager-check"></i> <span>Activer toute</span>
-        </a>
+
+        @if (!$company->invite_code)
+            <a target="_blank" href="{{ route('account.create', ['company' => $company->id]) }}"
+                class="btn btn-success btn-add-new" style="margin-right: 5px">
+                <i class="voyager-plus"></i> <span>Ajouter compte</span>
+            </a>
+            <a href="{{ route('companies.invite-code.generate', $company->id) }}" class="btn btn-warning"
+                style="margin-right: 5px">
+                <i class="voyager-external"></i> <span>Générer un code de partage</span>
+            </a>
+        @endif
     </div>
 @stop
 
 @section('content')
     <div class="page-content browse container-fluid">
         @include('voyager::alerts')
+        @if ($company->invite_code)
+            <div class="row">
+                <div class="col-md-4">
+                    <div class="panel panel-bordered">
+                        <div class="panel-heading">
+                            <h3 class="panel-title">Invitation</h3>
+                        </div>
+                        <div class="panel-body">
+                            <div class="row">
+                                <label class="col-md-3 control-label" for="code">Code d'invitation</label>
+                                <div class="col-md-5">
+                                    <input id="code" type="text" class="form-control" disabled
+                                        value="{{ $company->invite_code }}">
+                                </div>
+                                <div class="col-md-4">
+                                    <button id="copy-btn" type="button" class="btn btn-warning"
+                                        style="margin-top: 0;">Copier
+                                        le lien</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-8">
+                    <div class="panel panel-bordered">
+                        <div class="panel-heading">
+                            <h3 class="panel-title">Liste provisoire</h3>
+                        </div>
+                        <div class="panel-body">
+                            <table class="table">
+                                <thead>
+                                    <th>Compte</th>
+                                    <th>Profession</th>
+                                    <th>Organisme</th>
+                                    <th>Statut</th>
+                                </thead>
+                                <tbody>
+                                    @foreach ($company->users_temp as $user)
+                                        <tr>
+                                            <td>
+                                                <div><strong class="text-uppercase">{{ $user['name'] }}</strong>
+                                                    {{ $user['firstname'] }}
+                                                </div>
+                                                <div>{{ $user['email'] }}</div>
+                                                @if ($user['isLeader'])
+                                                    <span class="label label-primary">Responsable</span>
+                                                @endif
+                                            </td>
+                                            <td>
+                                                @if ($user['isStudent'])
+                                                    <div><span class="label label-success">Étudiant</span></div>
+                                                @endif
+                                                <div><small>Fonction: </small>
+                                                    <strong>{{ $user['job'] ? $user['jobLabel'] : '-' }}</strong>
+                                                </div>
+                                                <div><small>N° pro: </small>{{ $user['rppsTypeLabel'] }}
+                                                    <strong>{{ $user['rpps'] }}</strong>
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <div><strong>{{ $user['organizationLabel'] }}</strong></div>
+                                                @if ($user['organizationLabel'] == 'OPCO-EP')
+                                                    <div><small>N° SECU: </small>
+                                                        <strong>{{ $user['secu'] ?? '-' }}</strong>
+                                                    </div>
+                                                    <div><small>Nom jeune fille: </small>
+                                                        <strong>{{ $user['firstnameBirth'] }}</strong>
+                                                    </div>
+                                                    <div><small>Date naissance: </small>
+                                                        <strong>{{ $user['dob'] ?? '' }}</strong>
+                                                    </div>
+                                                @endif
+                                            </td>
+                                            <td>
+                                                @if ($user['hasError'])
+                                                    <div><span class="label label-warning">Manquant</span></div>
+                                                    <i class="text-warning"><small>{{ $user['errorMessage'] }}</small></i>
+                                                @else
+                                                    <div><span class="label label-success">Valide</span></div>
+                                                @endif
+                                            </td>
+                                        <tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <div class="panel-footer">
+                            <button class="btn btn-warning" onclick="fillData()">
+                                <i class="voyager-external"></i> <span>Remplir & Supprimer code d'invitation</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        @endif
+
         <div class="row">
             <div class="col-md-12">
                 <div class="panel panel-bordered">
                     <div class="panel-heading">
                         <h3 class="panel-title">Liste des comptes</h3>
-
                     </div>
                     <div class="panel-body">
                         <div class="table-responsive">
@@ -48,7 +149,7 @@
                                             <td>
                                                 <div><strong>{{ $user->name }}</strong>
                                                     {{ $user->first_name }} @if ($user->role->name === 'user-manager')
-                                                        <label class="label label-danger">Responsable</label>
+                                                        <label class="label label-primary">Responsable</label>
                                                     @endif
                                                 </div>
                                             </td>
@@ -115,6 +216,7 @@
 
     <form id="update-manager-form" method="post"
         action="{{ route('companies.manager.update', ['id' => $company->id, 'userId' => 'userId']) }}">@csrf</form>
+    <form id="fill-data-form" method="post" action="{{ route('companies.fill-data', $company->id) }}">@csrf</form>
 @stop
 
 @section('css')
@@ -129,6 +231,14 @@
         <script src="{{ voyager_asset('lib/js/dataTables.responsive.min.js') }}"></script>
     @endif
     <script>
+        const copyBtn = document.getElementById('copy-btn');
+        copyBtn.addEventListener('click', () => {
+            const link = "{{ 'https://auth.orthomaster.fr/group/register/' . $company->invite_code }}";
+            navigator.clipboard.writeText(link);
+            copyBtn.innerText = "Lien copié";
+            setTimeout(() => copyBtn.innerText = "Copier le lien", 1500);
+        });
+
         function updateManager($userId) {
             var url = "{{ route('companies.manager.update', ['id' => $company->id, 'userId' => 'userId']) }}";
             url = url.replace('userId', $userId);
@@ -136,6 +246,13 @@
             let form = document.getElementById('update-manager-form');
             form.action = url;
             form.submit();
+        }
+
+        function fillData() {
+            if (confirm("Etes-vous sûr de remplir les données")) {
+                let form = document.getElementById('fill-data-form');
+                form.submit();
+            }
         }
 
         $(document).ready(function() {

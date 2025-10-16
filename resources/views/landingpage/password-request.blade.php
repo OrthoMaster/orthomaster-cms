@@ -32,7 +32,7 @@
                             </label>
                             <input type="email" id="email" name="email"
                                 class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all"
-                                placeholder="votre-email@email.com" autofocus required>
+                                placeholder="votre-email@email.com" value="{{ $email ?? '' }}" autofocus required>
                             <p id="email-error" class="mt-2 text-sm text-red-600 hidden"></p>
                         </div>
                         <!-- Honeypot -->

@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AccountController;
 use App\Http\Controllers\AdminController;
+use App\Http\Controllers\AuthCompanyRequestController;
 use App\Http\Controllers\ContentController;
 use App\Http\Controllers\HealthcareProfessionalController;
 use App\Http\Controllers\ImageController;
@@ -18,15 +19,6 @@ use Illuminate\Support\Facades\DB;
 Route::group(['prefix' => 'admin'], function () {
     Voyager::routes();
 });
-
-// Route::get('/db', function () {
-//     try {
-//         DB::connection()->getPdo();
-//         return 'Connected!';
-//     } catch (\Exception $e) {
-//         return 'Error: ' . $e->getMessage();
-//     }
-// });
 
 Route::get('/', function () {
     $domain = request()->getHost();
@@ -52,9 +44,12 @@ Route::get('/reset-password', [AuthController::class, 'viewResetPage'])->name('p
 Route::post('/password', [AuthController::class, 'reset'])->name('password.update');
 
 
+Route::get('/group/register/{code}', [AuthCompanyRequestController::class, 'view'])->name('register.company.view');
+Route::post('/group/register/{code}', [AuthCompanyRequestController::class, 'submit'])->name('register.company.submit');
+Route::post('/group/register/{code}/draft', [AuthCompanyRequestController::class, 'saveAsDraft'])->name('register.company.draft');
+
 Route::group(['prefix' => 'admin', 'middleware' => ['cmsAdmin']], function () {
     Route::get('/', [DashboardController::class, 'index'])->name('voyager.dashboard');
-
 
     // Images
     Route::post('/upload-image-s3/lesson', [ImageController::class, 'uploadLessonImageToS3'])->name('upload.image.s3.lesson');
@@ -95,6 +90,8 @@ Route::group(['prefix' => 'admin', 'middleware' => ['cmsAdmin']], function () {
 
     // Companies
     Route::get('/companies/{id}', [CompanyController::class, 'show'])->name('voyager.companies.show');
+    Route::get('/companies/{id}/invite-code', [CompanyController::class, 'generateInviteCode'])->name('companies.invite-code.generate');
+    Route::post('/companies/{id}/fill-data', [CompanyController::class, 'fillDataFromTemps'])->name('companies.fill-data');
     Route::post('/companies/{id}/user/{userId}/update-manager', [CompanyController::class, 'updateManager'])->name('companies.manager.update');
 
 });
