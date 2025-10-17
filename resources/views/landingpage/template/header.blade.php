@@ -13,11 +13,11 @@
                 <a href="https://orthomaster.fr" class="text-gray-600 hover:text-primary transition-colors">Notre
                     site</a>
 
-                <a href="{{ request()->route()->getName() == 'register.index' ? 'javascript:void(0);' : route('register.index') }}"
-                    class="{{ request()->route()->getName() == 'register.index' ? 'text-primary font-medium' : 'text-gray-600 hover:text-primary transition-colors' }}">S'inscrire</a>
+                <a href="{{ request()->routeIs('register.index') ? 'javascript:void(0);' : route('register.index') }}"
+                    class="{{ request()->routeIs('register.index') ? 'text-primary font-medium' : 'text-gray-600 hover:text-primary transition-colors' }}">S'inscrire</a>
 
-                <a href="{{ request()->route()->getName() !== 'register.index' ? 'javascript:void(0);' : route('password.request') }}"
-                    class="{{ request()->route()->getName() !== 'register.index' ? 'text-primary font-medium' : 'text-gray-600 hover:text-primary transition-colors' }}">Réinitialiser</a>
+                <a href="{{ !request()->routeIs('register.index') ? 'javascript:void(0);' : route('password.request') }}"
+                    class="{{ !request()->routeIs('register.index') ? 'text-primary font-medium' : 'text-gray-600 hover:text-primary transition-colors' }}">Réinitialiser</a>
             </div>
 
             <!-- Mobile Menu Button -->
@@ -35,11 +35,11 @@
                 <a href="https://orthomaster.fr" class="text-gray-600 hover:text-primary transition-colors">Notre
                     site</a>
 
-                <a href="{{ request()->route()->getName() == 'register.index' ? 'javascript:void(0);' : route('register.index') }}"
-                    class="{{ request()->route()->getName() == 'register.index' ? 'text-primary font-medium' : 'text-gray-600 hover:text-primary transition-colors' }}">S'inscrire</a>
+                <a href="{{ request()->routeIs('register.index') ? 'javascript:void(0);' : route('register.index') }}"
+                    class="{{ request()->routeIs('register.index') ? 'text-primary font-medium' : 'text-gray-600 hover:text-primary transition-colors' }}">S'inscrire</a>
 
-                <a href="{{ request()->route()->getName() !== 'register.index' ? 'javascript:void(0);' : route('password.request') }}"
-                    class="{{ request()->route()->getName() !== 'register.index' ? 'text-primary font-medium' : 'text-gray-600 hover:text-primary transition-colors' }}">Réinitialiser</a>
+                <a href="{{ !request()->routeIs('register.index') ? 'javascript:void(0);' : route('password.request') }}"
+                    class="{{ !request()->routeIs('register.index') ? 'text-primary font-medium' : 'text-gray-600 hover:text-primary transition-colors' }}">Réinitialiser</a>
             </div>
         </div>
     </nav>

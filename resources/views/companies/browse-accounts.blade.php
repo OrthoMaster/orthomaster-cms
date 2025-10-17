@@ -48,84 +48,87 @@
                     </div>
                 </div>
 
-                <div class="col-md-8">
-                    <div class="panel panel-bordered">
-                        <div class="panel-heading">
-                            <h3 class="panel-title">Liste provisoire
-                                @if ($company->status == App\Status::PENDING->value)
-                                    <span class="label label-success">Soumise</span>
-                                @else
-                                    <span class="label label-warning">En cours de remplir</span>
-                                @endif
-                            </h3>
-                        </div>
-                        <div class="panel-body">
-                            <table class="table">
-                                <thead>
-                                    <th>Compte</th>
-                                    <th>Profession</th>
-                                    <th>Organisme</th>
-                                    <th>Statut</th>
-                                </thead>
-                                <tbody>
-                                    @foreach ($company->users_temp as $user)
-                                        <tr>
-                                            <td>
-                                                <div><strong class="text-uppercase">{{ $user['name'] }}</strong>
-                                                    {{ $user['firstname'] }}
-                                                </div>
-                                                <div>{{ $user['email'] }}</div>
-                                                @if ($user['isLeader'])
-                                                    <span class="label label-primary">Responsable</span>
-                                                @endif
-                                            </td>
-                                            <td>
-                                                @if ($user['isStudent'])
-                                                    <div><span class="label label-success">Étudiant</span></div>
-                                                @endif
-                                                <div><small>Fonction: </small>
-                                                    <strong>{{ $user['job'] ? $user['jobLabel'] : '-' }}</strong>
-                                                </div>
-                                                <div><small>N° pro: </small>{{ $user['rppsTypeLabel'] }}
-                                                    <strong>{{ $user['rpps'] }}</strong>
-                                                </div>
-                                            </td>
-                                            <td>
-                                                <div><strong>{{ $user['organizationLabel'] }}</strong></div>
-                                                @if ($user['organizationLabel'] == 'OPCO-EP')
-                                                    <div><small>N° SECU: </small>
-                                                        <strong>{{ $user['secu'] ?? '-' }}</strong>
+                @if ($company->users_temp)
+                    <div class="col-md-8">
+                        <div class="panel panel-bordered">
+                            <div class="panel-heading">
+                                <h3 class="panel-title">Liste provisoire
+                                    @if ($company->status == App\Status::PENDING->value)
+                                        <span class="label label-success">Soumise</span>
+                                    @else
+                                        <span class="label label-warning">En cours de remplir</span>
+                                    @endif
+                                </h3>
+                            </div>
+                            <div class="panel-body">
+                                <table class="table">
+                                    <thead>
+                                        <th>Compte</th>
+                                        <th>Profession</th>
+                                        <th>Organisme</th>
+                                        <th>Statut</th>
+                                    </thead>
+                                    <tbody>
+                                        @foreach ($company->users_temp as $user)
+                                            <tr>
+                                                <td>
+                                                    <div><strong class="text-uppercase">{{ $user['name'] }}</strong>
+                                                        {{ $user['firstname'] }}
                                                     </div>
-                                                    <div><small>Nom jeune fille: </small>
-                                                        <strong>{{ $user['firstnameBirth'] }}</strong>
+                                                    <div>{{ $user['email'] }}</div>
+                                                    @if ($user['isLeader'])
+                                                        <span class="label label-primary">Responsable</span>
+                                                    @endif
+                                                </td>
+                                                <td>
+                                                    @if ($user['isStudent'])
+                                                        <div><span class="label label-success">Étudiant</span></div>
+                                                    @endif
+                                                    <div><small>Fonction: </small>
+                                                        <strong>{{ $user['job'] ? $user['jobLabel'] : '-' }}</strong>
                                                     </div>
-                                                    <div><small>Date naissance: </small>
-                                                        <strong>{{ $user['dob'] ?? '' }}</strong>
+                                                    <div><small>N° pro: </small>{{ $user['rppsTypeLabel'] }}
+                                                        <strong>{{ $user['rpps'] }}</strong>
                                                     </div>
-                                                @endif
-                                            </td>
-                                            <td>
-                                                @if ($user['hasError'])
-                                                    <div><span class="label label-warning">Manquant</span></div>
-                                                    <i class="text-warning"><small>{{ $user['errorMessage'] }}</small></i>
-                                                @else
-                                                    <div><span class="label label-success">Valide</span></div>
-                                                @endif
-                                            </td>
-                                        <tr>
-                                    @endforeach
-                                </tbody>
-                            </table>
-                        </div>
+                                                </td>
+                                                <td>
+                                                    <div><strong>{{ $user['organizationLabel'] }}</strong></div>
+                                                    @if ($user['organizationLabel'] == 'OPCO-EP')
+                                                        <div><small>N° SECU: </small>
+                                                            <strong>{{ $user['secu'] ?? '-' }}</strong>
+                                                        </div>
+                                                        <div><small>Nom jeune fille: </small>
+                                                            <strong>{{ $user['firstnameBirth'] }}</strong>
+                                                        </div>
+                                                        <div><small>Date naissance: </small>
+                                                            <strong>{{ $user['dob'] ?? '' }}</strong>
+                                                        </div>
+                                                    @endif
+                                                </td>
+                                                <td>
+                                                    @if ($user['hasError'])
+                                                        <div><span class="label label-warning">Manquant</span></div>
+                                                        <i
+                                                            class="text-warning"><small>{{ $user['errorMessage'] }}</small></i>
+                                                    @else
+                                                        <div><span class="label label-success">Valide</span></div>
+                                                    @endif
+                                                </td>
+                                            <tr>
+                                        @endforeach
+                                    </tbody>
+                                </table>
+                            </div>
 
-                        <div class="panel-footer">
-                            <button class="btn btn-warning" onclick="fillData()">
-                                <i class="voyager-external"></i> <span>Remplir la base de données & Supprimer code
-                                    d'invitation</span>
-                            </button>
+                            <div class="panel-footer">
+                                <button class="btn btn-warning" onclick="fillData()">
+                                    <i class="voyager-external"></i> <span>Remplir la base de données & Supprimer code
+                                        d'invitation</span>
+                                </button>
+                            </div>
                         </div>
                     </div>
-                </div>
+                @endif
             </div>
         @endif
 

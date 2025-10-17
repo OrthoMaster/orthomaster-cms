@@ -29,7 +29,7 @@
         <div class="download-buttons" style="justify-items: center;">
             <a href="{{ setting('mail.ios_download_link') }}" class="download-button">App Store</a>
             <a href="{{ setting('mail.android_download_link') }}" class="download-button">Google Play</a>
-            <a href="{{ setting('mail.web_app_link') }}" class="download-button">Version Web</a>
+            {{-- <a href="{{ setting('mail.web_app_link') }}" class="download-button">Version Web</a> --}}
         </div>
 
         <div class="divider"></div>
