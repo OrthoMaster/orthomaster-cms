@@ -67,17 +67,44 @@
 
                         <div class="space-y-4">
                             <div>
-                                <label for="email" class="block text-sm font-medium text-gray-700 mb-2">
+                                <label for="email" class="block text-sm text-gray-500 mb-2">
                                     Email <span class="text-red-500">*</span>
                                 </label>
-                                <input type="email" id="email" name="email"
+                                <input type="email" id="email" name="email" maxlength="150"
                                     class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all"
                                     placeholder="votre-email@email.com" autofocus required>
                                 <p id="email-error" class="mt-2 text-sm text-red-600 hidden"></p>
                             </div>
+
+                            <!-- Invitation link -->
+                            <div>
+                                <div class="w-full md:w-[25ch]">
+                                    <div id="invite-container" class="mt-3 hidden">
+                                        <div class="flex justify-between items-center mb-2">
+                                            <label for="invite-code" class="block text-sm text-sm text-gray-500">
+                                                Code d’invitation
+                                            </label>
+                                            <p class="text-xs text-primary hover:underline" onclick="toggleInviteInput()">
+                                                Supprimer
+                                            </p>
+                                        </div>
+
+                                        <input type="text" id="invite-code" name="invite_code" maxlength="15"
+                                            class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all"
+                                            placeholder="ABC123XYZ" value="{{ $invCode }}"
+                                            oninput="formatInviteCode(this)">
+                                        <p id="invite-code-error" class="mt-2 text-sm text-red-600 hidden"></p>
+                                    </div>
+                                </div>
+                                <p id="toggle-invite"
+                                    class="mt-2 text-sm text-primary cursor-pointer hover:underline block text-right"
+                                    onclick="toggleInviteInput()">
+                                    J'ai un code d’invitation !
+                                </p>
+                            </div>
                         </div>
 
-                        <div class="mt-8 flex justify-end">
+                        <div class="mt-4 flex justify-end">
                             <button onclick="nextStep(1)" type="button"
                                 class="px-6 py-3 bg-primary text-white font-medium rounded-lg hover:bg-orange-600 transition-colors focus:ring-4 focus:ring-orange-200">
                                 Suivant
@@ -94,7 +121,7 @@
                         <div class="space-y-4">
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
-                                    <label for="name" class="block text-sm font-medium text-gray-700 mb-2">
+                                    <label for="name" class="block text-sm text-gray-500 mb-2">
                                         Nom <span class="text-red-500">*</span>
                                     </label>
                                     <input type="text" id="name" name="name"
@@ -103,7 +130,7 @@
                                     <p id="name-error" class="mt-2 text-sm text-red-600 hidden"></p>
                                 </div>
                                 <div>
-                                    <label for="first-name" class="block text-sm font-medium text-gray-700 mb-2">
+                                    <label for="first-name" class="block text-sm text-gray-500 mb-2">
                                         Prénom <span class="text-red-500">*</span>
                                     </label>
                                     <input type="text" id="first-name" name="first_name"
@@ -114,7 +141,7 @@
                             </div>
 
                             <div>
-                                <label for="phone" class="block text-sm font-medium text-gray-700 mb-2">
+                                <label for="phone" class="block text-sm text-gray-500 mb-2">
                                     Votre numéro de téléphone
                                 </label>
                                 <input type="tel" id="phone" name="phone" maxlength="50"
@@ -123,13 +150,14 @@
                             </div>
 
                             <div>
-                                <label for="country" class="block text-sm font-medium text-gray-700 mb-2">
+                                <label for="country" class="block text-sm text-gray-500 mb-2">
                                     Pays
                                 </label>
                                 <select id="country" name="country"
                                     class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all bg-white">
                                     @foreach ($countries as $code => $country)
-                                        <option value="{{ $code }}" @selected('FR' == $code)>{{ $country }}
+                                        <option value="{{ $code }}" @selected('FR' == $code)>
+                                            {{ $country }}
                                         </option>
                                     @endforeach
                                 </select>
@@ -137,7 +165,7 @@
 
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
-                                    <label for="postal-code" class="block text-sm font-medium text-gray-700 mb-2">
+                                    <label for="postal-code" class="block text-sm text-gray-500 mb-2">
                                         Code postal
                                     </label>
                                     <input type="text" id="postal-code" name="postal_code"
@@ -145,7 +173,7 @@
                                         placeholder="Code postal" maxlength="10">
                                 </div>
                                 <div>
-                                    <label for="city" class="block text-sm font-medium text-gray-700 mb-2">
+                                    <label for="city" class="block text-sm text-gray-500 mb-2">
                                         Ville
                                     </label>
                                     <input type="text" id="city" name="city"
@@ -173,7 +201,7 @@
 
                         <div class="space-y-6">
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-4">
+                                <label class="block text-sm text-gray-500 mb-4">
                                     Vous êtes <span class="text-red-500">*</span>
                                 </label>
                                 <div class="space-y-3">
@@ -204,7 +232,7 @@
                             <div id="professor-field" class="hidden space-y-4">
                                 <!-- Establishment -->
                                 <div class="mb-4">
-                                    <label for="estab" class="block text-sm font-medium text-gray-700 mb-2">
+                                    <label for="estab" class="block text-sm text-gray-500 mb-2">
                                         Type d'établissement <span class="text-red-500">*</span>
                                     </label>
                                     <select id="estab" name="estab"
@@ -228,7 +256,7 @@
 
                                 <!-- Job title -->
                                 <div>
-                                    <label for="job" class="block text-sm font-medium text-gray-700 mb-2">
+                                    <label for="job" class="block text-sm text-gray-500 mb-2">
                                         Fonction professionelle <span class="text-red-500">*</span>
                                     </label>
                                     <select id="job" name="job"
@@ -260,7 +288,7 @@
 
                                 <!-- RPPS -->
                                 <div>
-                                    <label for="rpps" class="block text-sm font-medium text-gray-700 mb-2">
+                                    <label for="rpps" class="block text-sm text-gray-500 mb-2">
                                         Numéro professionnel
                                     </label>
                                     <div class="flex flex-col sm:flex-row sm:gap-2 gap-3">
@@ -283,7 +311,7 @@
                             <!-- Student Field -->
                             <div id="student-field" class="hidden space-y-4">
                                 <div>
-                                    <label for="major" class="block text-sm font-medium text-gray-700 mb-2">
+                                    <label for="major" class="block text-sm text-gray-500 mb-2">
                                         Étudiant en <span class="text-red-500">*</span>
                                     </label>
                                     <select id="major" name="major"
@@ -314,8 +342,8 @@
                                 </div>
 
                                 <!-- Certificate -->
-                                <label for="enrollment-certificate" class="block text-sm font-medium text-gray-700 mb-2">
-                                    Certificat de scolarité <span class="text-red-500">*</span>
+                                <label for="enrollment-certificate" class="block text-sm text-gray-500 mb-2">
+                                    Certificat de scolarité
                                 </label>
                                 <div class="mt-2">
                                     <label
@@ -526,6 +554,10 @@
     <script>
         let currentStep = 1;
 
+        @if ($invCode)
+            toggleInviteInput("{{ $invCode }}");
+        @endif
+
         // Phone input
         const phoneInput = document.querySelector("#phone");
         const iti = window.intlTelInput(phoneInput, {
@@ -552,6 +584,8 @@
                 const emailInput = document.getElementById('email');
                 const nextButton = document.querySelector('#step1-content button');
 
+                const inviteCode = document.getElementById('invite-code').value;
+
                 if (!email || !validateEmail(email)) {
                     showError('email-error', "Veuillez saisir une adresse email valide !");
                     return;
@@ -576,7 +610,9 @@
                             'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
                         },
                         body: JSON.stringify({
-                            email: email
+                            email: email,
+                            inviteCode: inviteCode
+
                         }),
                         signal: controller.signal
                     })
@@ -607,14 +643,20 @@
                         nextButton.innerHTML = 'Suivant';
 
                         if (data.status == 'failed') {
-                            // Show error message
-                            showError('email-error', data.message);
+                            // Email error
                             if (data.code == 'email-exist') {
+                                showError('email-error', data.message);
                                 document.getElementById('email-duplicate-modal').classList.remove('hidden');
                             }
 
                             if (data.code == 'pending-account') {
+                                showError('email-error', data.message);
                                 document.getElementById('email-pending-account-modal').classList.remove('hidden');
+                            }
+
+                            // Invite code error
+                            if (data.code == 'code-invalid' || data.code == 'code-expired') {
+                                showError('invite-code-error', data.message);
                             }
                         } else {
                             hideError('email-error');
@@ -701,6 +743,7 @@
             // step 3
             if (step === 3) {
                 const occupation = document.querySelector('input[name="occupation"]:checked');
+                const hasInviteCode = document.getElementById('invite-code').value !== "";
 
                 if (!occupation) {
                     showError('occupation-error', "Veuillez choisir votre profession !");
@@ -748,7 +791,7 @@
                     hideError('other-job-error');
 
                     // RPPS
-                    if (rppsType !== 'other' && !rpps) {
+                    if (rppsType !== 'other' && !rpps && !hasInviteCode) {
                         showError('rpps-error', "Veuillez saisir votre numéro professionnel !");
                         return;
                     }
@@ -776,7 +819,7 @@
                     hideError('other-major-error');
 
                     // Certification
-                    if (!certificate) {
+                    if (!certificate && !hasInviteCode) {
                         showError('enrollment-certificate-error', "Veuillez télécharger votre certificat !");
                         return;
                     }
@@ -842,6 +885,41 @@
             document.getElementById('progress-line-1').style.width = step >= 2 ? '100%' : '0%';
             document.getElementById('progress-line-2').style.width = step >= 3 ? '100%' : '0%';
         }
+
+        // Toogle invite input
+        function toggleInviteInput(initValue = "") {
+            const container = document.getElementById('invite-container');
+            const toggleText = document.getElementById('toggle-invite');
+
+            if (container.classList.contains('hidden')) {
+                container.classList.remove('hidden');
+                toggleText.classList.add('hidden');
+                document.getElementById('invite-code').value = initValue;
+            } else {
+                container.classList.add('hidden');
+                toggleText.classList.remove('hidden');
+                hideError('invite-code-error');
+                document.getElementById('invite-code').value = initValue;
+            }
+        }
+
+        function formatInviteCode(input) {
+            let value = input.value;
+            if (value.length > 15) {
+                value = value.substring(0, 15);
+            }
+            // Only letters and numerics
+            value = value.replace(/[^a-zA-Z0-9]/g, '');
+            // Uppercase
+            input.value = value.toUpperCase();
+        }
+
+
+
+
+
+
+
 
         // Toggle occupation
         function toggleOccupationFields(type) {

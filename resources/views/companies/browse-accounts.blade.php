@@ -53,9 +53,9 @@
                         <div class="panel-heading">
                             <h3 class="panel-title">Liste provisoire
                                 @if ($company->status == App\Status::PENDING->value)
-                                <span class="label label-success">Soumise</span>
+                                    <span class="label label-success">Soumise</span>
                                 @else
-                                <span class="label label-warning">En cours de remplir</span>
+                                    <span class="label label-warning">En cours de remplir</span>
                                 @endif
                             </h3>
                         </div>
@@ -120,7 +120,8 @@
 
                         <div class="panel-footer">
                             <button class="btn btn-warning" onclick="fillData()">
-                                <i class="voyager-external"></i> <span>Remplir la base de données & Supprimer code d'invitation</span>
+                                <i class="voyager-external"></i> <span>Remplir la base de données & Supprimer code
+                                    d'invitation</span>
                             </button>
                         </div>
                     </div>
@@ -239,7 +240,7 @@
     <script>
         const copyBtn = document.getElementById('copy-btn');
         copyBtn.addEventListener('click', () => {
-            const link = "{{ 'https://auth.orthomaster.fr/group/register/' . $company->invite_code }}";
+            const link = "{{ config('app.auth_url') . '/group/register/' . $company->invite_code }}";
             navigator.clipboard.writeText(link);
             copyBtn.innerText = "Lien copié";
             setTimeout(() => copyBtn.innerText = "Copier le lien", 1500);

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Establishment;
 use App\Models\HealthcareProfessional;
+use App\Models\InviteCode;
 use App\Models\NoProfType;
 use App\Models\Profession;
 use App\Models\User;
@@ -22,7 +23,7 @@ class AuthController extends Controller
     /**
      * View register page
      */
-    public function register()
+    public function register(Request $request)
     {
         $estabs = Establishment::getAll();
         $professions = Profession::getAll();
@@ -33,9 +34,18 @@ class AuthController extends Controller
         $json = file_get_contents($path);
         $countries = json_decode($json, true);
 
+        // Invite code
+        $invCode = null; 
+        if ($request->has('inviteCode')) {
+            $checkInviteCode = InviteCode::checkCode($request->inviteCode);
+            if ($checkInviteCode == 'code-valid') {
+                $invCode = $request->inviteCode;
+            }
+        }
+
         return view(
             'landingpage.register',
-            compact('estabs', 'professions', 'noProfTypes', 'countries')
+            compact('estabs', 'professions', 'noProfTypes', 'countries', 'invCode')
         );
     }
 
@@ -66,7 +76,7 @@ class AuthController extends Controller
             // Student
             'major' => 'required_if:occupation,student',
             'other_major' => 'nullable|required_if:major,other|string|max:100',
-            'enrollment_certificate' => 'nullable|required_if:occupation,student|file|mimes:jpg,jpeg,png,pdf|max:5120', // Max 5MB
+            'enrollment_certificate' => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120', // Max 5MB
         ], [
 
             'email.required' => 'L\'email est obligatoire',
@@ -87,7 +97,6 @@ class AuthController extends Controller
 
             'major.required_if' => "La spécialité est obligatoire",
             'other_major.required_if' => "La spécialité est obligatoire",
-            'enrollment_certificate.required_if' => 'Le certificat est obligatoire',
             'enrollment_certificate.mimes' => 'Le fichier doit être au format: jpg, jpeg, png, pdf',
             'enrollment_certificate.max' => 'Le fichier ne doit pas dépasser 5 Mo',
         ]);
@@ -105,9 +114,18 @@ class AuthController extends Controller
             $passwordTemp = Str::random(10);
             $isStudent = ($request->occupation == 'student');
 
-            // Check RPPS
-            $checkedRpps = false;
-            if (!$isStudent) {
+            // Check if has invite code
+            $checkInviteCode = null;
+            if ($request->has('invite_code')) {
+                $checkInviteCode = InviteCode::checkCode($request->invite_code);
+                if ($checkInviteCode == 'code-valid') {
+                    InviteCode::increaseUsedTimes($request->invite_code);
+                }
+            }
+
+            // Check RPPS if not invite code
+            $checkedRpps = ($checkInviteCode == 'code-valid');
+            if (!$isStudent && !$checkedRpps) {
                 $checkedRpps = HealthcareProfessional::checkExist($request->rpps, $request->name, $request->first_name);
             }
 
@@ -134,6 +152,9 @@ class AuthController extends Controller
                 $noProf = $request->rpps;
             }
 
+            // Condition active
+            $isActive = (!$isStudent && $checkedRpps) || ($checkInviteCode == 'code-valid');
+
             // Create new user
             $user = User::create([
                 'role_id' => $userRole->id,
@@ -157,7 +178,7 @@ class AuthController extends Controller
                 'no_prof_type_id' => $noProfType,
                 'no_prof' => $noProf,
 
-                'status' => (!$isStudent && $checkedRpps ? Status::ACTIVE->value : Status::PENDING->value)
+                'status' => ($isActive ? Status::ACTIVE->value : Status::PENDING->value)
             ]);
 
             // Upload certificate
@@ -176,7 +197,7 @@ class AuthController extends Controller
 
             // Return success
             return response()->json([
-                'status' => (!$isStudent && $checkedRpps ? 'success' : 'pending'),
+                'status' => ($isActive ? 'success' : 'pending'),
             ]);
         } catch (\Exception $e) {
             Log::error($e->getMessage(), ['register', $request->except(['token', 'enrollment_certificate'])]);
@@ -356,8 +377,21 @@ class AuthController extends Controller
 
             // Valid
             if ($checkRegEmail === null) {
+                // Add check invite code
+                $inviteCode = $request->inviteCode;
+
+                // No invite code
+                if (!$inviteCode) {
+                    return response()->json([
+                        'status' => 'success',
+                    ]);
+                }
+
+                $checkInviteCode = InviteCode::checkCode($inviteCode);
                 return response()->json([
-                    'status' => 'success',
+                    'status' => ($checkInviteCode === 'code-valid') ? 'success' : 'failed',
+                    'code' => $checkInviteCode,
+                    'message' => "Le code est incorrect ou a expiré."
                 ]);
             }
 

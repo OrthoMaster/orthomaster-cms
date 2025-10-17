@@ -18,6 +18,7 @@ return new class extends Migration
             $table->datetime('expires_at')->nullable();
             $table->boolean('permanent_flg')->default(true);
             $table->boolean('active_flg')->default(false);
+            $table->integer('used_times')->default(0);
             $table->timestamps();
         });
     }
