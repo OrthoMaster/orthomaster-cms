@@ -193,7 +193,6 @@ class AuthController extends Controller
      */
     public function viewForgotPage(Request $request)
     {
-
         return view('landingpage.password-request', ['email' => $request->email]);
     }
 

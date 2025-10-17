@@ -1140,6 +1140,8 @@
             document.getElementById('members').value = JSON.stringify(members);
             let groupRegForm = document.getElementById('group-reg-form');
             let groupRegFormData = new FormData(groupRegForm);
+            // Add submit flag
+            groupRegFormData.append('isSubmitted', true);
 
             // Ajax submit
             fetch(groupRegForm.action, {

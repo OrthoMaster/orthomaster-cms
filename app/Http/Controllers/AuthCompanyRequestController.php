@@ -6,6 +6,7 @@ use App\Models\Company;
 use App\Models\FundingOrganization;
 use App\Models\NoProfType;
 use App\Models\Profession;
+use App\Status;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
@@ -53,6 +54,10 @@ class AuthCompanyRequestController extends Controller
             $company->country = $request->country;
 
             $company->users_temp = json_decode($request->members, true);
+
+            if ($request->has('isSubmitted')) {
+                $company->status = Status::PENDING->value;
+            }
 
             $company->save();
 

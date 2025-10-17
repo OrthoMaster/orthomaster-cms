@@ -51,7 +51,13 @@
                 <div class="col-md-8">
                     <div class="panel panel-bordered">
                         <div class="panel-heading">
-                            <h3 class="panel-title">Liste provisoire</h3>
+                            <h3 class="panel-title">Liste provisoire
+                                @if ($company->status == App\Status::PENDING->value)
+                                <span class="label label-success">Soumise</span>
+                                @else
+                                <span class="label label-warning">En cours de remplir</span>
+                                @endif
+                            </h3>
                         </div>
                         <div class="panel-body">
                             <table class="table">
@@ -114,7 +120,7 @@
 
                         <div class="panel-footer">
                             <button class="btn btn-warning" onclick="fillData()">
-                                <i class="voyager-external"></i> <span>Remplir & Supprimer code d'invitation</span>
+                                <i class="voyager-external"></i> <span>Remplir la base de données & Supprimer code d'invitation</span>
                             </button>
                         </div>
                     </div>

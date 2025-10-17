@@ -144,6 +144,7 @@ class CompanyController extends Controller
             }
 
             $company->invite_code = null;
+            $company->status = null;
             $company->save();
 
             DB::commit();
