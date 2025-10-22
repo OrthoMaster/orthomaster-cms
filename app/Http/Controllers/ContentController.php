@@ -3,11 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\Block;
-use App\Models\Formation;
 use App\Models\Lesson;
-use App\Models\Training;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
 
 class ContentController extends Controller

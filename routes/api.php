@@ -10,9 +10,20 @@ Route::get('/user', function (Request $request) {
     return $request->user();
 })->middleware('auth:sanctum');
 
-// FairPlay certification
+/** FairPlay - STA */
+// FairPlay Certificate endpoint
+Route::options('/fairplay/certificate', [FairPlayController::class, 'certificateOptions']);
 Route::get('/fairplay/certificate', [FairPlayController::class, 'getCertificate']);
-Route::get('/fairplay/certificate/clear-cache', [FairPlayController::class, 'clearCache']);
+
+// FairPlay License endpoint  
+Route::options('/fairplay/license', [FairPlayController::class, 'licenseOptions']);
+Route::post('/fairplay/license', [FairPlayController::class, 'getLicense']);
+
+// Test endpoint (optional, only for development)
+Route::get('/fairplay/test', [FairPlayController::class, 'testConfiguration']);
+
+/** FairPlay - END */
+
 
 // Lesson
 Route::get('/lessons/findContentId/{contentId}', [APILessonController::class, 'findByContentId']);

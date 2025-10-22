@@ -35,4 +35,16 @@ return [
         ],
     ],
 
+    // Fairplay
+    'fairplay' => [
+        'ask' => env('FAIRPLAY_ASK'),
+        'certificate_path' => 'app/fairplay/fairplay.cer',
+
+        'private_key_path' => 'app/fairplay/fairplay_1024_private.pem',
+        'private_key_password' => env('FAIRPLAY_PRIVATE_KEY_PASSWORD'),
+
+        'certification_path' => 'app/fairplay/fps_certificate.bin',
+        'provisioning_path' => 'app/fairplay/provisioning_data.bin',
+    ],
+
 ];

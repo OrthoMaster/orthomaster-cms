@@ -35,22 +35,31 @@ class User extends \TCG\Voyager\Models\User
         return $this->hasOne(Role::class, 'id', 'role_id');
     }
 
-    public function company() {
+    public function company()
+    {
         return $this->hasOne(Company::class, 'id', 'company_id');
     }
 
-    public function profession() {
+    public function profession()
+    {
         return $this->hasOne(Profession::class, 'id', 'profession_id');
     }
 
-    public function establishment() {
+    public function establishment()
+    {
         return $this->hasOne(Establishment::class, 'id', 'establishment_id');
     }
 
-    public function organization() {
+    public function organization()
+    {
         return $this->hasOne(FundingOrganization::class, 'id', 'funding_organization_id');
     }
- 
+
+    public function packages()
+    {
+        return $this->belongsToMany(Package::class);
+    }
+
     /**
      * Send email reset password notification
      */
@@ -62,12 +71,13 @@ class User extends \TCG\Voyager\Models\User
     /**
      * Check email
      */
-    public static function checkRegEmail(string $email) {
+    public static function checkRegEmail(string $email)
+    {
         $user = User::where('email', $email)->first();
-        
+
         return $user ? $user->status : null;
     }
-    
+
     /**
      * Get all admins
      */

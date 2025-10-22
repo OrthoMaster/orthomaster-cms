@@ -3,16 +3,16 @@
 @section('javascript')
     @parent
     
-    @if(isset($preSelectedTraining))
+    @if(isset($preSelectedModule))
     <script>
         $(document).ready(function() {
             setTimeout(function() {
-                var $select = $('select[name="training_id"]');
+                var $select = $('select[name="module_id"]');
                 
                 // Add mores option
                 var option = new Option(
-                    '{{ $preSelectedTraining->name }}',
-                    '{{ $preSelectedTraining->id }}',
+                    '{{ $preSelectedModule->name }}',
+                    '{{ $preSelectedModule->id }}',
                     true,
                     true
                 );

@@ -59,7 +59,7 @@ $(document).ready(function () {
     * Reorder items
     */
     $('.dd').on('change', function (e) {
-        $.post("{{ route('trainings.lessons.order.update', $trainingId) }}", {
+        $.post("{{ route('modules.lessons.order.update', $moduleId) }}", {
             order: JSON.stringify($('.dd').nestable('serialize')),
             _token: '{{ csrf_token() }}'
         }, function (data) {

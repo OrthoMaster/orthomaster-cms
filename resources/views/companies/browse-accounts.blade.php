@@ -8,6 +8,11 @@
             <i class="voyager-company"></i> {{ $company->name }}
         </h1>
 
+        <a href="{{ route('companies.training-permissions', $company->id) }}" class="btn btn-primary"
+            style="margin-right: 5px">
+            <i class="voyager-book"></i> <span>Gérer Formations</span>
+        </a>
+
         @if (!$company->invite_code)
             <a target="_blank" href="{{ route('account.create', ['company' => $company->id]) }}"
                 class="btn btn-success btn-add-new" style="margin-right: 5px">
@@ -18,6 +23,7 @@
                 <i class="voyager-external"></i> <span>Générer un code de partage</span>
             </a>
         @endif
+        
     </div>
 @stop
 
@@ -145,8 +151,6 @@
                                     <tr>
                                         <th>Nom - Prénom</th>
                                         <th>Email</th>
-                                        <th>Rôle</th>
-                                        <th>Étudiant</th>
                                         <th>Fonction</th>
                                         <th>Organisme</th>
                                         <th>Statut</th>
@@ -164,14 +168,8 @@
                                                 </div>
                                             </td>
                                             <td>{{ $user->email }}</td>
-                                            <td>{{ $user->role->display_name }}</td>
-                                            <td class="text-center">
-                                                @if ($user->student_flg)
-                                                    <span>Étudiant</span>
-                                                @endif
-                                            </td>
                                             <td>
-                                                {{ $user->professtion_id ? $user->profession->name : $user->other_profession }}
+                                                {{ $user->profession_id ? $user->profession->name : $user->other_profession }}
                                             </td>
                                             <td>
                                                 {{ $user->funding_organization_id ? $user->organization->name : ' ' }}

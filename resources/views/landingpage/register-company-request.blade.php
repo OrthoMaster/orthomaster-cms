@@ -208,21 +208,6 @@
                     </div>
 
                     <div id="modal-body" class="p-6 space-y-4 flex-1 overflow-y-auto min-h-0">
-                        <!-- Type -->
-                        <div class="mb-8">
-                            <label for="member-organization" class="block text-sm text-gray-500 mb-2">
-                                Organisme de formation
-                            </label>
-                            <select id="member-organization" onchange="toggleOpcoEp()"
-                                class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all bg-white">
-                                @foreach ($organizations as $organization)
-                                    <option value="{{ $organization->id }}" data-code="{{ $organization->code }}">
-                                        {{ $organization->name }}</option>
-                                @endforeach
-                                <option value="" data-code="">Autre</option>
-                            </select>
-                        </div>
-
                         <!-- Informations personnelles -->
                         <div class="border border-gray-200 rounded-lg">
                             <button type="button" onclick="toggleSection('info-perso')"
@@ -237,15 +222,6 @@
                             </button>
                             <div id="info-perso-content" class="px-4 pb-4 space-y-4">
                                 <div class="mt-4">
-                                    <label for="member-email" class="block text-sm text-gray-500 mb-2">
-                                        Email <span class="text-red-500">*</span>
-                                    </label>
-                                    <input type="email" id="member-email"
-                                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all"
-                                        placeholder="email@exemple.com">
-                                    <p id="member-email-error" class="mt-2 text-sm text-red-600 hidden"></p>
-                                </div>
-                                <div>
                                     <label for="member-name" class="block text-sm text-gray-500 mb-2">
                                         Nom <span class="text-red-500">*</span>
                                     </label>
@@ -263,6 +239,32 @@
                                         class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all"
                                         placeholder="Prénom" maxlength="100">
                                     <p id="member-firstname-error" class="mt-2 text-sm text-red-600 hidden"></p>
+                                </div>
+
+                                <div>
+                                    <label for="member-email" class="block text-sm text-gray-500 mb-2">
+                                        Email <span class="text-red-500">*</span>
+                                    </label>
+                                    <input type="email" id="member-email"
+                                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all"
+                                        placeholder="email@exemple.com">
+                                    <p id="member-email-error" class="mt-2 text-sm text-red-600 hidden"></p>
+                                </div>
+
+                                <!-- Type -->
+                                <div>
+                                    <label for="member-organization" class="block text-sm text-gray-500 mb-2">
+                                        Organisme de formation
+                                    </label>
+                                    <select id="member-organization" onchange="toggleOpcoEp()"
+                                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all bg-white">
+                                        @foreach ($organizations as $organization)
+                                            <option value="{{ $organization->id }}"
+                                                data-code="{{ $organization->code }}">
+                                                {{ $organization->name }}</option>
+                                        @endforeach
+                                        <option value="" data-code="other">Autre / Je ne sais pas</option>
+                                    </select>
                                 </div>
 
                                 <!-- First name of Birth (only for OPCO-EP) -->
@@ -670,7 +672,7 @@
             const fnbField = document.getElementById('first-name-birth-field');
             const secuField = document.getElementById('secu-field');
 
-            if (dataCode === 'opco-ep') {
+            if (dataCode === 'opco-ep' || dataCode === 'other') {
                 dobField.classList.remove('hidden');
                 fnbField.classList.remove('hidden');
                 secuField.classList.remove('hidden');
@@ -879,7 +881,7 @@
 
             // Dob
             const dob = document.getElementById('member-dob').value;
-            if (dataCode == 'opco-ep') {
+            if (dataCode == 'opco-ep' || dataCode == 'other') {
                 if (!dob || !isDateInPast(dob)) {
                     hasError = true;
                     errorMessage += (errorMessage ? ', ' : '') + 'Date de naissance';
@@ -933,7 +935,7 @@
 
             // SECU
             const secu = document.getElementById('member-secu').value;
-            if (dataCode == 'opco-ep') {
+            if (dataCode == 'opco-ep' || dataCode == 'other') {
                 if (!secu) {
                     hasError = true;
                     errorMessage += (errorMessage ? ', ' : '') + 'N° SECU';
@@ -1058,15 +1060,15 @@
                             </div>
                         </div>
                         ${member.hasError ? `
-                                    <div class="space-y-1 text-xs text-yellow-500 mt-2">
-                                        <div class="flex gap-1">
-                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-yellow-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                                            </svg>
-                                            <span class="text-xs"><small> Manquant: ${member.errorMessage}</small></span>
+                                        <div class="space-y-1 text-xs text-yellow-500 mt-2">
+                                            <div class="flex gap-1">
+                                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-yellow-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                                </svg>
+                                                <span class="text-xs"><small> Manquant: ${member.errorMessage}</small></span>
+                                            </div>
                                         </div>
-                                    </div>
-                                ` : ''}
+                                    ` : ''}
                     </div>
                 `;
             }).join('');

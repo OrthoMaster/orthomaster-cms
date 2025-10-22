@@ -1,6 +1,5 @@
 <?php
 
-use App\Models\Formation;
 use App\Models\Lesson;
 use App\Models\Training;
 use Illuminate\Database\Migrations\Migration;

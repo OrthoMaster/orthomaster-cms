@@ -6,5 +6,5 @@ return [
     'delete' => 'Supprimer',
     'save' => 'Enregistrer',
     'cancel' => 'Annuler',
-    'contains' => 'contient'
+    'contains' => 'contient',
 ];

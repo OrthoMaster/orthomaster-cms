@@ -13,9 +13,9 @@ class Lesson extends Model
         'demo_flg' => 'boolean'
     ];
 
-    public function training()
+    public function module()
     {
-        return $this->belongsTo(Training::class);
+        return $this->belongsTo(Module::class);
     }
 
     public function blocks()
@@ -23,14 +23,19 @@ class Lesson extends Model
         return $this->hasMany(Block::class);
     }
 
+    public function scopeActive($query)
+    {
+        return $query->where('active_flg', true);
+    }
+
     public static function findById($id)
     {
         return Lesson::where('id', $id)->with('training')->first();
     }
 
-    public static function getByTrainingId($trainingId)
+    public static function getByModuleId($moduleId)
     {
-        return Lesson::where('training_id', $trainingId)
+        return Lesson::where('module_id', $moduleId)
             ->orderBy('order_dsp')
             ->orderBy('id')
             ->get();

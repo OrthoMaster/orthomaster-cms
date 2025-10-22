@@ -42,8 +42,10 @@
                             <div class="col-md-3">
                                 <label for="asdfd">Statut</label>
                                 <select class="form-control select2" name="status">
-                                    <option value="2">{{ App\Status::PENDING->label() }}</option>
-                                    <option value="1" >{{ App\Status::ACTIVE->label() }}</option>
+                                    <option value="2" @selected(request('status') === '2')>{{ App\Status::PENDING->label() }}
+                                    </option>
+                                    <option value="1" @selected(request('status') === '1')>{{ App\Status::ACTIVE->label() }}
+                                    </option>
                                     <option value="">---</option>
                                 </select>
                             </div>
@@ -86,24 +88,30 @@
                             <tr>
                                 <th>Nom complet</th>
                                 <th>Contact</th>
+                                <th>Infos</th>
                                 <th>Statut</th>
-                                <th>Actions</th>
+                                <th class="text-right">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
                             @foreach ($users as $user)
                                 <tr>
                                     <td>
-                                        @if ($user->student_flg)
-                                            <small>Étudiant</small>
-                                        @else
-                                            <small>Professionnel</small>
-                                        @endif
                                         <p><strong>{{ $user->name . ' ' . $user->first_name }}</strong></p>
                                     </td>
                                     <td>
                                         <div>{{ $user->email }}</div>
                                         <p>{{ $user->phone }}</p>
+                                    </td>
+                                    <td>
+                                        @if ($user->student_flg)
+                                            <p>Étudiant</p>
+                                        @endif
+
+                                        @if ($user->company_id)
+                                            <div><strong>{{ $user->company->name }}</strong></div>
+                                            <small>{{ $user->company->address . ' ' . $user->company->postal_code . ' ' . $user->company->city }}</small>
+                                        @endif
                                     </td>
                                     <td>
                                         @if ($user->status == 2)
@@ -118,11 +126,19 @@
                                             <label class="label label-danger">Désactivé</label>
                                         @endif
                                     </td>
-                                    <td>
+                                    <td class="text-right">
+                                        @if (!$user->student_flg)
+                                            <a href="{{ route('account.training-permissions', $user->id) }}"
+                                                class="btn btn-sm btn-primary">
+                                                <i class="voyager-book"></i>
+                                                <span class="hidden-xs hidden-sm">Formations</span>
+                                            </a>
+                                        @endif
                                         <a href="{{ route('account.edit', $user->id) }}" class="btn btn-sm btn-warning">
                                             <i class="voyager-edit"></i>
                                             <span class="hidden-xs hidden-sm">Modifier</span>
                                         </a>
+
                                     </td>
                                 </tr>
                             @endforeach

@@ -23,6 +23,11 @@ class Company extends Model
         return $this->hasMany(User::class, 'company_id', 'id');
     }
 
+    public function packages()
+    {
+        return $this->belongsToMany(Package::class, 'package_company');
+    }
+
     public static function getAll() {
         return Company::where('active_flg', true)
             ->orderBy('name')

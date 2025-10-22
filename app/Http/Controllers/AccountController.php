@@ -28,10 +28,10 @@ class AccountController extends Controller
      */
     public function index(Request $request)
     {
-        $userRole = Role::where('name', 'user')->first();
+        $userRoles = Role::where('name', 'user')->orWhere('name', 'user-manager')->get()->pluck('id')->toArray();
 
         $query = User::query();
-        $query->where('role_id', $userRole->id);
+        $query->whereIn('role_id', $userRoles);
 
         if ($request->filled('name')) {
             $query->where('name', 'LIKE', '%' . $request->name . '%');

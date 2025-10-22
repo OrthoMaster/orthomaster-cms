@@ -101,7 +101,7 @@ class AuthController extends Controller
             'enrollment_certificate.max' => 'Le fichier ne doit pas dépasser 5 Mo',
         ]);
 
-        // Nếu validation thất bại
+        // Validation failed
         if ($validator->fails()) {
             return response()->json([
                 'status' => 'failed',
@@ -177,6 +177,8 @@ class AuthController extends Controller
 
                 'no_prof_type_id' => $noProfType,
                 'no_prof' => $noProf,
+
+                'invite_code' => $request->invite_code,
 
                 'status' => ($isActive ? Status::ACTIVE->value : Status::PENDING->value)
             ]);

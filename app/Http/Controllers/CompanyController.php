@@ -125,7 +125,7 @@ class CompanyController extends Controller
                     'password_temp' => $passwordTemp,
                     'password' => bcrypt($passwordTemp),
 
-                    'student_flg' => $temp['isStudent'],
+                    // 'student_flg' => $temp['isStudent'],
 
                     'establishment_id' => $company->establishment_id,
                     'profession_id' => $professionId,

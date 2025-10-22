@@ -302,7 +302,7 @@
                                                 
                                                 @can('edit', app($dataType->model_name))
                                                     <a class="btn btn-sm btn-success pull-right" style="margin-right: 5px"
-                                                        href={{ route('trainings.lessons.index', $data->getKey()) }}>
+                                                        href={{ route('modules.lessons.index', $data->getKey()) }}>
                                                         <i class="voyager-documentation"></i>
                                                         <span class="hidden-xs hidden-sm">Leçons</span>
                                                     </a>

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Lesson;
+use App\Models\Module;
 use App\Models\Training;
 use Illuminate\Http\Request;
 use TCG\Voyager\Facades\Voyager;
@@ -12,17 +13,17 @@ class LessonController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index(int $trainingId)
+    public function index(int $moduleId)
     {
-        $training = Training::findOrFail($trainingId);
-        $lessons = Lesson::getByTrainingId($training->id);
+        $module = Module::findOrFail($moduleId);
+        $lessons = Lesson::getByModuleId($module->id);
 
-        return view('vendor.voyager.lessons.browse-with-training', compact('training', 'lessons'));
+        return view('vendor.voyager.lessons.browse-with-module', compact('module', 'lessons'));
     }
 
-    public function orderView($trainingId)
+    public function orderView($moduleId)
     {
-        $training = Training::findOrFail($trainingId);
+        $module = Module::findOrFail($moduleId);
 
         // Get dataType
         $dataType = Voyager::model('DataType')->where('slug', '=', 'lessons')->first();
@@ -35,16 +36,16 @@ class LessonController extends Controller
 
         if (empty($dataType->order_column) || empty($dataType->order_display_column)) {
             return redirect()
-                ->route('voyager.trainings.index')
+                ->route('voyager.modules.index')
                 ->with([
                     'message'    => 'Order column not configured',
                     'alert-type' => 'error',
                 ]);
         }
 
-        // Get lesson with training
+        // Get lesson with module
         $model = app($dataType->model_name);
-        $query = $model->query()->where('training_id', $trainingId);
+        $query = $model->query()->where('module_id', $moduleId);
 
         // Check soft deletes
         if ($model && in_array(\Illuminate\Database\Eloquent\SoftDeletes::class, class_uses_recursive($model))) {
@@ -68,13 +69,13 @@ class LessonController extends Controller
             'display_column',
             'dataRow',
             'results',
-            'training',
-            'trainingId'
+            'module',
+            'moduleId'
         ));
     }
 
     // Update order khi kéo thả
-    public function updateOrder(Request $request, $trainingId)
+    public function updateOrder(Request $request, $moduleId)
     {
         $dataType = Voyager::model('DataType')->where('slug', '=', 'lessons')->first();
 
@@ -83,7 +84,7 @@ class LessonController extends Controller
 
         foreach ($order as $index => $item) {
             Lesson::where('id', $item->id)
-                ->where('training_id', $trainingId)
+                ->where('module_id', $moduleId)
                 ->update([$column => $index + 1]);
         }
     }
@@ -96,7 +97,7 @@ class LessonController extends Controller
         //
     }
 
-    public function create(Request $request, $trainingId)
+    public function create(Request $request, $moduleId)
     {
         $dataType = Voyager::model('DataType')->where('slug', '=', 'lessons')->first();
 
@@ -108,8 +109,8 @@ class LessonController extends Controller
             $dataType->addRows[$key]['col_width'] = $row->details->width ?? 100;
         }
 
-        $dataTypeContent->training_id = $trainingId;
-        $preSelectedTraining = Training::find($trainingId);
+        $dataTypeContent->module_id = $moduleId;
+        $preSelectedModule = Module::find($moduleId);
 
         // Check if BREAD is Translatable
         $isModelTranslatable = is_bread_translatable($dataTypeContent);

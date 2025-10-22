@@ -8,11 +8,11 @@
             <i class="voyager-documentation"></i> Leçons
         </h1>
 
-        <a href="{{ route('lessons.create', $training->id) }}" class="btn btn-success btn-add-new">
+        <a href="{{ route('lessons.create', $module->id) }}" class="btn btn-success btn-add-new">
             <i class="voyager-plus"></i> <span>Ajouter leçon</span>
         </a>
 
-        <a href="{{ route('trainings.lessons.order', $training->id) }}" class="btn btn-primary">
+        <a href="{{ route('modules.lessons.order', $module->id) }}" class="btn btn-primary">
             <i class="voyager-list"></i> <span>Ordre</span>
         </a>
     </div>
