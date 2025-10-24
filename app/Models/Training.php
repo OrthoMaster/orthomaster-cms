@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Status;
 use Illuminate\Database\Eloquent\Model;
 
 class Training extends Model
@@ -15,7 +16,7 @@ class Training extends Model
 
     public function scopeActive($query)
     {
-        return $query->where('active_flg', true);
+        return $query->where('status', Status::ACTIVE);
     }
 
     public static function getAll($onlyActive = false)
@@ -26,10 +27,10 @@ class Training extends Model
                     $query->active();
                 },
                 'packages.modules' => function ($query) {
-                    $query->active();
+                    $query->active()->orderBy('order_dsp');
                 },
                 'packages.modules.lessons' => function ($query) {
-                    $query->active();
+                    $query->published()->orderBy('order_dsp');
                 },
             ])
                 ->active()

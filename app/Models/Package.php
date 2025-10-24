@@ -33,7 +33,10 @@ class Package extends Model
         return $query->where('active_flg', true);
     }
 
-    /** Not use */
+    public static function findById($id) {
+        return Package::where('id', $id)->active()->first();
+    } 
+
     public static function getAll($onlyActive = false)
     {
         if ($onlyActive) {

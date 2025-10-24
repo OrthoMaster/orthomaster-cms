@@ -23,9 +23,9 @@ class Lesson extends Model
         return $this->hasMany(Block::class);
     }
 
-    public function scopeActive($query)
+    public function scopePublished($query)
     {
-        return $query->where('active_flg', true);
+        return $query->where('published_flg', true);
     }
 
     public static function findById($id)

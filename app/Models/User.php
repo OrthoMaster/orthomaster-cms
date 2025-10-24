@@ -60,6 +60,10 @@ class User extends \TCG\Voyager\Models\User
         return $this->belongsToMany(Package::class);
     }
 
+    public function carts() {
+        return $this->hasMany(Cart::class);
+    }
+
     /**
      * Send email reset password notification
      */

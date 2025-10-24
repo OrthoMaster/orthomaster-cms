@@ -13,6 +13,11 @@ class Module extends Model
         return $this->hasMany(Lesson::class)->orderBy('order_dsp');
     }
 
+    public function hasDemo()
+    {
+        return $this->lessons->contains('demo_flg', true);
+    }
+
     public function scopeActive($query)
     {
         return $query->where('active_flg', true);

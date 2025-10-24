@@ -2,6 +2,9 @@
 
 use App\Http\Controllers\API\APILessonController;
 use App\Http\Controllers\API\AuthController;
+use App\Http\Controllers\API\CartController;
+use App\Http\Controllers\API\CompanyController;
+use App\Http\Controllers\API\TrainingController;
 use App\Http\Controllers\FairPlay\FairPlayController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -36,4 +39,20 @@ Route::prefix('auth')->group(function () {
     
     Route::post('/logout',   [AuthController::class, 'logout'])->middleware('auth:sanctum');
     Route::get('/me',        [AuthController::class, 'me'])->middleware('auth:sanctum');
+});
+
+Route::middleware(['auth:sanctum'])->group(function () {
+    // Trainings
+    Route::get('/trainings', [TrainingController::class, 'getAll']);
+
+    // Members
+    Route::get('/members', [CompanyController::class, 'getMembers']);
+
+    // Cart
+    Route::get('/cart', [CartController::class, 'show']);
+    Route::post('/cart/add/{id}', [CartController::class, 'addPackage']);
+    Route::delete('/cart/remove/{id}', [CartController::class, 'removePackage']);
+    Route::delete('/cart/clear', [CartController::class, 'clear']);
+    Route::post('/cart/members', [CartController::class, 'syncMembers']);
+    Route::post('/cart', [CartController::class, 'submit']);
 });
