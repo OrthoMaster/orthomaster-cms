@@ -13,6 +13,7 @@
 
             <form id="register-form" method="post" action="{{ route('register.submit') }}" enctype="multipart/form-data">
                 @csrf
+                <input type="hidden" name="inapp" value="{{ request('inapp') ? 'APP' : 'WEB' }}" />
 
                 <!-- Progress Steps -->
                 <div class="mb-8">
@@ -38,8 +39,7 @@
                                 class="w-10 h-10 rounded-full bg-gray-300 text-gray-600 flex items-center justify-center font-semibold mb-2 transition-all duration-300">
                                 2
                             </div>
-                            <span id="step2-text" class="text-sm font-medium text-gray-500 text-center">Infos
-                                personnelles</span>
+                            <span id="step2-text" class="text-sm font-medium text-gray-500 text-center">Infos</span>
                         </div>
 
                         <!-- Line 2-3 -->
@@ -552,6 +552,20 @@
 
 @section('js')
     <script>
+        // Handle show in app
+        const urlParams = new URLSearchParams(window.location.search);
+        const isInApp = urlParams.get('inapp') === 'true';
+        if (isInApp) {
+            document.body.classList.add('in-app-view');
+
+            // Ẩn các elements
+            const header = document.querySelector('header');
+            const footer = document.querySelector('footer');
+
+            if (header) header.style.display = 'none';
+            if (footer) footer.style.display = 'none';
+        }
+
         let currentStep = 1;
 
         @if ($invCode)
@@ -1032,20 +1046,25 @@
                     if (data.status == 'failed') {
                         document.getElementById('checking-modal').classList.add('hidden');
 
-                        let errorList = document.getElementById('error-list');
-                        errorList.innerHTML = `<li>${data.message}</li>`;
-                        document.getElementById('error-modal').classList.remove('hidden');
+                        if (data.errors) {
+                            let errorList = document.getElementById('error-list');
+                            errorList.innerHTML = Object.values(data.errors)
+                                .flat()
+                                .map(message => `<li>${message}</li>`)
+                                .join('');
+                            document.getElementById('error-modal').classList.remove('hidden');
+                        }
 
                         reEnableSubmitButton();
                     }
                 })
                 .catch(error => {
+                    console.log(error);
                     // close checking modal
                     document.getElementById('checking-modal').classList.add('hidden');
 
                     // error messages
                     if (error.errors) {
-                        console.log(error.errors);
                         let errorList = document.getElementById('error-list');
                         errorList.innerHTML = Object.values(error.errors)
                             .flat()
@@ -1060,19 +1079,47 @@
         }
 
         function closeSuccessModal() {
-            window.location.href = "https://orthomaster.fr";
+            if (isInApp) {
+                if (window.ReactNativeWebView) {
+                    window.ReactNativeWebView.postMessage(JSON.stringify({
+                        type: 'CLOSE'
+                    }));
+                }
+            } else {
+                window.location.href = "https://orthomaster.fr";
+            }
+
+            // window.location.href = "https://orthomaster.fr";
             // document.getElementById('success-modal').classList.add('hidden');
         }
 
         function closePendingModal() {
-            window.location.href = "https://orthomaster.fr";
+            if (isInApp) {
+                if (window.ReactNativeWebView) {
+                    window.ReactNativeWebView.postMessage(JSON.stringify({
+                        type: 'CLOSE'
+                    }));
+                }
+            } else {
+                window.location.href = "https://orthomaster.fr";
+            }
+
+            // window.location.href = "https://orthomaster.fr";
             // document.getElementById('pending-modal').classList.add('hidden');
         }
 
         function redirectToPasswordReset() {
-            const email = document.getElementById('email').value;
-            const pwdResetUrl = "{{ route('password.request') }}" + '?email=' + email;
-            window.location.href = pwdResetUrl;
+            if (isInApp) {
+                if (window.ReactNativeWebView) {
+                    window.ReactNativeWebView.postMessage(JSON.stringify({
+                        type: 'FORGOT'
+                    }));
+                }
+            } else {
+                const email = document.getElementById('email').value;
+                const pwdResetUrl = "{{ route('password.request') }}" + '?email=' + email;
+                window.location.href = pwdResetUrl;
+            }
         }
 
         function closeDuplicateModal() {

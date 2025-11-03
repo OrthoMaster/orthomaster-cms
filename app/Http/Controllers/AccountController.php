@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Odoo\OdooAccountController;
 use App\Mail\CreatedAccountMail;
 use App\Models\Company;
 use App\Models\Establishment;
@@ -9,6 +10,7 @@ use App\Models\FundingOrganization;
 use App\Models\NoProfType;
 use App\Models\Profession;
 use App\Models\User;
+use App\Services\OdooService;
 use App\Status;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -107,7 +109,7 @@ class AccountController extends Controller
     {
         // Validate input data
         $validator = $request->validate([
-            'email' => 'required|email|unique:users,email',
+            'email' => 'required|email:rfc,strict|unique:users,email',
             'name' => 'required|string|max:100',
             'first_name' => 'required|string|max:100',
             'phone' => 'nullable|regex:/^\+?[0-9]{1,3}[\s\-]?(\(?\d{1,4}\)?[\s\-]?){1,}[0-9]{1,}$/|min:10|max:20',
@@ -128,7 +130,6 @@ class AccountController extends Controller
             // Student
             'enrollment_certificate' => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120', // Max 5MB
         ], [
-
             'email.required' => 'L\'email est obligatoire',
             'email.email' => 'Le format de l\'email est invalide',
             'email.unique' => 'Cet email existe déjà dans le système',
@@ -413,10 +414,16 @@ class AccountController extends Controller
             $user->status = Status::ACTIVE->value;
             $user->save();
 
+            $odooAccountController = new OdooAccountController(app(OdooService::class));
+            $odooAccountController->store($user);
+
             // Send email
             Mail::to($user->email)->send(new CreatedAccountMail($user->email, $user));
 
-            return back();
+            return back()->with([
+                'message' => 'Mis à jour avec succès',
+                'alert-type' => 'success'
+            ]);
         } catch (\Exception $e) {
             Log::error($e->getMessage(), ['admin', 'confirm-account', auth()->user->id]);
 
@@ -424,5 +431,18 @@ class AccountController extends Controller
                 'system' => $e->getMessage()
             ]);
         }
+    }
+
+    public function resend(string $id)
+    {
+        $user = User::find($id);
+        if ($user && $user->password_temp) {
+            Mail::to($user->email)->send(new CreatedAccountMail($user->email, $user));
+        }
+
+        return back()->with([
+            'message' => 'Réenvoyé avec succès',
+            'alert-type' => 'success'
+        ]);
     }
 }

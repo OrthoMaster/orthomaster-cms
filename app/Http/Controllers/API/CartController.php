@@ -116,4 +116,8 @@ class CartController extends Controller
             'success' => false,
         ]);
     }
+
+    public function submit(Request $request) {
+        
+    }
 }

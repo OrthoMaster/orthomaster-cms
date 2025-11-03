@@ -2,12 +2,14 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Odoo\OdooAccountController;
 use App\Models\Establishment;
 use App\Models\HealthcareProfessional;
 use App\Models\InviteCode;
 use App\Models\NoProfType;
 use App\Models\Profession;
 use App\Models\User;
+use App\Services\OdooService;
 use App\Status;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -35,7 +37,7 @@ class AuthController extends Controller
         $countries = json_decode($json, true);
 
         // Invite code
-        $invCode = null; 
+        $invCode = null;
         if ($request->has('inviteCode')) {
             $checkInviteCode = InviteCode::checkCode($request->inviteCode);
             if ($checkInviteCode == 'code-valid') {
@@ -56,7 +58,7 @@ class AuthController extends Controller
     {
         // Validate input data
         $validator = Validator::make($request->all(), [
-            'email' => 'required|email|unique:users,email',
+            'email' => 'required|email:rfc,strict|unique:users,email|regex:/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/',
             'name' => 'required|string|max:100',
             'first_name' => 'required|string|max:100',
             'phone' => 'nullable|regex:/^\+?[0-9]{1,3}[\s\-]?(\(?\d{1,4}\)?[\s\-]?){1,}[0-9]{1,}$/|min:10|max:20',
@@ -81,6 +83,7 @@ class AuthController extends Controller
 
             'email.required' => 'L\'email est obligatoire',
             'email.email' => 'Le format de l\'email est invalide',
+            'email.regex' => 'Le format de l\'email est invalide',
             'email.unique' => 'Cet email existe déjà dans le système',
 
             'name.required' => 'Le nom est obligatoire',
@@ -180,6 +183,7 @@ class AuthController extends Controller
 
                 'invite_code' => $request->invite_code,
 
+                'created_from' => $request->inapp && $request->inapp == 'WEB' ? 'WEB' : 'APP',
                 'status' => ($isActive ? Status::ACTIVE->value : Status::PENDING->value)
             ]);
 
@@ -197,6 +201,12 @@ class AuthController extends Controller
             // Send email and notification
             MailController::createdNewAccount($user);
 
+            // Sync with Odoo
+            if ($isActive) {
+                $odooAccountController = new OdooAccountController(app(OdooService::class));
+                $odooAccountController->store($user);
+            }
+
             // Return success
             return response()->json([
                 'status' => ($isActive ? 'success' : 'pending'),
@@ -206,7 +216,7 @@ class AuthController extends Controller
 
             return response()->json([
                 'status' => 'failed',
-                'message' => $e->getMessage()
+                'errors' => ['Une erreur est survenue. Veuillez réessayer !']
             ], 500);
         }
     }
@@ -242,7 +252,7 @@ class AuthController extends Controller
 
         // Validate email
         $validator = Validator::make($request->all(), [
-            'email' => 'required|email'
+            'email' => 'required|email:rfc,strict'
         ]);
         if ($validator->fails()) {
             return response()->json([
@@ -251,13 +261,26 @@ class AuthController extends Controller
             ], 422);
         };
 
-        // Pending user - checking
+
         $user = User::where('email', $request->email)->first();
-        if ($user->status == Status::PENDING->value) {
+        $sendableEmail = true;
+
+        if ($user) {
+            // Pending user - checking
+            if ($user->status == Status::PENDING->value) {
+                $sendableEmail = false;
+            }
+        } else {
+            // Sync with old version
+            $sendableEmail = User::syncFromOldVersion($request->email);
+        }
+
+        // No send link
+        if (!$sendableEmail) {
             return response()->json(['status' => 'success'], 200);
         }
 
-        // Send reset link
+        // Send link
         $status = Password::sendResetLink($request->only('email'));
 
         // Hit 1 request

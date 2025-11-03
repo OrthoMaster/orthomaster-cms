@@ -131,7 +131,7 @@
                         </div>
 
                         <div class="mt-8 flex justify-end">
-                            <button onclick="nextStep(1)" type="button"
+                            <button id="nextBtn" onclick="nextStep(1)" type="button"
                                 class="px-6 py-3 bg-primary text-white font-medium rounded-lg hover:bg-orange-600 transition-colors focus:ring-4 focus:ring-orange-200">
                                 Suivant
                             </button>
@@ -162,15 +162,17 @@
                         </div>
 
                         <!-- Button Add -->
-                        <button onclick="openAddMemberModal()" type="button"
-                            class="w-full px-4 py-2 border border-2 border-gray-100 text-gray-400 rounded-lg hover:bg-gray-100 transition-colors flex items-center justify-center gap-2">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24"
-                                stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                    d="M12 4v16m8-8H4" />
-                            </svg>
-                            Ajouter
-                        </button>
+                        @if (!$company->status == App\Status::PENDING->value)
+                            <button onclick="openAddMemberModal()" type="button"
+                                class="w-full px-4 py-2 border border-2 border-gray-100 text-gray-400 rounded-lg hover:bg-gray-100 transition-colors flex items-center justify-center gap-2">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24"
+                                    stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M12 4v16m8-8H4" />
+                                </svg>
+                                Ajouter
+                            </button>
+                        @endif
                         <p id="members-error" class="mt-2 text-sm text-red-600 hidden"></p>
 
                         <div class="mt-4 flex justify-between">
@@ -182,10 +184,12 @@
                                         d="M15.75 19.5 8.25 12l7.5-7.5" />
                                 </svg>
                             </button>
-                            <button id="submit-button" onclick="submitForm()" type="button"
-                                class="px-6 py-3 bg-primary text-white font-medium rounded-lg hover:bg-orange-600 transition-colors focus:ring-4 focus:ring-orange-200">
-                                Soumettre
-                            </button>
+                            @if (!$company->status == App\Status::PENDING->value)
+                                <button id="submit-button" onclick="submitForm()" type="button"
+                                    class="px-6 py-3 bg-primary text-white font-medium rounded-lg hover:bg-orange-600 transition-colors focus:ring-4 focus:ring-orange-200">
+                                    Soumettre
+                                </button>
+                            @endif
                         </div>
                     </div>
                 </div>
@@ -486,6 +490,15 @@
 
 @section('js')
     <script>
+        @if ($company->status == App\Status::PENDING->value)
+            document.querySelectorAll('input, textarea').forEach(element => {
+                element.disabled = true;
+            });
+            document.querySelectorAll('select').forEach(select => {
+                select.disabled = true;
+            });
+        @endif
+
         // Phone input
         const phoneInput = document.querySelector("#phone");
         const iti = window.intlTelInput(phoneInput, {
@@ -691,6 +704,10 @@
         }
 
         function openAddMemberModal() {
+            @if ($company->status == App\Status::PENDING->value)
+                return;
+            @endif
+
             editingMemberId = null;
             isLeader = false;
             isStudent = false;
@@ -706,6 +723,10 @@
         }
 
         function openEditMemberModal(memberId) {
+            @if ($company->status == App\Status::PENDING->value)
+                return;
+            @endif
+
             const member = members.find(m => m.id === memberId);
             if (!member) return;
 
@@ -1060,23 +1081,25 @@
                             </div>
                         </div>
                         ${member.hasError ? `
-                                        <div class="space-y-1 text-xs text-yellow-500 mt-2">
-                                            <div class="flex gap-1">
-                                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-yellow-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                                                </svg>
-                                                <span class="text-xs"><small> Manquant: ${member.errorMessage}</small></span>
-                                            </div>
-                                        </div>
-                                    ` : ''}
+                            <div class="space-y-1 text-xs text-yellow-500 mt-2">
+                                <div class="flex gap-1">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-yellow-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                    </svg>
+                                    <span class="text-xs"><small> Manquant: ${member.errorMessage}</small></span>
+                                </div>
+                            </div>
+                        ` : ''}
                     </div>
                 `;
             }).join('');
         }
 
         function removeMember(memberId) {
-            members = members.filter(m => m.id !== memberId);
-            renderMembers();
+            @if (!$company->status == App\Status::PENDING->value)
+                members = members.filter(m => m.id !== memberId);
+                renderMembers();
+            @endif
         }
 
         function saveAsDraft() {

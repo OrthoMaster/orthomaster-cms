@@ -87,7 +87,7 @@ Route::group(['prefix' => 'admin', 'middleware' => ['cmsAdmin']], function () {
     Route::put('/accounts/{id}', [AccountController::class, 'update'])->name('account.update');
 
     Route::post('/accounts/{id}/confirm', [AccountController::class, 'confirm'])->name('account.confirm');
-    Route::post('/accounts/{id}/resend', [AccountController::class, 'resend'])->name('account.resend');
+    Route::get('/accounts/{id}/resend', [AccountController::class, 'resend'])->name('account.resend');
 
     Route::get('/accounts/{id}/training-permissions', [TrainingPermissionController::class, 'storeWithUser'])->name('account.training-permissions');
     Route::post('/accounts/{id}/training-permissions', [TrainingPermissionController::class, 'updateWithUser'])->name('account.training-permissions.update');
@@ -95,6 +95,8 @@ Route::group(['prefix' => 'admin', 'middleware' => ['cmsAdmin']], function () {
     // Companies
     Route::get('/companies/{id}', [CompanyController::class, 'show'])->name('voyager.companies.show');
     Route::get('/companies/{id}/invite-code', [CompanyController::class, 'generateInviteCode'])->name('companies.invite-code.generate');
+    Route::get('/companies/{id}/odoo', [CompanyController::class, 'connectOdoo'])->name('companies.odoo.connect');
+    Route::get('/companies/{id}/back-editable', [CompanyController::class, 'backEditable'])->name('companies.back-editable');
     Route::post('/companies/{id}/fill-data', [CompanyController::class, 'fillDataFromTemps'])->name('companies.fill-data');
     Route::post('/companies/{id}/user/{userId}/update-manager', [CompanyController::class, 'updateManager'])->name('companies.manager.update');
 

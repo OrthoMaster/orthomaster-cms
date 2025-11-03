@@ -3,11 +3,17 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+
+use App\Http\Controllers\Odoo\OdooAccountController;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 use TCG\Voyager\Models\Role;
 use App\Mail\ResetPasswordMail;
+use App\Services\OdooService;
+use App\Status;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Mail;
 
 class User extends \TCG\Voyager\Models\User
@@ -30,6 +36,11 @@ class User extends \TCG\Voyager\Models\User
         ];
     }
 
+    public function oldVersion()
+    {
+        return $this->hasOne(OldVersionUser::class, 'id_user', 'id_user');
+    }
+
     public function role()
     {
         return $this->hasOne(Role::class, 'id', 'role_id');
@@ -50,6 +61,11 @@ class User extends \TCG\Voyager\Models\User
         return $this->hasOne(Establishment::class, 'id', 'establishment_id');
     }
 
+    public function noProfType()
+    {
+        return $this->hasOne(NoProfType::class, 'id', 'no_prof_type_id');
+    }
+
     public function organization()
     {
         return $this->hasOne(FundingOrganization::class, 'id', 'funding_organization_id');
@@ -60,7 +76,8 @@ class User extends \TCG\Voyager\Models\User
         return $this->belongsToMany(Package::class);
     }
 
-    public function carts() {
+    public function carts()
+    {
         return $this->hasMany(Cart::class);
     }
 
@@ -79,7 +96,20 @@ class User extends \TCG\Voyager\Models\User
     {
         $user = User::where('email', $email)->first();
 
-        return $user ? $user->status : null;
+        // If exist
+        if ($user) {
+            return $user->status;
+        }
+
+        // Sync with old version
+        $exists = OldVersionUser::where('email', $email)->exists();
+        // Email is used
+        if ($exists) {
+            return Status::ACTIVE->value;
+        }
+
+        // Email does not existsUser
+        return null;
     }
 
     /**
@@ -101,5 +131,66 @@ class User extends \TCG\Voyager\Models\User
         return User::where('id', $id)
             ->with(['role', 'company', 'organization'])
             ->first();
+    }
+
+    public static function syncFromOldVersion($email)
+    {
+        // Check did sync
+        $user = User::where('email', $email)->first();
+        if ($user) {
+            return true;
+        };
+
+        try {
+            // Get old version
+            $oldVersionUser = OldVersionUser::where('email', $email)->first();
+            if (!$oldVersionUser) {
+                return false;
+            }
+
+            $userRole = Role::where('name', 'user')->first();
+            $passwordTemp = Str::random(10);
+            $user = User::create([
+                'role_id' => $userRole->id,
+                'name' => mb_convert_case(trim($oldVersionUser->name), MB_CASE_TITLE, 'UTF-8'),
+                'email' => $oldVersionUser->email,
+                'password_temp' => $passwordTemp,
+                'password' => bcrypt($passwordTemp),
+                'phone' => $oldVersionUser->tel && $oldVersionUser->tel !== '0' ? $oldVersionUser->tel : null,
+                'student_flg' => $oldVersionUser->is_student,
+
+                'created_from' => 'CLONE',
+                'id_user' => $oldVersionUser->id_user,
+                'status' => Status::ACTIVE->value
+            ]);
+
+            // Clone other infos from Odoo
+            $odooAccountController = new OdooAccountController(app(OdooService::class));
+            $contact = $odooAccountController->getContactInfo($oldVersionUser->id_odoo_partner);
+            if ($contact) {
+                // Get Profession
+                if (!empty($contact['x_studio_fonction_professionnelle_1'])) {
+                    $prof = Profession::findByIdOdoo($contact['x_studio_fonction_professionnelle_1'][0]);
+                    if ($prof) {
+                        $user->profession_id = $prof->id;
+                    }
+                }
+
+                // Get Estab
+                if (!empty($contact['x_studio_type_dtablissement_1'])) {
+                    $estab = Establishment::findByIdOdoo($contact['x_studio_type_dtablissement_1'][0]);
+                    if ($estab) {
+                        $user->establishment_id = $estab->id;
+                    }
+                }
+
+                $user->save();
+            }
+
+            return true;
+        } catch (\Exception $e) {
+            Log::error($e->getMessage(), ['sync-user', 'odooo']);
+            return false;
+        }
     }
 }

@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Odoo\OdooAccountController;
 use App\Models\Company;
 use App\Models\FundingOrganization;
 use App\Models\Profession;
 use App\Models\User;
+use App\Services\OdooService;
 use App\Status;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -20,6 +22,7 @@ class CompanyController extends Controller
         if (!$company) {
             return abort(404);
         }
+
         return view('companies.browse-accounts', compact('company'));
     }
 
@@ -93,6 +96,21 @@ class CompanyController extends Controller
         }
     }
 
+    public function backEditable(string $id)
+    {
+        $company = Company::findById($id);
+        if (!$company) {
+            return abort(404);
+        }
+        $company->status = null;
+        $company->save();
+
+        return back()->with([
+            'message' => 'Mis à jour avec succès',
+            'alert-type' => 'success'
+        ]);
+    }
+
     public function fillDataFromTemps(string $id)
     {
         $company = Company::findById($id);
@@ -144,6 +162,7 @@ class CompanyController extends Controller
             }
 
             $company->invite_code = null;
+            // $company->users_temp = null;
             $company->status = null;
             $company->save();
 
@@ -161,5 +180,27 @@ class CompanyController extends Controller
                 'alert-type' => 'error'
             ]);
         }
+    }
+
+    public function connectOdoo(string $id)
+    {
+        $company = Company::findById($id);
+        if (!$company) {
+            return abort(404);
+        }
+
+        $odooAccountController = new OdooAccountController(app(OdooService::class));
+        $storeOdooContact = $odooAccountController->storeCompany($company);
+        if (!$storeOdooContact) {
+            return back()->with([
+                'message' => "La connexion à Odoo a échoué.",
+                'alert-type' => 'error'
+            ]);
+        }
+
+        return back()->with([
+            'message' => "Connexion à Odoo réussie.",
+            'alert-type' => 'success'
+        ]);
     }
 }

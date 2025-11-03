@@ -47,4 +47,11 @@ return [
         'provisioning_path' => 'app/fairplay/provisioning_data.bin',
     ],
 
+    'odoo' => [
+        'host' => env('ODOO_HOST'),
+        'database' => env('ODOO_DB'),
+        'username' => env('ODOO_USERNAME'),
+        'password' => env('ODOO_PASSWORD'),
+    ],
+
 ];

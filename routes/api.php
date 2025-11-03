@@ -6,6 +6,7 @@ use App\Http\Controllers\API\CartController;
 use App\Http\Controllers\API\CompanyController;
 use App\Http\Controllers\API\TrainingController;
 use App\Http\Controllers\FairPlay\FairPlayController;
+use App\Http\Controllers\Odoo\OdooAccountController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -27,6 +28,11 @@ Route::get('/fairplay/test', [FairPlayController::class, 'testConfiguration']);
 
 /** FairPlay - END */
 
+
+/** Odoo - STA */
+Route::get('/test', [OdooAccountController::class, 'test']);
+
+/** Odoo - END */
 
 // Lesson
 Route::get('/lessons/findContentId/{contentId}', [APILessonController::class, 'findByContentId']);

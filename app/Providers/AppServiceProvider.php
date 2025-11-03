@@ -2,16 +2,12 @@
 
 namespace App\Providers;
 
-use App\Models\OpeningHour;
 use App\Voyager\CustomSchemaManager;
 use Illuminate\Support\ServiceProvider;
 use TCG\Voyager\Database\Schema\SchemaManager;
-use Illuminate\Support\Facades\View;
-use Illuminate\Support\Facades\Request;
 
-use App\Http\Middleware\TrustProxies;
-use Illuminate\Support\Facades\App;
-use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Config;
 
 class AppServiceProvider extends ServiceProvider
 {

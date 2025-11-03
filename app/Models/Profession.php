@@ -28,4 +28,12 @@ class Profession extends Model
             ->orderBy('name')
             ->get();
     }
+
+    public static function findByIdOdoo($idOdoo) {
+        if ($idOdoo) {
+            return Profession::where('id_odoo', $idOdoo)->first();
+        }
+        
+        return null;
+    }
 }

@@ -23,4 +23,12 @@ class Establishment extends Model
             ->orderBy('name')
             ->get();
     }
+
+    public static function findByIdOdoo($idOdoo) {
+        if ($idOdoo) {
+            return Establishment::where('id_odoo', $idOdoo)->first();
+        }
+        
+        return null;
+    }
 }
