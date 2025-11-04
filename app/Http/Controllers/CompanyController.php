@@ -11,6 +11,7 @@ use App\Services\OdooService;
 use App\Status;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use TCG\Voyager\Models\Role;
 use Illuminate\Support\Str;
 
@@ -26,6 +27,9 @@ class CompanyController extends Controller
         return view('companies.browse-accounts', compact('company'));
     }
 
+    /**
+     * Update manager of company
+     */
     public function updateManager(string $id, string $userId)
     {
         $user = User::where('id', $userId)->where('company_id', $id)->first();
@@ -62,6 +66,9 @@ class CompanyController extends Controller
         ]);
     }
 
+    /**
+     * Generate invite code to fill form
+     */
     public function generateInviteCode(string $id)
     {
         $company = Company::findById($id);
@@ -96,6 +103,9 @@ class CompanyController extends Controller
         }
     }
 
+    /**
+     * Re-open form
+     */
     public function backEditable(string $id)
     {
         $company = Company::findById($id);
@@ -111,6 +121,9 @@ class CompanyController extends Controller
         ]);
     }
 
+    /**
+     * Fill data from form to DB
+     */
     public function fillDataFromTemps(string $id)
     {
         $company = Company::findById($id);
@@ -182,25 +195,100 @@ class CompanyController extends Controller
         }
     }
 
+    /**
+     * Connect and create info to Odoo
+     */
     public function connectOdoo(string $id)
     {
-        $company = Company::findById($id);
+        $company = Company::find($id);
         if (!$company) {
             return abort(404);
         }
 
-        $odooAccountController = new OdooAccountController(app(OdooService::class));
-        $storeOdooContact = $odooAccountController->storeCompany($company);
-        if (!$storeOdooContact) {
+        try {
+            // Check before connect with Odoo
+            $odooAccountController = new OdooAccountController(app(OdooService::class));
+            if (!$company->id_odoo) {
+                // Connect company with Odoo
+                $storeOdooCompany = $odooAccountController->storeCompany($company);
+
+                if (!$storeOdooCompany) {
+                    return back()->with([
+                        'message' => "[Société] La connexion à Odoo a échoué.",
+                        'alert-type' => 'error'
+                    ]);
+                }
+            }
+
+            // Connect members to Odoo
+            $storeOdooUserSuccessFlg = true;
+            foreach ($company->users as $member) {
+                if (!$member->id_odoo_partner) {
+                    // Connect user with Odoo
+                    $storedOdooUser = $odooAccountController->store($member);
+                    if (!$storedOdooUser) {
+                        $storeOdooUserSuccessFlg = false;
+                        continue;
+                    }
+                }
+
+                // Add member to company (Odoo)
+                if ($member->role && $member->role->name == 'user-manager') {
+                    $odooAccountController->addManagerToCompany($company->id_odoo, $member->id_odoo_partner);
+                } else {
+                    $odooAccountController->addMemberToCommpany($company->id_odoo, $member->id_odoo_partner);
+                }
+            }
+
+            // Sync with old version DB
+            if ($storeOdooUserSuccessFlg) {
+                $storeOdooUserSuccessFlg = $odooAccountController->syncWithOldVersionForCompanyAndMembers($company->id);
+            }
+
+            if (!$storeOdooUserSuccessFlg) {
+                return back()->with([
+                    'message' => "Une erreur s'est produite lors de la connexion à Odoo.",
+                    'alert-type' => 'error'
+                ]);
+            }
+
             return back()->with([
-                'message' => "La connexion à Odoo a échoué.",
+                'message' => "Connexion à Odoo réussie.",
+                'alert-type' => 'success'
+            ]);
+        } catch (\Exception $e) {
+            Log::error($e->getMessage(), ['company', 'connect-odoo', 'odoo']);
+            return back()->with([
+                'message' => $e->getMessage(),
                 'alert-type' => 'error'
             ]);
         }
+    }
 
-        return back()->with([
-            'message' => "Connexion à Odoo réussie.",
-            'alert-type' => 'success'
-        ]);
+    /**
+     * Send auth emails to all members
+     */
+    public function sendAuthEmails(string $id)
+    {
+        $company = Company::find($id);
+        if (!$company) {
+            return abort(404);
+        }
+        try {
+            foreach ($company->users as $user) {
+                // MailController::createdNewAccount($user);
+            }
+
+            return back()->with([
+                'message' => "Connexion à Odoo réussie.",
+                'alert-type' => 'success'
+            ]);
+        } catch (\Exception $e) {
+            Log::error($e->getMessage(), ['company', 'send-auth-emails']);
+            return back()->with([
+                'message' => $e->getMessage(),
+                'alert-type' => 'error'
+            ]);
+        }
     }
 }

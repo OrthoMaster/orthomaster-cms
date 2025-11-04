@@ -5,8 +5,6 @@ use App\Http\Controllers\API\AuthController;
 use App\Http\Controllers\API\CartController;
 use App\Http\Controllers\API\CompanyController;
 use App\Http\Controllers\API\TrainingController;
-use App\Http\Controllers\FairPlay\FairPlayController;
-use App\Http\Controllers\Odoo\OdooAccountController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -14,24 +12,8 @@ Route::get('/user', function (Request $request) {
     return $request->user();
 })->middleware('auth:sanctum');
 
-/** FairPlay - STA */
-// FairPlay Certificate endpoint
-Route::options('/fairplay/certificate', [FairPlayController::class, 'certificateOptions']);
-Route::get('/fairplay/certificate', [FairPlayController::class, 'getCertificate']);
-
-// FairPlay License endpoint  
-Route::options('/fairplay/license', [FairPlayController::class, 'licenseOptions']);
-Route::post('/fairplay/license', [FairPlayController::class, 'getLicense']);
-
-// Test endpoint (optional, only for development)
-Route::get('/fairplay/test', [FairPlayController::class, 'testConfiguration']);
-
-/** FairPlay - END */
-
 
 /** Odoo - STA */
-Route::get('/test', [OdooAccountController::class, 'test']);
-
 /** Odoo - END */
 
 // Lesson

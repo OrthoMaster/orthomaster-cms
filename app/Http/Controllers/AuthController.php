@@ -172,6 +172,7 @@ class AuthController extends Controller
                 'city' => mb_convert_case(trim($request->city), MB_CASE_TITLE, 'UTF-8'),
 
                 'student_flg' => $isStudent,
+                'expires_at' => $isStudent ? now()->addMonths(12)->startOfDay() : null,
 
                 'establishment_id' => $estabId,
                 'other_establishment' => $otherEstab,

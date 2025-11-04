@@ -445,4 +445,31 @@ class AccountController extends Controller
             'alert-type' => 'success'
         ]);
     }
+
+
+    public function sync(string $id)
+    {
+        $user = User::find($id);
+        if ($user->id_odoo_partner && $user->id_odoo_user) {
+            return back()->with([
+                'message' => 'Impossible de mettre à jour',
+                'alert-type' => 'error'
+            ]);
+        }
+
+        $odooAccountController = new OdooAccountController(app(OdooService::class));
+        $storedOdooUser = $odooAccountController->store($user);
+
+        if ($storedOdooUser) {
+            return back()->with([
+                'message' => 'Modifié avec succès',
+                'alert-type' => 'success'
+            ]);
+        }
+
+        return back()->with([
+            'message' => 'Erreur',
+            'alert-type' => 'error'
+        ]);
+    }
 }

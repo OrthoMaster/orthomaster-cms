@@ -14,8 +14,6 @@ use App\Http\Controllers\TrainingPermissionController;
 use App\Http\Controllers\VideoController;
 use Illuminate\Support\Facades\Route;
 use TCG\Voyager\Facades\Voyager;
-use Illuminate\Support\Facades\DB;
-
 
 Route::group(['prefix' => 'admin'], function () {
     Voyager::routes();
@@ -89,13 +87,18 @@ Route::group(['prefix' => 'admin', 'middleware' => ['cmsAdmin']], function () {
     Route::post('/accounts/{id}/confirm', [AccountController::class, 'confirm'])->name('account.confirm');
     Route::get('/accounts/{id}/resend', [AccountController::class, 'resend'])->name('account.resend');
 
+    Route::get('/accounts/{id}/sync', [AccountController::class, 'sync'])->name('account.sync');
+
     Route::get('/accounts/{id}/training-permissions', [TrainingPermissionController::class, 'storeWithUser'])->name('account.training-permissions');
     Route::post('/accounts/{id}/training-permissions', [TrainingPermissionController::class, 'updateWithUser'])->name('account.training-permissions.update');
 
     // Companies
     Route::get('/companies/{id}', [CompanyController::class, 'show'])->name('voyager.companies.show');
     Route::get('/companies/{id}/invite-code', [CompanyController::class, 'generateInviteCode'])->name('companies.invite-code.generate');
+    
     Route::get('/companies/{id}/odoo', [CompanyController::class, 'connectOdoo'])->name('companies.odoo.connect');
+    Route::get('/companies/{id}/send-emails', [CompanyController::class, 'sendAuthEmails'])->name('companies.emails.send');
+    
     Route::get('/companies/{id}/back-editable', [CompanyController::class, 'backEditable'])->name('companies.back-editable');
     Route::post('/companies/{id}/fill-data', [CompanyController::class, 'fillDataFromTemps'])->name('companies.fill-data');
     Route::post('/companies/{id}/user/{userId}/update-manager', [CompanyController::class, 'updateManager'])->name('companies.manager.update');

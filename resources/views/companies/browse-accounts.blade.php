@@ -13,10 +13,17 @@
             @endif
         </h1>
 
-        @if (!$company->id_odoo)
+        @if (!$company->id_odoo && sizeof($company->users) > 0)
             <a class="btn btn-warning" style="margin-right: 5px" href="{{ route('companies.odoo.connect', $company->id) }}"
                 onclick="return confirm('Etes-vous sûr(e) ? Cette action est irréversible.')">
                 <i class="voyager-warning"></i> <span>Créer connexion Odoo</span>
+            </a>
+        @endif
+
+        @if ($company->id_odoo)
+            <a class="btn btn-primary" style="margin-right: 5px" href="{{ route('companies.emails.send', $company->id) }}"
+                onclick="return confirm('Etes-vous sûr(e) ?')">
+                <i class="voyager-mail"></i> <span>Envoyer emails d'invitation</span>
             </a>
         @endif
 
@@ -26,16 +33,17 @@
         </a> --}}
 
         @if (!$company->invite_code)
-            <a target="_blank" href="{{ route('account.create', ['company' => $company->id]) }}"
-                class="btn btn-success btn-add-new" style="margin-right: 5px">
-                <i class="voyager-plus"></i> <span>Ajouter compte</span>
-            </a>
             @if (!sizeof($company->users) > 0)
                 <a href="{{ route('companies.invite-code.generate', $company->id) }}" class="btn btn-info"
                     style="margin-right: 5px">
                     <i class="voyager-external"></i> <span>Générer un code de partage</span>
                 </a>
             @endif
+
+            <a target="_blank" href="{{ route('account.create', ['company' => $company->id]) }}" class="btn btn-success"
+                style="margin-right: 5px">
+                <i class="voyager-plus"></i> <span>Ajouter compte</span>
+            </a>
         @endif
 
     </div>
@@ -194,16 +202,17 @@
                                                     {{ $user->funding_organization_id ? $user->organization->name : ' ' }}
                                                 </td>
                                                 <td>
-                                                    @if (!$user->id_user)
-                                                        <label class="label label-warning">Jamais connecté Odoo</label>
-                                                    @else
+                                                    @if ($user->id_odoo_partner)
                                                         <label class="label label-success">Connecté Odoo</label>
 
-                                                        @if ($user->password_temp)
-                                                            <label class="label label-warning">Jamais connecté</label>
-                                                        @else
-                                                            <label class="label label-success">Connecté</label>
+                                                        @if (!$user->id_odoo_user)
+                                                            <label class="label label-danger">Non compte Odoo</label>
                                                         @endif
+                                                    @endif
+
+
+                                                    @if (!$user->id_odoo_partner && !$user->id_odoo_user)
+                                                        <label class="label label-warning">Jamais connecté Odoo</label>
                                                     @endif
 
                                                     @if ($user->status == 0)
@@ -211,7 +220,7 @@
                                                     @endif
                                                 </td>
                                                 <td class="no-sort no-click bread-actions text-right">
-                                                    @if (!$user->id_user)
+                                                    @if (!$user->id_odoo_partner)
                                                         @if ($user->role->name == 'user-manager')
                                                             <button class="btn btn-sm btn-danger"
                                                                 onclick="updateManager('{{ $user->id }}')"
@@ -229,6 +238,14 @@
                                                         @endif
                                                     @endif
 
+                                                    @if ($company->id_odoo && (!$user->id_odoo_partner || !$user->id_odoo_user))
+                                                        <a class="btn btn-success" style="margin-right: 5px"
+                                                            href="{{ route('account.sync', $user->id) }}"
+                                                            onclick="return confirm('Etes-vous sûr(e) ?')">
+                                                            <i class="voyager-person"></i> <span>Réconnecter Odoo</span>
+                                                        </a>
+                                                    @endif
+
                                                     @if ($user->status == 1 && $user->password_temp)
                                                         <a class="btn btn-info" style="margin-right: 5px"
                                                             href="{{ route('account.resend', $user->id) }}"
@@ -236,11 +253,14 @@
                                                             <i class="voyager-mail"></i> <span>Réenvoyer email</span>
                                                         </a>
                                                     @endif
-                                                    <a class="btn btn-sm btn-warning" target="_blank"
-                                                        href="{{ route('account.edit', ['id' => $user->id, 'linkFrom' => 'company']) }}">
-                                                        <i class="voyager-edit"></i>
-                                                        <span class="hidden-xs hidden-sm">Modifier</span>
-                                                    </a>
+
+                                                    @if (!$user->id_odoo_partner)
+                                                        <a class="btn btn-sm btn-warning" target="_blank"
+                                                            href="{{ route('account.edit', ['id' => $user->id, 'linkFrom' => 'company']) }}">
+                                                            <i class="voyager-edit"></i>
+                                                            <span class="hidden-xs hidden-sm">Modifier</span>
+                                                        </a>
+                                                    @endif
                                                 </td>
                                             </tr>
                                         @endforeach
@@ -260,6 +280,12 @@
 @stop
 
 @section('css')
+    <style>
+        .btn i {
+            position: relative;
+            top: 2px;
+        }
+    </style>
     @if (config('dashboard.data_tables.responsive'))
         <link rel="stylesheet" href="{{ voyager_asset('lib/css/responsive.dataTables.min.css') }}">
     @endif

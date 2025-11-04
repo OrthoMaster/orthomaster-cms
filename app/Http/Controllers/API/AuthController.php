@@ -3,7 +3,9 @@
 namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\Odoo\OdooAccountController;
 use App\Models\User;
+use App\Services\OdooService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
@@ -25,14 +27,21 @@ class AuthController extends Controller
 
         $token = $user->createToken($deviceName)->plainTextToken;
 
+        // Active Odoo user
+        $odooAccountController = new OdooAccountController(app(OdooService::class));
+        $odooAccountController->active($user);
+
         return response()->json([
             'status' => 'success',
+            'reset' => $user->password_temp != null,
             'data'   => [
                 'user'  => [
                     'id'    => $user->id,
                     'email' => $user->email,
                     'name' => $user->name,
-                    'id_user' => $user->id_user
+                    'id_user' => $user->id_user,
+                    'id_odoo_partner' => $user->id_odoo_partner,
+                    'id_odoo_user' => $user->id_odoo_user,
                 ],
                 'token' => $token,
                 'token_type' => 'Bearer',
@@ -52,6 +61,28 @@ class AuthController extends Controller
                     'email' => $user->email,
                 ],
             ],
+        ]);
+    }
+
+    public function changeInitPassword(Request $request)
+    {
+        $request->validate([
+            'new_password' => 'required|string|min:8|confirmed',
+        ]);
+
+        $user = User::find(Auth::user()->id);
+        $user->password = Hash::make($request->new_password);
+
+        // Clear password temp
+        if ($user->password_temp !== null) {
+            $user->password_temp = null;
+        }
+
+        $user->save();
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Le mot de passe a été modifié avec succès.',
         ]);
     }
 

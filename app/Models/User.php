@@ -133,6 +133,28 @@ class User extends \TCG\Voyager\Models\User
             ->first();
     }
 
+    /**
+     * Create old version DB - table user with data from users
+     */
+    public static function syncWithOldVersionDB($id)
+    {
+        $user = User::find($id);
+        if ($user->id_user) {
+            return true;
+        }
+
+        $exOldVersionUser = OldVersionUser::create([
+            'name' => $user->name . ' ' . $user->first_name,
+            'email' => $user->email,
+            'is_student' => $user->student_flg,
+            'id_odoo_partner' => $user->id_odoo_partner,
+            'id_odoo_user' => $user->id_odoo_user,
+        ]);
+        $user->id_user = $exOldVersionUser->id;
+        $user->save();
+        return true;
+    }
+
     public static function syncFromOldVersion($email)
     {
         // Check did sync

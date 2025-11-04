@@ -215,12 +215,10 @@
 
                         <div class="panel-footer">
                             @if ($edit)
-                                @if (!$user->id_user)
-                                    @if ($user->status == 2 && (!$user->company || ($user->company && $user->company->id_odoo)))
-                                        <button id="confirm-button" type="button" class="btn btn-primary"
-                                            style="margin-right: 5px" onclick="confirmAccount();">Confirmer &
-                                            Activer</button>
-                                    @endif
+                                @if ($user->status == 2 && (!$user->company))
+                                    <button id="confirm-button" type="button" class="btn btn-primary"
+                                        style="margin-right: 5px" onclick="confirmAccount();">Confirmer &
+                                        Activer</button>
                                 @endif
                                 <button type="submit" class="btn btn-warning">{{ __('voyager::generic.edit') }}</button>
                             @else

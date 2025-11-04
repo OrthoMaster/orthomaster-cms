@@ -25,21 +25,7 @@ class Company extends Model
 
     public function users()
     {
-        return $this->hasMany(User::class, 'company_id', 'id')
-            ->select(
-                'id',
-                'company_id',
-                'name',
-                'first_name',
-                'email',
-                'role_id',
-                'funding_organization_id',
-                'profession_id',
-                'establishment_id',
-                'id_user',
-                'status',
-                'password_temp',
-            );
+        return $this->hasMany(User::class, 'company_id', 'id');
     }
 
     public function packages()
