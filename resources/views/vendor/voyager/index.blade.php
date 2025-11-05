@@ -6,3 +6,6 @@
         @include('voyager::dimmers')
     </div>
 @stop
+
+@section('javascript')
+@stop
