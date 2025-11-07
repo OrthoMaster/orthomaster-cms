@@ -10,6 +10,7 @@ use App\Models\User;
 use App\Services\OdooService;
 use App\Status;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use TCG\Voyager\Models\Role;
@@ -28,7 +29,7 @@ class CompanyController extends Controller
     }
 
     /**
-     * Update manager of company
+     * Update manager
      */
     public function updateManager(string $id, string $userId)
     {
@@ -171,6 +172,7 @@ class CompanyController extends Controller
                     'date_of_birth' => $temp['dob'] ? $temp['dob'] : null,
 
                     'status' => Status::PENDING->value,
+                    'created_by' => Auth::user()->id
                 ]);
             }
 

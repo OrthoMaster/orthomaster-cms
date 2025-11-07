@@ -4,8 +4,10 @@ namespace App\Http\Controllers\Odoo;
 
 use App\Http\Controllers\Controller;
 use App\Models\Company;
+use App\Models\Establishment;
 use App\Models\OldVersionCompany;
 use App\Models\OldVersionUser;
+use App\Models\Profession;
 use App\Models\User;
 use App\Services\OdooService;
 use App\Status;
@@ -29,7 +31,7 @@ class OdooAccountController extends Controller
     {
         try {
             // Define tags
-            $tags = [$this::CREATED_BY_CMS, $this::USER, $this::NOT_YET_LOGGED_IN];
+            $tags = [$this::CREATED_BY_CMS, $this::NOT_YET_LOGGED_IN];
             if ($user->role && $user->role->name == 'user-manager') {
                 $tags = [$this::CREATED_BY_CMS, $this::MANAGER, $this::NOT_YET_LOGGED_IN];
             }
@@ -108,27 +110,37 @@ class OdooAccountController extends Controller
             }
 
             // Create Odoo user
-            // if (!$odooUserId) {
-            //     $userData = [
-            //         'name' => $user->name . ' ' . $user->first_name,
-            //         'email' => $user->email,
-            //         'login' => $user->email,
-            //         'password' => 'Password@123',
-            //         'partner_id' => $odooPartnerId,
-            //     ];
-            //     $odooUserId = $this->odooService->create('res.users', $userData, [
-            //         'no_reset_password' => true,
-            //         'no_send_email' => true,
-            //         'mail_create_nolog' => true
-            //     ]);
-            //     if (!is_numeric($odooUserId)) {
-            //         Log::error('Odoo user create unsuccessfully: ' . $user->email, ['odoo']);
-            //         return false;
-            //     }
+            if (!$odooUserId) {
+                $userData = [
+                    'name' => $user->name . ' ' . $user->first_name,
+                    'email' => $user->email,
+                    'login' => $user->email,
+                    'password' => $user->password_temp ? $user->password_temp : 'Password@123',
+                    'partner_id' => $odooPartnerId,
+                    'group_ids' => [[6, 0, [10]]],
+                    'active' => true,
+                ];
+                $odooUserId = $this->odooService->create(
+                    'res.users',
+                    $userData,
+                    [
+                        'no_reset_password' => true,
+                        'no_send_email' => true,
+                        'mail_create_nosubscribe' => true,
+                        'mail_create_nolog' => true,
+                        'mail_auto_subscribe_no_notify' => true,
+                        'tracking_disable' => true,
+                        'no_password_change_notify' => true,
+                    ]
+                );
+                if (!is_numeric($odooUserId)) {
+                    Log::error('Odoo user create unsuccessfully: ' . $user->email, ['odoo']);
+                    return false;
+                }
 
-            //     $user->id_odoo_user = $odooUserId;
-            //     $user->save();
-            // }
+                $user->id_odoo_user = $odooUserId;
+                $user->save();
+            }
 
             User::syncWithOldVersionDB($user->id);
             return true;
@@ -161,8 +173,8 @@ class OdooAccountController extends Controller
             return $id != $this::NOT_YET_LOGGED_IN;
         }));
 
-        if (!in_array($this::LOGGED_IN, $newCategoryIds)) {
-            $newCategoryIds[] = $this::LOGGED_IN;
+        if (!in_array($this::USER, $newCategoryIds)) {
+            $newCategoryIds[] = $this::USER;
         }
 
         // Update
@@ -307,12 +319,14 @@ class OdooAccountController extends Controller
                 'id_odoo_partner' => $company->id_odoo
             ]);
 
-            $company->id_office = $oldVersionCompany->id;
+            $company->id_office = $oldVersionCompany->id_office;
             $company->save();
 
-            foreach ($company->users as $member) {
+            foreach ($company->users as $user) {
+                $member = User::find($user->id);
+
                 if ($member->id_user) {
-                    Log::warning('Missing sync belong office by user: '.$member->id, ['sync-company', 'odoo']);
+                    Log::warning('Missing sync belong office by user: ' . $member->id, ['sync-company', 'odoo']);
                     continue;
                 }
 
@@ -320,10 +334,6 @@ class OdooAccountController extends Controller
                     'id_office' => $oldVersionCompany->id,
                     'id_user' => $member->id_user,
                     'is_office_manager' => ($member->role & $member->role->name == 'user-manager') ? true : false
-                ]);
-                DB::table('user_manage_office')->insert([
-                    'id_office' => $oldVersionCompany->id,
-                    'id_user' => $member->id_user,
                 ]);
             }
 
@@ -333,4 +343,139 @@ class OdooAccountController extends Controller
             return false;
         }
     }
+
+    /**
+     * Sync password with Odoo user
+     */
+    public function syncPassword($odooUserId, $password)
+    {
+        if (!$odooUserId) {
+            return false;
+        }
+        return $this->odooService->write(
+            'res.users',
+            [$odooUserId],
+            ['password' =>  $password],
+            [
+                'no_send_email' => true,
+                'mail_create_nosubscribe' => true,
+                'mail_create_nolog' => true,
+                'mail_auto_subscribe_no_notify' => true,
+                'tracking_disable' => true,
+                'no_password_change_notify' => true
+            ]
+        );
+    }
+
+    /**
+     * Sync from Odoo to new system
+     */
+    public function syncFromOdooToNewUser($partnerId, $userId)
+    {
+        try {
+            $contact = $this->odooService->searchRead(
+                'res.partner',
+                [['id', '=', $partnerId]],
+                [
+                    'phone',
+                    'zip',
+                    'city',
+                    'country_id',
+                    'country_code',
+                    'x_studio_type_dtablissement_1',
+                    'x_studio_fonction_professionnelle_1',
+                    'x_studio_nom_de_jeune_fille',
+                    'x_studio_date_de_naissance',
+                    'x_studio_n_securite_sociale'
+                ],
+                1
+            );
+            if (empty($contact)) {
+                Log::error('Not found with partner: ' . $partnerId, ['odoo', 'sync-to-new-user']);
+                return false;
+            }
+
+            $user = User::find($userId);
+            $estab = Establishment::where('id_odoo', $contact[0]['x_studio_type_dtablissement_1'])->first();
+            if ($estab) {
+                $user->establishment_id = $estab->id;
+            }
+            $prof = Profession::where('id_odoo', $contact[0]['x_studio_fonction_professionnelle_1'])->first();
+            if ($prof) {
+                $user->profession_id = $prof->id;
+            }
+
+            $user->phone = $contact[0]['phone'];
+            $user->postal_code = $contact[0]['zip'];
+            $user->country_code = $contact[0]['country_id'] ? $contact[0]['country_id'][0] : null;
+
+            $user->first_name_birth = $contact[0]['x_studio_nom_de_jeune_fille'];
+            // $user->date_of_birth = $contact[0]['x_studio_date_de_naissance'];
+            $user->no_secu = $contact[0]['x_studio_n_securite_sociale'];
+
+            $user->save();
+            return true;
+        } catch (\Exception $e) {
+            Log::error($e->getMessage(), ['odoo', 'sync-to-new-user']);
+            return false;
+        }
+    }
+
+    /**
+     * 
+     */
+    public function countTotalActiveUser() {
+        return $this->odooService->count('res.users', [['active', '=', true]]);
+    }
+
+    // public function test()
+    // {
+    //     $partnerId = 19213;
+    //     $partnerEmail = 'fx.francis92@gmail.com';
+
+    //     $contact = $this->odooService->searchRead(
+    //         'res.partner',
+    //         [['id', '=', $partnerId]],
+    //         [
+    //             'phone',
+    //             'zip',
+    //             'city',
+    //             'country_id',
+    //             'country_code',
+    //             'x_studio_type_dtablissement_1',
+    //             'x_studio_fonction_professionnelle_1',
+    //             'x_studio_nom_de_jeune_fille',
+    //             'x_studio_date_de_naissance',
+    //             'x_studio_n_securite_sociale'
+    //         ],
+    //         1
+    //     );
+    //     if (!empty($contact)) {
+    //         dd('asdasd');
+    //     }
+
+    //     dd($contact);
+
+
+    //     // $userData = [
+    //     //     'name' => 'Test',
+    //     //     'email' => $partnerEmail,
+    //     //     'login' => $partnerEmail,
+    //     //     'password' => 'Password@123',
+    //     //     'partner_id' => $partnerId,
+    //     //     'group_ids' => [[6, 0, [10]]],
+    //     //     'active' => true,
+    //     // ];
+    //     // $userId = $this->odooService->create('res.users', $userData, [
+    //     //     'no_reset_password' => true,
+    //     //     'no_send_email' => true,
+    //     //     'mail_create_nosubscribe' => true,
+    //     //     'mail_create_nolog' => true,
+    //     //     'mail_auto_subscribe_no_notify' => true,
+    //     //     'tracking_disable' => true,
+    //     //     'no_password_change_notify' => true,
+    //     // ]);
+
+    //     // dd($userId);
+    // }
 }

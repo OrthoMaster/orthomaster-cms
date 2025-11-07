@@ -84,7 +84,7 @@
                                             <label for="invite-code" class="block text-sm text-sm text-gray-500">
                                                 Code d’invitation
                                             </label>
-                                            <p class="text-xs text-primary hover:underline" onclick="toggleInviteInput()">
+                                            <p class="text-xs text-primary hover:underline cursor-pointerregister" onclick="toggleInviteInput()">
                                                 Supprimer
                                             </p>
                                         </div>
@@ -287,10 +287,25 @@
                                 </div>
 
                                 <!-- RPPS -->
-                                <div>
-                                    <label for="rpps" class="block text-sm text-gray-500 mb-2">
+
+                                <div id="rpps-field" class="mb-4">
+                                    <hr class="mb-4" />
+
+                                    <label class="block text-md text-gray-800 mb-2">
                                         Numéro professionnel
                                     </label>
+                                    <div class="px-4 py-4 mb-4 bg-gray-50 text-xs text-gray-500 border border-gray-300 rounded-lg transition-all">
+                                        L’application OrthoMaster est réservée aux professionnels de santé.<br/>
+                                        Afin de nous assurer de cela, merci de nous indiquer votre numéro professionnel.<br/>
+                                        Il sera vérifié automatiquement et <b class="font-semibold text-gray-600">votre accès sera confirmé par mail dès que votre
+                                        numéro sera validé</b>.<br/>
+                                        En cas d’erreur ou si vous laissez cette information vierge, nous devrons procéder à
+                                        une vérification manuelle qui peut prendre du temps.<br/>
+                                        Vous ne vous rappelez pas de votre RPPS ? Retrouvez le sur 
+                                        <a class="text-blue-400 underline" href="{{ setting('system.check_rpps_link') }}" target="_blank">ici</a> (France).<br/><br/>
+                                        Merci pour votre compréhension.
+                                    </div>
+
                                     <div class="flex flex-col sm:flex-row sm:gap-2 gap-3">
                                         <select id="rpps-type" name="rpps_type"
                                             class="w-full sm:w-48 px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all bg-white">
@@ -752,6 +767,14 @@
                     return;
                 }
                 hideError('phone-error');
+
+                // Prepare init display
+                const hasInviteCode = document.getElementById('invite-code').value !== "";
+                if (hasInviteCode) {
+                    document.getElementById('rpps-field').classList.add('hidden');
+                } else {
+                    document.getElementById('rpps-field').classList.remove('hidden');
+                }
             }
 
             // step 3
@@ -927,13 +950,6 @@
             // Uppercase
             input.value = value.toUpperCase();
         }
-
-
-
-
-
-
-
 
         // Toggle occupation
         function toggleOccupationFields(type) {

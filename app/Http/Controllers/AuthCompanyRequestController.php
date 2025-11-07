@@ -16,7 +16,7 @@ class AuthCompanyRequestController extends Controller
     {
         $company = Company::findByInviteCode($code);
         if (!$company) {
-            return abort(404);
+            return view('landingpage.template.error-group-code', ['statusCode' => 404]);
         };
 
         $professions = Profession::getAll();

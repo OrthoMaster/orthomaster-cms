@@ -8,7 +8,7 @@
             <i class="voyager-people"></i> Utilisateurs
         </h1>
         <a href="{{ route('account.create') }}" class="btn btn-success btn-add-new">
-            <i class="voyager-plus"></i> <span>Ajouter compte</span>
+            <i class="voyager-plus"></i> <span>Ajouter utilisateur</span>
         </a>
     </div>
 @stop

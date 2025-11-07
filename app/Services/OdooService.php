@@ -82,6 +82,11 @@ class OdooService
     {
         if (!$this->uid) $this->authenticate();
 
+        $kwargs = [];
+        if (!empty($context)) {
+            $kwargs['context'] = $context;
+        }
+
         $params = [
             new Value($this->db, 'string'),
             new Value($this->uid, 'int'),
@@ -89,14 +94,14 @@ class OdooService
             new Value($model, 'string'),
             new Value('create', 'string'),
             $this->encoder->encode([$data]),
-            ['context' => $context],
+            $this->encoder->encode($kwargs),
         ];
 
         $result = $this->call('/xmlrpc/2/object', 'execute_kw', $params);
         return $this->encoder->decode($result);
     }
 
-    public function write(string $model, array $ids, array $data): bool
+    public function write(string $model, array $ids, array $data, array $context = []): bool
     {
         if (!$this->uid) {
             $this->authenticate();
@@ -106,6 +111,11 @@ class OdooService
             $ids = [$ids];
         }
 
+        $kwargs = [];
+        if (!empty($context)) {
+            $kwargs['context'] = $context;
+        }
+
         $params = [
             new Value($this->db, 'string'),
             new Value($this->uid, 'int'),
@@ -113,10 +123,34 @@ class OdooService
             new Value($model, 'string'),
             new Value('write', 'string'),
             $this->encoder->encode([$ids, $data]),
+            $this->encoder->encode($kwargs),
         ];
 
         $result = $this->call('/xmlrpc/2/object', 'execute_kw', $params);
 
         return (bool) $this->encoder->decode($result);
+    }
+
+    public function count(string $model, array $domain = [], array $context = []): int
+    {
+        if (!$this->uid) $this->authenticate();
+
+        $kwargs = [];
+        if (!empty($context)) {
+            $kwargs['context'] = $context;
+        }
+
+        $params = [
+            new \PhpXmlRpc\Value($this->db, 'string'),
+            new \PhpXmlRpc\Value($this->uid, 'int'),
+            new \PhpXmlRpc\Value($this->password, 'string'),
+            new \PhpXmlRpc\Value($model, 'string'),
+            new \PhpXmlRpc\Value('search_count', 'string'),
+            $this->encoder->encode([$domain]),  // args
+            $this->encoder->encode($kwargs),    // kwargs (context)
+        ];
+
+        $result = $this->call('/xmlrpc/2/object', 'execute_kw', $params);
+        return (int) $this->encoder->decode($result);
     }
 }

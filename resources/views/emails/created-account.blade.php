@@ -1,6 +1,6 @@
 @extends('emails.template.user-side')
 
-@section('title', 'Bienvenue !')
+@section('title', 'Bienvenue sur OrthoMaster !')
 
 @section('content')
     <div class="content">

@@ -27,10 +27,10 @@
                     <div class="panel panel-bordered">
                         <div class="panel-heading">
                             <h4 class="panel-title">Information
-                                @if ($user->status !== 2 && !$user->id_user)
-                                    <span class="label label-warning">Jamais connecté Odoo</span>
-                                @endif
                                 @if ($edit)
+                                    @if ($user->status !== 2 && !$user->id_user)
+                                        <span class="label label-warning">Jamais connecté Odoo</span>
+                                    @endif
                                     @if ($user->status == 2)
                                         <span class="label label-warning">{{ App\Status::PENDING->label() }}</span>
                                     @endif
@@ -215,7 +215,7 @@
 
                         <div class="panel-footer">
                             @if ($edit)
-                                @if ($user->status == 2 && (!$user->company))
+                                @if ($user->status == 2 && !$user->company)
                                     <button id="confirm-button" type="button" class="btn btn-primary"
                                         style="margin-right: 5px" onclick="confirmAccount();">Confirmer &
                                         Activer</button>

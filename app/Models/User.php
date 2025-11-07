@@ -150,7 +150,7 @@ class User extends \TCG\Voyager\Models\User
             'id_odoo_partner' => $user->id_odoo_partner,
             'id_odoo_user' => $user->id_odoo_user,
         ]);
-        $user->id_user = $exOldVersionUser->id;
+        $user->id_user = $exOldVersionUser->id_user;
         $user->save();
         return true;
     }

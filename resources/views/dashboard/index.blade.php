@@ -7,10 +7,10 @@
                 <div class="col-md-8">
                     <div class="panel panel-bordered">
                         <div class="panel-heading">
-                            <h3 class="panel-title">Rate x User</h3>
+                            <h3 class="panel-title">Nombre de connexions des utilisateurs</h3>
                         </div>
                         <div class="panel-body">
-                            <canvas id="chart1"></canvas>
+                            <canvas id="dailyAppOpenChart"></canvas>
                         </div>
                     </div>
                 </div>
@@ -18,7 +18,7 @@
                 <div class="col-md-4">
                     <div class="panel panel-bordered">
                         <div class="panel-heading">
-                            <h3 class="panel-title">Rate User</h3>
+                            <h3 class="panel-title">Analyse de la conversion des comptes</h3>
                         </div>
                         <div class="panel-body">
                             <canvas id="chart2"></canvas>
@@ -33,39 +33,45 @@
 @section('javascript')
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script>
-        const chart1 = document.getElementById('chart1');
-        const chart2 = document.getElementById('chart2');
-
-        new Chart(chart1, {
-            type: 'bar',
+        const dailyAppOpenChart = document.getElementById('dailyAppOpenChart');
+        const daoc_labels = @json($dailyAppOpens->pluck('formatted_date'));
+        const daoc_data = @json($dailyAppOpens->pluck('count'));
+        new Chart(dailyAppOpenChart, {
+            type: 'line',
             data: {
-                labels: ['Red', 'Blue', 'Yellow', 'Green', 'Purple', 'Orange'],
+                labels: daoc_labels,
                 datasets: [{
-                    label: '# of Votes',
-                    data: [12, 19, 3, 5, 2, 3],
-                    borderWidth: 1
+                    label: 'Nombre de connexions',
+                    data: daoc_data,
+                    borderColor: 'rgba(54, 162, 235, 1)',
+                    backgroundColor: 'rgba(54, 162, 235, 0.1)',
+                    fill: true,
+                    borderWidth: 2,
+                    tension: 0.3,
+                    pointRadius: 4,
+                    pointBackgroundColor: 'rgba(54, 162, 235, 1)',
                 }]
             },
             options: {
+                responsive: true,
                 scales: {
                     y: {
-                        beginAtZero: true
+                        beginAtZero: false,
+                        ticks: {
+                            precision: 0
+                        }
                     }
                 }
             }
         });
 
+        const chart2 = document.getElementById('chart2');
         new Chart(chart2, {
             type: 'doughnut',
             data: {
-                labels: [
-                    'Red',
-                    'Blue',
-                    'Yellow'
-                ],
+                labels: @json($totalUsers['label']),
                 datasets: [{
-                    label: 'My First Dataset',
-                    data: [300, 50, 100],
+                    data: @json($totalUsers['data']),
                     backgroundColor: [
                         'rgb(255, 99, 132)',
                         'rgb(54, 162, 235)',

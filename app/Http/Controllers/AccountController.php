@@ -222,7 +222,7 @@ class AccountController extends Controller
 
             // Return success
             return redirect()->route('account.edit', $user->id)->with([
-                'message' => 'Nouveau compte créé avec succès',
+                'message' => 'Nouveau utilisateur créé avec succès',
                 'alert-type' => 'success'
             ]);
         } catch (\Exception $e) {

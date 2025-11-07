@@ -5,6 +5,7 @@ use App\Http\Controllers\API\AuthController;
 use App\Http\Controllers\API\CartController;
 use App\Http\Controllers\API\CompanyController;
 use App\Http\Controllers\API\TrainingController;
+use App\Http\Controllers\Tracking\TrkAppOpenController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -22,11 +23,17 @@ Route::get('/lessons/{id}/content', [APILessonController::class, 'getContent']);
 
 // Auth
 Route::prefix('auth')->group(function () {
-    Route::post('/register', [AuthController::class, 'register'])->middleware('throttle:6,1');
-    Route::post('/login',    [AuthController::class, 'login'])->middleware('throttle:6,1');
+    Route::post('/login',    [AuthController::class, 'login']);
+
+    Route::post('/sync',    [AuthController::class, 'sync']);
     
     Route::post('/logout',   [AuthController::class, 'logout'])->middleware('auth:sanctum');
     Route::get('/me',        [AuthController::class, 'me'])->middleware('auth:sanctum');
+});
+
+// Tracking
+Route::prefix('tracking')->group(function () {
+    Route::post('/app/open',    [TrkAppOpenController::class, 'store']);
 });
 
 Route::middleware(['auth:sanctum'])->group(function () {

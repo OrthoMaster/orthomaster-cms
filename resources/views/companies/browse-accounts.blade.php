@@ -42,7 +42,7 @@
 
             <a target="_blank" href="{{ route('account.create', ['company' => $company->id]) }}" class="btn btn-success"
                 style="margin-right: 5px">
-                <i class="voyager-plus"></i> <span>Ajouter compte</span>
+                <i class="voyager-plus"></i> <span>Ajouter utilisateur</span>
             </a>
         @endif
 
@@ -91,7 +91,7 @@
                             <div class="panel-body">
                                 <table class="table">
                                     <thead>
-                                        <th>Compte</th>
+                                        <th>Utilisateur</th>
                                         <th>Profession</th>
                                         <th>Organisme</th>
                                         <th>Statut</th>

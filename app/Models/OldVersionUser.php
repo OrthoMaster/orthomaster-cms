@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 class OldVersionUser extends Model
 {
     protected $table = 'user';
-    protected $guarded = ['id'];
+    protected $primaryKey = 'id_user';
+    protected $guarded = ['id_user'];
     public $timestamps = false;
 }

@@ -245,6 +245,7 @@ class AuthController extends Controller
         // Anti spam - throttle with email
         $throttleKey = Str::lower($request->input('email')) . '|' . $request->ip();
         if (RateLimiter::tooManyAttempts($throttleKey, 1)) {
+            Log::channel('mail')->info(__('auth.throttle', ['second' => '180']) . $request->email, ['password']);
             return response()->json([
                 'status' => 'failed',
                 'error' => __('auth.throttle', ['second' => '180'])
@@ -364,6 +365,12 @@ class AuthController extends Controller
                 $user->password = Hash::make($password);
                 $user->password_temp = null; // Clear password temp
                 $user->save();
+
+                // Sync with old system
+                dispatch(function () use ($user, $password) {
+                    (new \App\Http\Controllers\Odoo\OdooAccountController(app(\App\Services\OdooService::class)))
+                        ->syncPassword($user->id_odoo_user, $password);
+                })->afterResponse();
             }
         );
 
@@ -381,6 +388,7 @@ class AuthController extends Controller
             Password::RESET_THROTTLED => 'Veuillez patienter avant de réessayer.',
         ];
 
+        Log::error($errorMessages[$status] ?? 'Une erreur s\'est produite.', ['auth', 'reset-password']);
         return response()->json([
             'status' => 'failed',
             'errors' => ['email' => [$errorMessages[$status] ?? 'Une erreur s\'est produite.']]
@@ -439,5 +447,12 @@ class AuthController extends Controller
         } catch (\Exception $e) {
             return response()->json(['message' => $e->getMessage()], 500);
         }
+    }
+
+    public function test()
+    {
+        $odooAccountController = new OdooAccountController(app(OdooService::class));
+        $res = $odooAccountController->test();
+        dd($res);
     }
 }

@@ -42,7 +42,7 @@
 
         .header-logo {
             color: #eb7b0f;
-            font-size: 16px;
+            font-size: 20px;
             font-weight: 500;
             height: 30px;
             margin-bottom: 40px;
@@ -100,7 +100,6 @@
         .credential-value {
             font-size: 16px;
             color: #333;
-            font-family: 'Courier New', monospace;
             background-color: white;
             padding: 10px 15px;
             border-radius: 6px;
