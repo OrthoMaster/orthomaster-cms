@@ -10,6 +10,7 @@ class RptDailyAppOpens extends Model
 
     protected $casts = [
         'date' => 'date',
-        'count' => 'integer'
+        'count' => 'integer',
+        'total_users' => 'integer',
     ];
 }

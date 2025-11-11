@@ -28,17 +28,25 @@ class DashboardController extends Controller
             });
 
         // Users
-        $odooAccountController = new OdooAccountController(app(OdooService::class));
-        $odooActiveUsers = $odooAccountController->countTotalActiveUser();
+        $totalActiveUsers = 0;
+        $report = RptDailyAppOpens::firstOrCreate(
+            ['date' => Carbon::now()->toDateString()],
+            ['count' => 0]
+        );
+        if ($report->wasRecentlyCreated) {
+            $odooAccountController = new OdooAccountController(app(OdooService::class));
+            $report->total_users = $odooAccountController->countTotalActiveUser();
+            $report->save();
+        }
+
+        $totalActiveUsers = $report->total_users;
         $dbActiveUsers = User::where('status', Status::ACTIVE->value)->count();
-        $dbPendingUsers = User::where('status', Status::PENDING->value)->count();
-            
 
         return view('dashboard.index', [
             'dailyAppOpens' => $dailyAppOpens,
             'totalUsers' => [
-                'label' => ['Odoo', 'CMS', 'En attente'],
-                'data' => [$odooActiveUsers - $dbActiveUsers, $dbActiveUsers, $dbPendingUsers],
+                'label' => ['Odoo', 'CMS'],
+                'data' => [$totalActiveUsers - $dbActiveUsers, $dbActiveUsers],
             ]
         ]);
     }

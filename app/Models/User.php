@@ -71,6 +71,10 @@ class User extends \TCG\Voyager\Models\User
         return $this->hasOne(FundingOrganization::class, 'id', 'funding_organization_id');
     }
 
+    public function createdBy() {
+        return $this->hasOne(User::class, 'id', 'created_by');
+    }
+
     public function packages()
     {
         return $this->belongsToMany(Package::class);

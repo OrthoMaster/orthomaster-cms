@@ -90,6 +90,7 @@ class CompanyController extends Controller
             } while (Company::where('invite_code', $code)->exists());
 
             $company->invite_code = $code;
+            $company->created_by = Auth::user()->id;
             $company->save();
 
             return back()->with([
@@ -282,11 +283,13 @@ class CompanyController extends Controller
         }
         try {
             foreach ($company->users as $user) {
-                // MailController::createdNewAccount($user);
+                if ($user->password_temp) {
+                    MailController::createdNewAccount($user);
+                }
             }
 
             return back()->with([
-                'message' => "Connexion à Odoo réussie.",
+                'message' => "Envoyé les emails avec succès.",
                 'alert-type' => 'success'
             ]);
         } catch (\Exception $e) {

@@ -90,6 +90,7 @@
                                 <th>Contact</th>
                                 <th>Infos</th>
                                 <th>Statut</th>
+                                <th>Responsable</th>
                                 <th class="text-right">Actions</th>
                             </tr>
                         </thead>
@@ -124,6 +125,11 @@
                                             @endif
                                         @else
                                             <label class="label label-danger">Désactivé</label>
+                                        @endif
+                                    </td>
+                                    <td>
+                                        @if ($user->createdBy)
+                                        {{ $user->createdBy->name . ' ' . $user->first_name }}
                                         @endif
                                     </td>
                                     <td class="text-right">

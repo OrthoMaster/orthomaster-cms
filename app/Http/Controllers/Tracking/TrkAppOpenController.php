@@ -3,8 +3,10 @@
 namespace App\Http\Controllers\Tracking;
 
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\Odoo\OdooAccountController;
 use App\Models\RptDailyAppOpens;
 use App\Models\TrkAppOpens;
+use App\Services\OdooService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -28,6 +30,7 @@ class TrkAppOpenController extends Controller
             return false;
         }
 
+        Log::channel('tracking')->info(substr($token, 0, 20).'... | '.$agent, ['app-opens']);
         $created = TrkAppOpens::firstOrCreate(
             ['token' => $token, 'tracking_date' => $date],
             ['user_agent' => $agent]
@@ -37,6 +40,13 @@ class TrkAppOpenController extends Controller
                 ['date' => $date],
                 ['count' => 0]
             );
+
+            // Get total users from Odoo
+            if ($report->wasRecentlyCreated) {
+                $odooAccountController = new OdooAccountController(app(OdooService::class));
+                $report->total_users = $odooAccountController->countTotalActiveUser();
+                $report->save();
+            }
 
             $report->increment('count');
             $report->touch();
