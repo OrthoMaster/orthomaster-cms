@@ -183,10 +183,12 @@ class CompanyController extends Controller
 
             DB::commit();
 
-            return back()->with([
-                'message' => 'Généré avec succès',
-                'alert-type' => 'success'
-            ]);
+            return $this->connectOdoo($id);
+
+            // return back()->with([
+            //     'message' => 'Généré avec succès',
+            //     'alert-type' => 'success'
+            // ]);
         } catch (\Exception $e) {
             DB::rollback();
 
@@ -234,12 +236,14 @@ class CompanyController extends Controller
                     }
                 }
 
-                // Add member to company (Odoo)
+                // Add manager
                 if ($member->role && $member->role->name == 'user-manager') {
                     $odooAccountController->addManagerToCompany($company->id_odoo, $member->id_odoo_partner);
-                } else {
-                    $odooAccountController->addMemberToCommpany($company->id_odoo, $member->id_odoo_partner);
                 }
+                
+                // Add to member group
+                $odooAccountController->addMemberToCommpany($company->id_odoo, $member->id_odoo_partner);
+                
             }
 
             // Sync with old version DB

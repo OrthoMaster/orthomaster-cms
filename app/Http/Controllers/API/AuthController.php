@@ -97,7 +97,7 @@ class AuthController extends Controller
                 ->first();
 
             // Check user exist in new system - just sync password
-            $user = User::where('email', $oldVersionUser->name)->first();
+            $user = User::where('email', $oldVersionUser->email)->first();
             if ($user) {
                 $user->password = Hash::make($request->password);
                 $user->password_temp = null;

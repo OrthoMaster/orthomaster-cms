@@ -65,7 +65,17 @@
                                 <p id="company-name-error" class="mt-2 text-sm text-red-600 hidden"></p>
                             </div>
 
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div>
+                                    <label for="email" class="block text-sm text-gray-500 mb-2">
+                                        Email
+                                    </label>
+                                    <input type="email" id="company-email" name="company_email" maxlength="100"
+                                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all"
+                                        placeholder="email@exemple.com" value="{{ $company->email }}">
+                                    <p id="company-email-error" class="mt-2 text-sm text-red-600 hidden"></p>
+                                </div>
+
                                 <div>
                                     <label for="siret" class="block text-sm text-gray-500 mb-2">
                                         Numéro SIRET
@@ -97,7 +107,7 @@
                                 <p id="address-error" class="mt-2 text-sm text-red-600 hidden"></p>
                             </div>
 
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                                 <div>
                                     <label for="postal-code" class="block text-sm text-gray-500 mb-2">
                                         Code postal <span class="text-red-500">*</span>
@@ -117,16 +127,16 @@
                                         placeholder="Ville" maxlength="100" required value="{{ $company->city }}">
                                     <p id="city-error" class="mt-2 text-sm text-red-600 hidden"></p>
                                 </div>
-                            </div>
 
-                            <div>
-                                <label for="country" class="block text-sm text-gray-500 mb-2">
-                                    Pays <span class="text-red-500">*</span>
-                                </label>
-                                <input type="text" id="country" name="country"
-                                    class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all"
-                                    placeholder="Pays" maxlength="100" required value="{{ $company->country }}">
-                                <p id="country-error" class="mt-2 text-sm text-red-600 hidden"></p>
+                                <div>
+                                    <label for="country" class="block text-sm text-gray-500 mb-2">
+                                        Pays <span class="text-red-500">*</span>
+                                    </label>
+                                    <input type="text" id="country" name="country"
+                                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all"
+                                        placeholder="Pays" maxlength="100" required value="{{ $company->country }}">
+                                    <p id="country-error" class="mt-2 text-sm text-red-600 hidden"></p>
+                                </div>
                             </div>
                         </div>
 
@@ -165,8 +175,8 @@
                         @if (!$company->status == App\Status::PENDING->value)
                             <button onclick="openAddMemberModal()" type="button"
                                 class="w-full px-4 py-2 border border-2 border-gray-100 text-gray-400 rounded-lg hover:bg-gray-100 transition-colors flex items-center justify-center gap-2">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24"
-                                    stroke="currentColor">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none"
+                                    viewBox="0 0 24 24" stroke="currentColor">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                         d="M12 4v16m8-8H4" />
                                 </svg>
@@ -554,6 +564,7 @@
             // Step 1 - Company
             if (step === 1) {
                 const companyName = document.getElementById('company-name').value.trim();
+                const companyEmail = document.getElementById('company-email').value.trim();
                 const siret = document.getElementById('siret').value.trim();
 
                 const address = document.getElementById('address').value.trim();
@@ -571,6 +582,19 @@
                     scrollToAndFocus('company-name', false);
                 } else {
                     hideError('company-name-error');
+                }
+
+                if (companyEmail && !validateEmail(companyEmail)) {
+                    showError('company-email-error', "Veuillez saisir un email valide !");
+                    hasError = true;
+                    if (!firstError) {
+                        firstError = true;
+                        scrollToAndFocus('company-email', false);
+                    }
+
+                    scrollToAndFocus('company-email', false);
+                } else {
+                    hideError('company-email-error');
                 }
 
                 if (siret && !validateSIRET(siret)) {
@@ -851,13 +875,19 @@
                 showError('member-email-error', "Veuillez saisir l'email !");
                 scrollToAndFocus('member-email');
                 return;
-            } else if (!validateEmail(email)) {
+            } else if (!validateEmail(email)) { // Check syntax
                 hasError = true;
                 firstError = true;
                 showError('member-email-error', "Veuillez saisir un email valide !");
                 scrollToAndFocus('member-email');
                 return;
-            } else {
+            } else if (members.filter(m => (m.email == email)).length > 0) { // Check exist in list
+                hasError = true;
+                firstError = true;
+                showError('member-email-error', "Un autre membre a utilisé cet email.");
+                scrollToAndFocus('member-email');
+                return;
+            } else { // Check exist in database
                 const isEmailValid = await checkEmailWithDB(email);
                 if (!isEmailValid) {
                     hasError = true;
@@ -939,20 +969,20 @@
             // RPPS
             const rppsType = document.getElementById('member-rpps-type').value;
             const rpps = document.getElementById('member-rpps').value;
-            if (rppsType !== 'other' && !rpps) {
-                hasError = true;
-                errorMessage += (errorMessage ? ', ' : '') + 'N° professionnel';
+            // if (rppsType !== 'other' && !rpps) {
+            //     hasError = true;
+            //     errorMessage += (errorMessage ? ', ' : '') + 'N° professionnel';
 
-                if (hasReturn) {
-                    showError('member-rpps-error', "Veuillez saisir le numéro professionnel !");
-                    if (!firstError) {
-                        firstError = true;
-                        scrollToAndFocus('member-rpps');
-                    }
-                }
-            } else {
-                hideError('member-rpps-error');
-            }
+            //     if (hasReturn) {
+            //         showError('member-rpps-error', "Veuillez saisir le numéro professionnel !");
+            //         if (!firstError) {
+            //             firstError = true;
+            //             scrollToAndFocus('member-rpps');
+            //         }
+            //     }
+            // } else {
+            //     hideError('member-rpps-error');
+            // }
 
             // SECU
             const secu = document.getElementById('member-secu').value;
@@ -1081,15 +1111,15 @@
                             </div>
                         </div>
                         ${member.hasError ? `
-                            <div class="space-y-1 text-xs text-yellow-500 mt-2">
-                                <div class="flex gap-1">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-yellow-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                                    </svg>
-                                    <span class="text-xs"><small> Manquant: ${member.errorMessage}</small></span>
-                                </div>
-                            </div>
-                        ` : ''}
+                                    <div class="space-y-1 text-xs text-yellow-500 mt-2">
+                                        <div class="flex gap-1">
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-yellow-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                            </svg>
+                                            <span class="text-xs"><small> Manquant: ${member.errorMessage}</small></span>
+                                        </div>
+                                    </div>
+                                ` : ''}
                     </div>
                 `;
             }).join('');
@@ -1147,10 +1177,19 @@
                 return;
             }
             hideError('members-error');
-
+            
+            // Has error
             const totalError = members.filter(m => m.hasError).length;
             if (totalError > 0) {
                 showError('members-error', "Veuillez vérifier les informations complètes des membres de l'équipe !");
+                return;
+            }
+            hideError('members-error');
+
+            // No manager
+            const totalLeader = members.filter(m => m.isLeader).length;
+            if (totalLeader <= 0) {
+                showError('members-error', "Veuillez définir au moins une personne responsable pédagogique !");
                 return;
             }
             hideError('members-error');

@@ -59,7 +59,7 @@
                                 </div>
                                 <div class="form-group col-md-6">
                                     <label class="control-label" for="first-name">Prénom</label>
-                                    <input id="first-name" name="first_name" type="text" class="form-control" required
+                                    <input id="first-name" name="first_name" type="text" class="form-control"
                                         value="{{ old('first_name', $user->first_name ?? '') }}">
                                 </div>
                                 <div class="form-group col-md-4">

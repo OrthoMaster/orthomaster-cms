@@ -219,6 +219,7 @@ class OdooAccountController extends Controller
             'type' => 'contact',
             'company_type' => 'company',
             'name' => $company->name,
+            'email' => $company->email,
             'phone' => $company->phone,
             'street' => $company->address,
             'zip' => $company->postal_code,
