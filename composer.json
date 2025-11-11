@@ -12,10 +12,13 @@
         "php": "^8.2",
         "guzzlehttp/guzzle": "^7.9",
         "laravel/framework": "^11.31",
+        "laravel/octane": "^2.13",
         "laravel/sanctum": "^4.0",
         "laravel/tinker": "^2.9",
         "league/flysystem-aws-s3-v3": "^3.29",
         "phpxmlrpc/phpxmlrpc": "^4.11",
+        "spiral/roadrunner-cli": "^2.6.0",
+        "spiral/roadrunner-http": "^3.3.0",
         "tcg/voyager": "^1.8"
     },
     "require-dev": {
