@@ -83,6 +83,7 @@
                                 <div class="form-group col-md-4">
                                     <label class="control-label" for="country">Pays</label>
                                     <select class="form-control select2" id="country" name="country">
+                                        <option value="">---</option>
                                         @foreach ($countries as $code => $country)
                                             <option value="{{ $code }}" @selected(old('country', $user->country_code ?? 'FR') == $code)>
                                                 {{ $country }}
@@ -220,6 +221,15 @@
                                         style="margin-right: 5px" onclick="confirmAccount();">Confirmer &
                                         Activer</button>
                                 @endif
+
+                                @if ($user->status == 1 && $user->password_temp)
+                                    <a class="btn btn-info" style="margin-right: 5px"
+                                        href="{{ route('account.resend', $user->id) }}"
+                                        onclick="return confirm('Etes-vous sûr(e) ?')">
+                                        <span>Réenvoyer email</span>
+                                    </a>
+                                @endif
+
                                 <button type="submit" class="btn btn-warning">{{ __('voyager::generic.edit') }}</button>
                             @else
                                 <button type="submit" class="btn btn-primary">{{ __('voyager::generic.save') }}</button>
@@ -318,8 +328,39 @@
                             </div>
                         @endif
                     </div>
+
+                    @if ($edit)
+                        <div class="panel panel-bordered">
+                            <div class="panel-heading">
+                                <h4 class="panel-title">Système</h4>
+                            </div>
+                            <div class="panel-body">
+                                <div class="row">
+                                    <div class="form-group col-md-12">
+                                        <label class="control-label" for="responsable">Responsable</label>
+                                        <select class="form-control select2" id="responsable" name="created_by">
+                                            <option value="">---</option>
+                                            @foreach ($admins as $admin)
+                                                <option value="{{ $organization->id }}" @selected(old('created_by', $user->created_by ?? '') == $admin->id)>
+                                                    {{ $admin->name . ' ' . $admin->first_name }}</option>
+                                            @endforeach
+                                        </select>
+                                    </div>
+
+                                    <div class="form-group col-md-6">
+                                        <div style="padding-left: 5px"><small>Crée le</small>
+                                            {{ $user->created_at->format('d/m/Y h:i') . ' | ' . $user->created_from }}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="panel-footer">
+                                <button type="submit" class="btn btn-warning">{{ __('voyager::generic.edit') }}</button>
+                            </div>
+                        </div>
+                    @endif
                 </div>
-                <!-- Organization -->
             </div>
         </form>
     </div>

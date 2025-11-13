@@ -129,7 +129,7 @@
                                     </td>
                                     <td>
                                         @if ($user->createdBy)
-                                        {{ $user->createdBy->name . ' ' . $user->first_name }}
+                                            {{ $user->createdBy->name . ' ' . $user->createdBy->first_name }}
                                         @endif
                                     </td>
                                     <td class="text-right">

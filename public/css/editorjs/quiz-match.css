@@ -1,0 +1,155 @@
+.quizmatch-tool {
+    border: 1px solid #f0f0f0;
+    border-radius: 4px;
+    background: #f9f9f9;
+    padding: 20px;
+    margin: 10px 0 20px 0;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, .05);
+}
+
+.qm-question-section label {
+    font-weight: 500;
+    font-size: 14px;
+    margin-bottom: 8px;
+}
+
+.qm-question {
+    width: 100%;
+    border: 1px solid #f0f0f0;
+    border-radius: 6px;
+    padding: 8px;
+    font-size: 14px;
+}
+
+.qm-question-image-block {
+    margin-top: 8px;
+}
+
+.qm-qimg-view {
+    border: 1px solid #f0f0f0;
+    border-radius: 6px;
+    padding: 8px;
+    background: #fff;
+}
+
+.qm-qimg-preview {
+    max-width: 100%;
+    height: auto;
+    display: block;
+    border-radius: 4px;
+}
+
+.qm-qimg-actions {
+    margin-top: 6px;
+    display: flex;
+    gap: 6px;
+}
+
+.qm-resp-header {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-top: 12px;
+    margin-bottom: 6px;
+}
+
+.qm-col-title {
+    font-weight: 600;
+    font-size: 13px;
+    color: #374151;
+}
+
+.qm-resp-body {
+    /* background: #fff; */
+}
+
+.qm-empty {
+    color: #9ca3af;
+    font-size: 12px;
+    font-style: italic;
+    padding: 6px 0;
+}
+
+.qm-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr auto;
+    gap: 8px;
+    align-items: start;
+    border: 1px solid #f0f0f0;
+    border-radius: 6px;
+    padding: 20px;
+    margin-bottom: 6px;
+    background: #fff;
+}
+
+.qm-cell {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.qm-text-input {
+    width: 100%;
+    border: 1px solid #f0f0f0;
+    border-radius: 6px;
+    padding: 6px 8px;
+    font-size: 14px;
+}
+
+.qm-img-view {
+    border: 1px dashed #f0f0f0;
+    border-radius: 6px;
+    padding: 6px;
+    background: #fff;
+}
+
+.qm-img-preview {
+    max-width: 100%;
+    height: auto;
+    display: block;
+    border-radius: 4px;
+}
+
+.qm-row-actions {
+    display: flex;
+    justify-content: flex-end;
+}
+
+.qm-remove-pair {
+    border: 0px;
+    color: #fa2a00;
+    background-color: transparent;
+    cursor: pointer;
+    height: 24px;
+    width: 24px;
+    align-items: center;
+    justify-content: center;
+}
+
+/* ReadOnly */
+.qm-col {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.qm-readonly-cell {
+    border: 1px solid #f0f0f0;
+    border-radius: 6px;
+    padding: 8px;
+    background: #fff;
+}
+
+.qm-readonly-text {
+    line-height: 1.5;
+    font-size: 14px;
+    margin-bottom: 6px;
+    white-space: pre-wrap;
+}
+
+.qm-readonly-img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 4px;
+    display: block;
+}

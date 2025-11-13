@@ -264,6 +264,9 @@ class AccountController extends Controller
             $storedCompanyId = $user->company_id;
         }
 
+        // Responsable
+        $admins = User::getAdmins();
+
         return view(
             'accounts.edit-add',
             compact(
@@ -277,6 +280,7 @@ class AccountController extends Controller
                 'companies',
                 'storedCompany',
                 'storedCompanyId',
+                'admins'
             )
         );
     }
@@ -291,10 +295,10 @@ class AccountController extends Controller
             'email' => [
                 'required',
                 'email',
-                Rule::unique('users', 'email')->ignore($user->id), // bỏ qua user hiện tại
+                Rule::unique('users', 'email')->ignore($user->id), // Ignore current user
             ],
             'name' => 'required|string|max:100',
-            'first_name' => 'required|string|max:100',
+            'first_name' => 'nullable|string|max:100',
             'phone' => 'nullable|regex:/^\+?[0-9]{1,3}[\s\-]?(\(?\d{1,4}\)?[\s\-]?){1,}[0-9]{1,}$/|min:10|max:20',
             'occupation' => 'required|in:professor,student',
 
@@ -381,6 +385,8 @@ class AccountController extends Controller
                 'first_name_birth' => mb_convert_case(trim($request->first_name_birth), MB_CASE_TITLE, 'UTF-8'),
                 'date_of_birth' => $request->date_of_birth ? $request->date_of_birth : null,
                 'no_secu' => $request->no_secu,
+
+                'created_by' => $request->created_by
             ]);
 
             // Upload certificate
@@ -418,6 +424,7 @@ class AccountController extends Controller
             $odooAccountController->store($user);
 
             // Send email
+            Log::channel('mail')->info('After registered: ' . $user->email, ['register']);
             Mail::to($user->email)->send(new CreatedAccountMail($user->email, $user));
 
             return back()->with([

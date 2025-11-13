@@ -27,7 +27,7 @@
             <div class="col-md-8" id="editorColumn">
                 <div class="panel panel-bordered">
                     <div class="panel-heading editor-title">
-                        <small>{{ $lesson->training->name }}</small>
+                        <small>{{ $lesson->module ? $lesson->module->name : null }}</small>
                         <h4>{{ $lesson->title }}</h4>
                     </div>
                     <div class="panel-body">
@@ -55,8 +55,11 @@
 @section('css')
     <link rel="stylesheet" href="{{ asset('css/editorjs/editor.css') }}">
     <link rel="stylesheet" href="{{ asset('css/editorjs/quiz-choice.css') }}">
+    <link rel="stylesheet" href="{{ asset('css/editorjs/quiz-match.css') }}">
     <link rel="stylesheet" href="{{ asset('css/editorjs/text-variant-tune.css') }}">
     <link rel="stylesheet" href="{{ asset('css/editorjs/video.css') }}">
+    <link rel="stylesheet" href="{{ asset('css/editorjs/video-chapters.css') }}">
+    <link rel="stylesheet" href="{{ asset('css/editorjs/summary.css') }}">
     <style>
         .ce-header {
             color: #37474f;
@@ -187,8 +190,11 @@
     <script src="{{ asset('js/editorjs/quote.js') }}"></script>
     <script src="{{ asset('js/editorjs/paragraph.js') }}"></script>
     <script src="{{ asset('js/editorjs/quiz-choice.js') }}"></script>
+    <script src="{{ asset('js/editorjs/quiz-match.js') }}"></script>
     <script src="{{ asset('js/editorjs/text-variant-tune.js') }}"></script>
     <script src="{{ asset('js/editorjs/video.js') }}"></script>
+    <script src="{{ asset('js/editorjs/video-chapters.js') }}"></script>
+    <script src="{{ asset('js/editorjs/summary.js') }}"></script>
 
     <script>
         // Dev Mode Toggle functionality
@@ -216,6 +222,45 @@
                 toggleDevMode();
             });
         });
+
+        const imageUploader = {
+            uploadByFile(file) {
+                const formData = new FormData();
+                formData.append('image', file);
+                formData.append('id', {{ $lesson->id }});
+
+                return fetch("{{ route('upload.image.s3.lesson') }}", {
+                        method: 'POST',
+                        headers: {
+                            'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                            'Accept': 'application/json'
+                        },
+                        body: formData
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            return {
+                                success: 1,
+                                file: {
+                                    url: data.file.url,
+                                    name: data.file.name || file.name,
+                                    size: file.size
+                                }
+                            };
+                        } else {
+                            throw new Error(data.message || 'Upload failed');
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Upload error:', error);
+                        return {
+                            success: 0,
+                            error: error.message
+                        };
+                    });
+            }
+        };
 
         // Initialize EditorJS
         const editor = new EditorJS({
@@ -255,44 +300,7 @@
                             stretch: false
                         },
                         captionPlaceholder: "Écrivez une légende (facultatif)",
-                        uploader: {
-                            uploadByFile(file) {
-                                const formData = new FormData();
-                                formData.append('image', file);
-                                formData.append('id', {{ $lesson->id }});
-
-                                return fetch("{{ route('upload.image.s3.lesson') }}", {
-                                        method: 'POST',
-                                        headers: {
-                                            'X-CSRF-TOKEN': '{{ csrf_token() }}',
-                                            'Accept': 'application/json'
-                                        },
-                                        body: formData
-                                    })
-                                    .then(response => response.json())
-                                    .then(data => {
-                                        if (data.success) {
-                                            return {
-                                                success: 1,
-                                                file: {
-                                                    url: data.file.url,
-                                                    name: data.file.name || file.name,
-                                                    size: file.size
-                                                }
-                                            };
-                                        } else {
-                                            throw new Error(data.message || 'Upload failed');
-                                        }
-                                    })
-                                    .catch(error => {
-                                        console.error('Upload error:', error);
-                                        return {
-                                            success: 0,
-                                            error: error.message
-                                        };
-                                    });
-                            }
-                        }
+                        uploader: imageUploader
                     }
                 },
                 video: {
@@ -301,7 +309,31 @@
                         apiEndpoint: '/api',
                     }
                 },
-                quizSelect: QuizChoice,
+                videoChapters: VideoChapters,
+                quizSelect: {
+                    class: QuizChoice,
+                    config: {
+                        image: {
+                            uploader: imageUploader
+                        }
+                    }
+                },
+                quizMatch: {
+                    class: QuizMatch,
+                    config: {
+                        image: {
+                            uploader: imageUploader
+                        }
+                    }
+                },
+
+                summary: {
+                    class: Summary,
+                    config: {
+                        placeholder: 'Résumé …',
+                        toolbar: true,
+                    }
+                },
             },
             data: JSON.parse(@json($block->content)),
             onReady: () => {

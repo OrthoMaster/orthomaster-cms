@@ -107,6 +107,7 @@
             display: inline-block;
             letter-spacing: 1px;
         }
+
         .credential-value a {
             text-decoration: none !important;
             color: inherit !important;
@@ -258,28 +259,44 @@
         }
 
         .download-buttons {
-            margin: 25px 0;
+            margin: 20px 0;
+            justify-items: center;
+            text-align: center;
         }
 
         .download-button {
-            display: inline-block;
+            display: inline-flex;
             padding: 12px 24px;
             margin: 8px 6px;
             background-color: #fff;
             border: 1px solid #ddd;
             border-radius: 8px;
-            color: #333;
+            color: #666;
             text-decoration: none;
             font-size: 14px;
             font-weight: 500;
             transition: all 0.2s;
             min-width: 130px;
+            line-height: 24px;
             text-align: center;
         }
 
         .download-button:hover {
             border-color: #eb7b0f;
             background-color: #fff9f5;
+            color: #333;
+        }
+
+        .download-button svg {
+            width: 24px;
+            height: 24px;
+            margin-right: 5px;
+        }
+
+        .download-button img {
+            height: 24px;
+            width: auto;
+            margin-right: 7px;
         }
 
         .action-button {
@@ -292,6 +309,12 @@
             font-weight: 600;
             font-size: 14px;
             margin: 10px 10px 10px 0;
+        }
+
+        .sub-version-web {
+            font-size: 12px;
+            color: #666;
+
         }
 
         @media only screen and (max-width: 600px) {

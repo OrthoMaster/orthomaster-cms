@@ -30,7 +30,9 @@ class Lesson extends Model
 
     public static function findById($id)
     {
-        return Lesson::where('id', $id)->with('training')->first();
+        return Lesson::where('id', $id)
+            ->with(['module'])
+            ->first();
     }
 
     public static function getByModuleId($moduleId)
