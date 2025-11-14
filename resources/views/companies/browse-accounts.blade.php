@@ -25,6 +25,13 @@
                 onclick="return confirm('Etes-vous sûr(e) ?')">
                 <i class="voyager-mail"></i> <span>Envoyer emails d'invitation</span>
             </a>
+
+            @if (Auth::user()->role->name == 'admin')
+            <a class="btn btn-danger" style="margin-right: 5px" href="{{ route('companies.integrity-check', $company->id) }}"
+                onclick="return confirm('Etes-vous sûr(e) ?')">
+                <span>Vérification d'intégrité</span>
+            </a>
+            @endif
         @endif
 
         {{-- <a href="{{ route('companies.training-permissions', $company->id) }}" class="btn btn-primary"
@@ -189,7 +196,7 @@
                                             <tr>
                                                 <td>
                                                     <div><strong>{{ $user->name }}</strong>
-                                                        {{ $user->first_name }} @if ($user->role->name === 'user-manager')
+                                                        {{ $user->first_name }} @if ($user->pivot->manager_flg)
                                                             <label class="label label-primary">Responsable</label>
                                                         @endif
                                                     </div>

@@ -109,10 +109,15 @@
                                             <p>Étudiant</p>
                                         @endif
 
-                                        @if ($user->company_id)
-                                            <div><strong>{{ $user->company->name }}</strong></div>
-                                            <small>{{ $user->company->address . ' ' . $user->company->postal_code . ' ' . $user->company->city }}</small>
-                                        @endif
+                                        @foreach ($user->companies as $company)
+                                            <div><strong>{{ $company->name }}</strong>
+                                                @if ($company->pivot->manager_flg)
+                                                    <span class="label label-primary">Responsable</span>
+                                                @endif
+                                            </div>
+                                            <small>{{ $company->address . ' ' . $company->postal_code . ' ' . $company->city }}</small>
+                                            <br />
+                                        @endforeach
                                     </td>
                                     <td>
                                         @if ($user->status == 2)

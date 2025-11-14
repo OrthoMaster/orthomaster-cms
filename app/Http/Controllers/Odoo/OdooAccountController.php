@@ -32,7 +32,7 @@ class OdooAccountController extends Controller
         try {
             // Define tags
             $tags = [$this::CREATED_BY_CMS, $this::NOT_YET_LOGGED_IN];
-            if ($user->role && $user->role->name == 'user-manager') {
+            if ($user->companiesUserIsManager->isNotEmpty()) {
                 $tags = [$this::CREATED_BY_CMS, $this::MANAGER, $this::NOT_YET_LOGGED_IN];
             }
 
@@ -173,9 +173,10 @@ class OdooAccountController extends Controller
             return $id != $this::NOT_YET_LOGGED_IN;
         }));
 
-        if (!in_array($this::USER, $newCategoryIds)) {
-            $newCategoryIds[] = $this::USER;
-        }
+        $newCategoryIds = array_unique(array_merge(
+            $newCategoryIds,
+            [$this::USER, $this::CREATED_BY_CMS]
+        ));
 
         // Update
         $result = $this->odooService->write(
@@ -314,9 +315,13 @@ class OdooAccountController extends Controller
         try {
             $company = Company::find($companyId);
 
-            // Sync with old version        
             $oldVersionCompany = OldVersionCompany::create([
                 'name' => $company->name,
+                'email' => $company->email,
+                'address_way' => $company->address,
+                'address_postal_code' => $company->postal_code,
+                'address_city' => $company->city,
+                'address_country' => $company->country,
                 'id_odoo_partner' => $company->id_odoo
             ]);
 
@@ -324,23 +329,21 @@ class OdooAccountController extends Controller
             $company->save();
 
             foreach ($company->users as $user) {
-                $member = User::find($user->id);
-
-                if ($member->id_user) {
-                    Log::warning('Missing sync belong office by user: ' . $member->id, ['sync-company', 'odoo']);
+                if (!$user->id_user) {
+                    Log::warning('Missing sync belong office by user: ' . $user->id, ['sync-company', 'odoo']);
                     continue;
                 }
 
                 DB::table('user_belong_to_office')->insert([
-                    'id_office' => $oldVersionCompany->id,
-                    'id_user' => $member->id_user,
-                    'is_office_manager' => ($member->role & $member->role->name == 'user-manager') ? true : false
+                    'id_office' => $oldVersionCompany->id_office,
+                    'id_user' => $user->id_user,
+                    'is_office_manager' => $user->pivot->manager_flg
                 ]);
             }
 
             return true;
         } catch (\Exception $e) {
-            Log::error($e->getMessage(), ['sync-company', 'odoo']);
+            Log::error($e->getMessage(), ['sync-company', 'odoo', $companyId]);
             return false;
         }
     }
@@ -387,7 +390,9 @@ class OdooAccountController extends Controller
                     'x_studio_fonction_professionnelle_1',
                     'x_studio_nom_de_jeune_fille',
                     'x_studio_date_de_naissance',
-                    'x_studio_n_securite_sociale'
+                    'x_studio_n_securite_sociale',
+
+                    'x_studio_espaces_professionnels', // Company
                 ],
                 1
             );
@@ -425,58 +430,8 @@ class OdooAccountController extends Controller
     /**
      * 
      */
-    public function countTotalActiveUser() {
+    public function countTotalActiveUser()
+    {
         return $this->odooService->count('res.users', [['active', '=', true]]);
     }
-
-    // public function test()
-    // {
-    //     $partnerId = 19213;
-    //     $partnerEmail = 'fx.francis92@gmail.com';
-
-    //     $contact = $this->odooService->searchRead(
-    //         'res.partner',
-    //         [['id', '=', $partnerId]],
-    //         [
-    //             'phone',
-    //             'zip',
-    //             'city',
-    //             'country_id',
-    //             'country_code',
-    //             'x_studio_type_dtablissement_1',
-    //             'x_studio_fonction_professionnelle_1',
-    //             'x_studio_nom_de_jeune_fille',
-    //             'x_studio_date_de_naissance',
-    //             'x_studio_n_securite_sociale'
-    //         ],
-    //         1
-    //     );
-    //     if (!empty($contact)) {
-    //         dd('asdasd');
-    //     }
-
-    //     dd($contact);
-
-
-    //     // $userData = [
-    //     //     'name' => 'Test',
-    //     //     'email' => $partnerEmail,
-    //     //     'login' => $partnerEmail,
-    //     //     'password' => 'Password@123',
-    //     //     'partner_id' => $partnerId,
-    //     //     'group_ids' => [[6, 0, [10]]],
-    //     //     'active' => true,
-    //     // ];
-    //     // $userId = $this->odooService->create('res.users', $userData, [
-    //     //     'no_reset_password' => true,
-    //     //     'no_send_email' => true,
-    //     //     'mail_create_nosubscribe' => true,
-    //     //     'mail_create_nolog' => true,
-    //     //     'mail_auto_subscribe_no_notify' => true,
-    //     //     'tracking_disable' => true,
-    //     //     'no_password_change_notify' => true,
-    //     // ]);
-
-    //     // dd($userId);
-    // }
 }

@@ -875,13 +875,15 @@
                 showError('member-email-error', "Veuillez saisir l'email !");
                 scrollToAndFocus('member-email');
                 return;
-            } else if (!validateEmail(email)) { // Check syntax
+            } else if (!validateEmail(email)) {
+                // Check syntax
                 hasError = true;
                 firstError = true;
                 showError('member-email-error', "Veuillez saisir un email valide !");
                 scrollToAndFocus('member-email');
                 return;
-            } else if (members.filter(m => (m.email == email)).length > 0) { // Check exist in list
+            } else if (members.filter(m => (m.email === email && m.id !== editingMemberId)).length > 0) {
+                // Check exist in list
                 hasError = true;
                 firstError = true;
                 showError('member-email-error', "Un autre membre a utilisé cet email.");
@@ -1111,15 +1113,15 @@
                             </div>
                         </div>
                         ${member.hasError ? `
-                                    <div class="space-y-1 text-xs text-yellow-500 mt-2">
-                                        <div class="flex gap-1">
-                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-yellow-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                                            </svg>
-                                            <span class="text-xs"><small> Manquant: ${member.errorMessage}</small></span>
-                                        </div>
-                                    </div>
-                                ` : ''}
+                                                <div class="space-y-1 text-xs text-yellow-500 mt-2">
+                                                    <div class="flex gap-1">
+                                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-yellow-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                                        </svg>
+                                                        <span class="text-xs"><small> Manquant: ${member.errorMessage}</small></span>
+                                                    </div>
+                                                </div>
+                                            ` : ''}
                     </div>
                 `;
             }).join('');
@@ -1177,7 +1179,7 @@
                 return;
             }
             hideError('members-error');
-            
+
             // Has error
             const totalError = members.filter(m => m.hasError).length;
             if (totalError > 0) {

@@ -103,6 +103,11 @@ Route::group(['prefix' => 'admin', 'middleware' => ['cmsAdmin']], function () {
     Route::post('/companies/{id}/fill-data', [CompanyController::class, 'fillDataFromTemps'])->name('companies.fill-data');
     Route::post('/companies/{id}/user/{userId}/update-manager', [CompanyController::class, 'updateManager'])->name('companies.manager.update');
 
+    Route::get('/companies/{id}/invite-code', [CompanyController::class, 'generateInviteCode'])->name('companies.invite-code.generate');
+
+    Route::get('/companies/{id}/integrity-check', [CompanyController::class, 'integrityCheck'])->name('companies.integrity-check');
+
+
     Route::get('/companies/{id}/training-permissions', [TrainingPermissionController::class, 'storeWithCompany'])->name('companies.training-permissions');
     Route::post('/companies/{id}/training-permissions', [TrainingPermissionController::class, 'updateWithCompany'])->name('companies.training-permissions.update');
 

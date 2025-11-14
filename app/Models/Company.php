@@ -25,7 +25,9 @@ class Company extends Model
 
     public function users()
     {
-        return $this->hasMany(User::class, 'company_id', 'id');
+        return $this->belongsToMany(User::class)
+            ->withPivot('manager_flg')
+            ->withTimestamps();
     }
 
     public function packages()

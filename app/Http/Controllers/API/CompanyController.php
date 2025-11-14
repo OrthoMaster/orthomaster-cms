@@ -14,11 +14,15 @@ class CompanyController extends Controller
     {
         try {
             $user = User::find(Auth::user()->id);
-            if ($user->role->name !== 'user-manager') {
-                return response()->json(['success' => false], 403);
+            $members = null;
+
+            $company = $user->companiesUserIsManager()->first();
+            if ($company) {
+                $members = $company->users()
+                    ->wherePivot('manager_flg', false)
+                    ->get();
             }
 
-            $members = $user->company->users->except($user->id);;
             return response()->json([
                 'success' => true,
                 'data' => $members

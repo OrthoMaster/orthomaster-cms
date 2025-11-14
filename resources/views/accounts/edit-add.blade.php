@@ -216,7 +216,7 @@
 
                         <div class="panel-footer">
                             @if ($edit)
-                                @if ($user->status == 2 && !$user->company)
+                                @if ($user->status == 2 && $user->companies->isEmpty()))
                                     <button id="confirm-button" type="button" class="btn btn-primary"
                                         style="margin-right: 5px" onclick="confirmAccount();">Confirmer &
                                         Activer</button>
@@ -240,7 +240,8 @@
                 </div>
 
                 <div class="col-lg-4 col-md-2">
-                    <div class="panel panel-bordered">
+
+                    {{-- <div class="panel panel-bordered">
                         <div class="panel-heading">
                             <h4 class="panel-title">Société</h4>
                         </div>
@@ -283,7 +284,7 @@
                                 <button type="submit" class="btn btn-warning">{{ __('voyager::generic.edit') }}</button>
                             </div>
                         @endif
-                    </div>
+                    </div> --}}
 
                     <div class="panel panel-bordered">
                         <div class="panel-heading">

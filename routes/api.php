@@ -5,6 +5,7 @@ use App\Http\Controllers\API\AuthController;
 use App\Http\Controllers\API\CartController;
 use App\Http\Controllers\API\CompanyController;
 use App\Http\Controllers\API\TrainingController;
+use App\Http\Controllers\Odoo\OdooAccountController;
 use App\Http\Controllers\Tracking\TrkAppOpenController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;

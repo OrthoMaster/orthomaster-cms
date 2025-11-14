@@ -33,37 +33,29 @@ class CompanyController extends Controller
      */
     public function updateManager(string $id, string $userId)
     {
-        $user = User::where('id', $userId)->where('company_id', $id)->first();
+        $user = User::where('id', $userId)->first();
 
         if (!$user) {
             return abort(404);
         }
 
-        $managerRole = Role::where('name', 'user-manager')->first();
-        if ($managerRole && $user->role_id !== $managerRole->id) {
-            $user->role_id = $managerRole->id;
-            $user->save();
-
+        $company = $user->companies()->where('company_id', $id)->first();
+        if (!$company) {
             return back()->with([
-                'message' => 'Mise à jour réussie',
-                'alert-type' => 'success'
+                'message' => "La société n'existe pas.",
+                'alert-type' => 'error'
             ]);
         }
 
-        if ($user->role_id == $managerRole->id) {
-            $userRole = Role::where('name', 'user')->first();
-            $user->role_id = $userRole->id;
-            $user->save();
-
-            return back()->with([
-                'message' => 'Mise à jour réussie',
-                'alert-type' => 'success'
+        if ($company) {
+            $user->companies()->updateExistingPivot($id, [
+                'manager_flg' => !$company->pivot->manager_flg,
             ]);
         }
 
         return back()->with([
-            'message' => "Il n'y a rien à mettre à jour",
-            'alert-type' => 'warning'
+            'message' => "Mis à jour avec succès",
+            'alert-type' => 'success'
         ]);
     }
 
@@ -106,6 +98,35 @@ class CompanyController extends Controller
     }
 
     /**
+     * Generate join code to send for other users want to join
+     */
+    public function generateJoinCode(string $id)
+    {
+        $company = Company::findById($id);
+        if (!$company) {
+            return false;
+        }
+
+        if ($company->join_code) {
+            return true;
+        }
+
+        try {
+            do {
+                $code = Str::random(12);
+            } while (Company::where('join_code', $code)->exists());
+
+            $company->join_code = $code;
+            $company->save();
+
+            return true;
+        } catch (\Exception $e) {
+            Log::error($e->getMessage(), ['company', 'join-code', $id]);
+            return false;
+        }
+    }
+
+    /**
      * Re-open form
      */
     public function backEditable(string $id)
@@ -132,12 +153,14 @@ class CompanyController extends Controller
         if (!$company) {
             return abort(404);
         }
+        $this->generateJoinCode($id);
 
         DB::beginTransaction();
         try {
             $userRole = Role::where('name', 'user')->first();
-            $managerRole = Role::where('name', 'user-manager')->first();
+            // $managerRole = Role::where('name', 'user-manager')->first();
 
+            // Add members
             foreach ($company->users_temp as $temp) {
                 $passwordTemp = Str::random(10);
 
@@ -151,14 +174,12 @@ class CompanyController extends Controller
 
                 // Create new user
                 $user = User::create([
-                    'role_id' => $temp['isLeader'] ? $managerRole->id : $userRole->id,
+                    'role_id' => $userRole->id,
                     'name' => mb_convert_case(trim($temp['name']), MB_CASE_TITLE, 'UTF-8'),
                     'first_name' => mb_convert_case(trim($temp['firstname']), MB_CASE_TITLE, 'UTF-8'),
                     'email' => $temp['email'],
                     'password_temp' => $passwordTemp,
                     'password' => bcrypt($passwordTemp),
-
-                    // 'student_flg' => $temp['isStudent'],
 
                     'establishment_id' => $company->establishment_id,
                     'profession_id' => $professionId,
@@ -166,7 +187,6 @@ class CompanyController extends Controller
                     'no_prof_type_id' => $temp['rppsType'] !== 'other' ? $temp['rppsType'] : null,
                     'no_prof' => $temp['rpps'],
 
-                    'company_id' => $company->id,
                     'funding_organization_id' => $organizationId,
                     'no_secu' => trim($temp['secu']),
                     'first_name_birth' => mb_convert_case(trim($temp['firstnameBirth']), MB_CASE_TITLE, 'UTF-8'),
@@ -174,6 +194,11 @@ class CompanyController extends Controller
 
                     'status' => Status::PENDING->value,
                     'created_by' => Auth::user()->id
+                ]);
+
+                // Add user to company
+                $company->users()->attach($user->id, [
+                    'manager_flg' => $temp['isLeader'] ?? false,
                 ]);
             }
 
@@ -238,13 +263,12 @@ class CompanyController extends Controller
                 }
 
                 // Add manager
-                if ($member->role && $member->role->name == 'user-manager') {
+                if ($member->pivot->manager_flg) {
                     $odooAccountController->addManagerToCompany($company->id_odoo, $member->id_odoo_partner);
                 }
-                
+
                 // Add to member group
                 $odooAccountController->addMemberToCommpany($company->id_odoo, $member->id_odoo_partner);
-                
             }
 
             // Sync with old version DB
@@ -290,6 +314,33 @@ class CompanyController extends Controller
 
             return back()->with([
                 'message' => "Envoyé les emails avec succès.",
+                'alert-type' => 'success'
+            ]);
+        } catch (\Exception $e) {
+            Log::error($e->getMessage(), ['company', 'send-auth-emails']);
+            return back()->with([
+                'message' => $e->getMessage(),
+                'alert-type' => 'error'
+            ]);
+        }
+    }
+
+
+    public function integrityCheck(string $id)
+    {
+        $company = Company::find($id);
+        if (!$company) {
+            return abort(404);
+        }
+
+        try {
+            // Join code
+            $this->generateJoinCode($id);
+
+            // ...
+
+            return back()->with([
+                'message' => "Vérification d'intégrité terminée",
                 'alert-type' => 'success'
             ]);
         } catch (\Exception $e) {

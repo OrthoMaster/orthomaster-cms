@@ -63,7 +63,8 @@ class AuthController extends Controller
                     'id_user' => $user->id_user,
                     'id_odoo_partner' => $user->id_odoo_partner,
                     'id_odoo_user' => $user->id_odoo_user,
-                    'office_id' => $user->company ? $user->company->office_id : null,
+                    'office_id' => $user->companies()->first()?->office_id,
+                    // 'office_id' => $user->company ? $user->company->office_id : null,
                     'tel' => $user->phone,
                     "enabled" => 1,
                     "job_function" => $user->profession ? $user->profession->name : null,
@@ -90,12 +91,6 @@ class AuthController extends Controller
                 Log::channel('api')->warning('Sync error - not found with id_user: ' . $request->id_user, ['sync', 'auth']);
                 return response()->json([], 400);
             }
-
-            // Search in relationship with office
-            $belongOffice = DB::table('user_belong_to_office')
-                ->where('id_user', $request->id_user)
-                ->first();
-
             // Check user exist in new system - just sync password
             $user = User::where('email', $oldVersionUser->email)->first();
             if ($user) {
@@ -110,15 +105,7 @@ class AuthController extends Controller
                 return response()->json([], 200);
             }
 
-            // Not exists - sync new user
-            $role = null;
-            if ($belongOffice && $belongOffice->is_office_manager == 1) {
-                $role = Role::where('name', 'user-manager')->first();
-            }
-            if (!$role) {
-                $role = Role::where('name', 'user')->first();
-            }
-
+            $role = Role::where('name', 'user')->first();
             $user = User::create([
                 'role_id' => $role->id,
                 'name' => $oldVersionUser->name,
@@ -136,6 +123,9 @@ class AuthController extends Controller
 
                 'expires_at' => $oldVersionUser->is_student ? ($oldVersionUser->created_at ? Carbon::parse($oldVersionUser->created_at)->addMonths(12)->startOfDay() : now()->addMonths(12)->startOfDay()) : null,
             ]);
+
+            // Sync company
+            User::syncOldVersionCompany($user->id, $oldVersionUser->id_user);
 
             // Sync from Odoo
             dispatch(function () use ($oldVersionUser, $user) {

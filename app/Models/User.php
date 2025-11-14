@@ -12,6 +12,7 @@ use TCG\Voyager\Models\Role;
 use App\Mail\ResetPasswordMail;
 use App\Services\OdooService;
 use App\Status;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Mail;
@@ -46,9 +47,25 @@ class User extends \TCG\Voyager\Models\User
         return $this->hasOne(Role::class, 'id', 'role_id');
     }
 
-    public function company()
+    public function companiesUserIsMember()
     {
-        return $this->hasOne(Company::class, 'id', 'company_id');
+        return $this->belongsToMany(Company::class)
+            ->withPivot('manager_flg')
+            ->wherePivot('manager_flg', false);
+    }
+
+    public function companiesUserIsManager()
+    {
+        return $this->belongsToMany(Company::class)
+            ->withPivot('manager_flg')
+            ->wherePivot('manager_flg', true);
+    }
+
+    public function companies()
+    {
+        return $this->belongsToMany(Company::class)
+            ->withPivot('manager_flg')
+            ->withTimestamps();
     }
 
     public function profession()
@@ -71,7 +88,8 @@ class User extends \TCG\Voyager\Models\User
         return $this->hasOne(FundingOrganization::class, 'id', 'funding_organization_id');
     }
 
-    public function createdBy() {
+    public function createdBy()
+    {
         return $this->hasOne(User::class, 'id', 'created_by');
     }
 
@@ -133,7 +151,7 @@ class User extends \TCG\Voyager\Models\User
     public static function findById($id)
     {
         return User::where('id', $id)
-            ->with(['role', 'company', 'organization'])
+            ->with(['role', 'companiesUserIsMember', 'organization'])
             ->first();
     }
 
@@ -186,6 +204,8 @@ class User extends \TCG\Voyager\Models\User
                 'student_flg' => $oldVersionUser->is_student,
 
                 'created_from' => 'CLONE',
+                'id_odoo_partner' => $oldVersionUser->id_odoo_partner,
+                'id_odoo_user' => $oldVersionUser->id_odoo_user,
                 'id_user' => $oldVersionUser->id_user,
                 'status' => Status::ACTIVE->value
             ]);
@@ -215,7 +235,52 @@ class User extends \TCG\Voyager\Models\User
 
             return true;
         } catch (\Exception $e) {
-            Log::error($e->getMessage(), ['sync-user', 'odooo']);
+            Log::error($e->getMessage(), ['sync-user', 'odoo']);
+            return false;
+        }
+    }
+
+    public static function syncOldVersionCompany($userId, $oldVersionUserId)
+    {
+        $user = User::find($userId);
+        $oldVersionUser = OldVersionUser::find($oldVersionUserId);
+
+        if (!$user || !$oldVersionUser) {
+            return false;
+        }
+        try {
+            // Search in relationship with office
+            $belongOffices = DB::table('user_belong_to_office')
+                ->where('id_user', $oldVersionUser->id_user)
+                ->get();
+
+            foreach ($belongOffices as $belong) {
+                $office = OldVersionCompany::where('id_office', $belong->id_office)->first();
+                if ($office && $office->id_odoo_partner) {
+                    $estab = Establishment::where('name', 'LIKE', $office->structure)->first();
+                    $company = Company::firstOrCreate(
+                        ['id_odoo' => $office->id_odoo_partner],
+                        [
+                            'name' => $office->name,
+                            'email' => $office->email,
+                            'address' => $office->address_way,
+                            'postal_code' => $office->address_postal_code,
+                            'city' => $office->address_city,
+                            'country' => $office->address_country,
+                            'phone' => $office->tel,
+                            'establishement_id' => ($estab && $office->structure ? $estab->id : null)
+                        ]
+                    );
+
+                    $user->companies()->syncWithoutDetaching([
+                        $company->id => ['manager_flg' => $belong->is_office_manager]
+                    ]);
+                }
+            }
+
+            return true;
+        } catch (\Exception $e) {
+            Log::error($e->getMessage(), ['sync-company', 'odoo']);
             return false;
         }
     }

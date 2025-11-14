@@ -200,7 +200,7 @@ class AccountController extends Controller
 
                 'status' => Status::PENDING->value,
 
-                'company_id' => $request->company,
+                
                 'funding_organization_id' => $request->organization,
                 'first_name_birth' => mb_convert_case(trim($request->first_name_birth), MB_CASE_TITLE, 'UTF-8'),
                 'date_of_birth' => $request->date_of_birth ? $request->date_of_birth : null,
@@ -208,6 +208,11 @@ class AccountController extends Controller
 
                 'created_by' => Auth::user()->id,
             ]);
+
+            // Add to company
+            if ($request->company) {
+                $user->companies()->attach($request->company, ['manager_flg' => false]);
+            }
 
             // Upload certificate
             if ($isStudent && $request->hasFile('enrollment_certificate')) {
@@ -256,12 +261,12 @@ class AccountController extends Controller
         $json = file_get_contents($path);
         $countries = json_decode($json, true);
 
-        // Stored company
+        // Company is member
         $storedCompany = null;
         $storedCompanyId = null;
-        if ($user->company_id) {
-            $storedCompany = $user->company;
-            $storedCompanyId = $user->company_id;
+        if ($user->companiesUserIsMember->isNotEmpty()) {
+            $storedCompany = $user->companiesUserIsMember()->first();
+            $storedCompanyId = $user->companiesUserIsMember()->first()->id;
         }
 
         // Responsable
@@ -380,7 +385,6 @@ class AccountController extends Controller
                 'no_prof_type_id' => $noProfType,
                 'no_prof' => $noProf,
 
-                'company_id' => $request->company,
                 'funding_organization_id' => $request->organization,
                 'first_name_birth' => mb_convert_case(trim($request->first_name_birth), MB_CASE_TITLE, 'UTF-8'),
                 'date_of_birth' => $request->date_of_birth ? $request->date_of_birth : null,
@@ -388,6 +392,11 @@ class AccountController extends Controller
 
                 'created_by' => $request->created_by
             ]);
+
+            // Sync to company
+            if ($request->company) {
+                $user->companies()->syncWithoutDetaching($request->company);
+            }
 
             // Upload certificate
             if ($isStudent && $request->hasFile('enrollment_certificate')) {
