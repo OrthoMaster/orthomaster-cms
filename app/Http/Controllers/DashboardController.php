@@ -15,17 +15,8 @@ class DashboardController extends Controller
 {
     public function index()
     {
-        $today = Carbon::today();
-        $fromDate = $today->copy()->subDays(6);
-
-        $dailyAppOpens = RptDailyAppOpens::query()
-            ->whereBetween('date', [$fromDate, $today])
-            ->orderBy('date', 'asc')
-            ->get(['date', 'count'])
-            ->map(function ($item) {
-                $item->formatted_date = Carbon::parse($item->date)->format('d/m');
-                return $item;
-            });
+        $days = request()->get('days', 7);
+        $dailyAppOpens = $this->getDailyAppOpens($days);
 
         // Users
         $totalActiveUsers = 0;
@@ -49,5 +40,31 @@ class DashboardController extends Controller
                 'data' => [$totalActiveUsers - $dbActiveUsers, $dbActiveUsers],
             ]
         ]);
+    }
+
+    public function getAppOpensChartData(Request $request)
+    {
+        $days = $request->get('days', 7);
+        $dailyAppOpens = $this->getDailyAppOpens($days);
+
+        return response()->json([
+            'labels' => $dailyAppOpens->pluck('formatted_date'),
+            'counts' => $dailyAppOpens->pluck('count')
+        ]);
+    }
+
+    private function getDailyAppOpens($days)
+    {
+        $today = Carbon::today();
+        $fromDate = $today->copy()->subDays($days - 1);
+
+        return RptDailyAppOpens::query()
+            ->whereBetween('date', [$fromDate, $today])
+            ->orderBy('date', 'asc')
+            ->get(['date', 'count'])
+            ->map(function ($item) {
+                $item->formatted_date = Carbon::parse($item->date)->format('d/m');
+                return $item;
+            });
     }
 }

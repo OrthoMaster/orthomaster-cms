@@ -34,7 +34,7 @@ class AuthCompanyRequestController extends Controller
         );
     }
 
-    public function saveAsDraft(Request $request)
+    public function submit(Request $request)
     {
         try {
             $company = Company::findByInviteCode($request->invite_code);
@@ -46,6 +46,8 @@ class AuthCompanyRequestController extends Controller
             };
 
             $company->name = $request->company_name;
+            $company->email = $request->company_email;
+
             $company->siret = $request->siret;
             $company->phone = $request->phone;
             $company->address = $request->address;
@@ -55,18 +57,25 @@ class AuthCompanyRequestController extends Controller
 
             $company->users_temp = json_decode($request->members, true);
 
+            // Submit
             if ($request->has('isSubmitted')) {
                 $company->status = Status::PENDING->value;
             }
-
             $company->save();
 
+            // Submit - Fill data into database
+            if ($request->has('isSubmitted')) {
+                dispatch(function () use ($company) {
+                    (new \App\Http\Controllers\CompanyController())->fillDataFromTemps($company->id);
+                })->afterResponse();
+            }
+            
             // Return success
             return response()->json([
                 'status' => 'success',
             ]);
         } catch (\Exception $e) {
-            Log::error($e->getMessage(), ['company-register', 'save-as-draft']);
+            Log::error($e->getMessage(), ['company-register', 'submit']);
 
             return response()->json([
                 'status' => 'failed',

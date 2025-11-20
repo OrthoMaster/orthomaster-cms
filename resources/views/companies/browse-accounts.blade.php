@@ -13,24 +13,26 @@
             @endif
         </h1>
 
-        @if (!$company->id_odoo && sizeof($company->users) > 0)
-            <a class="btn btn-warning" style="margin-right: 5px" href="{{ route('companies.odoo.connect', $company->id) }}"
-                onclick="return confirm('Etes-vous sûr(e) ? Cette action est irréversible.')">
-                <i class="voyager-warning"></i> <span>Créer connexion Odoo</span>
-            </a>
-        @endif
+        @if (Auth::user()->role->name == 'admin')
+            @if (!$company->id_odoo)
+                <a class="btn btn-warning" style="margin-right: 5px" href="{{ route('companies.odoo.connect', $company->id) }}"
+                    onclick="return confirm('Etes-vous sûr(e) ? Cette action est irréversible.')">
+                    <i class="voyager-warning"></i> <span>Créer connexion Odoo</span>
+                </a>
+            @endif
 
-        @if ($company->id_odoo)
-            <a class="btn btn-primary" style="margin-right: 5px" href="{{ route('companies.emails.send', $company->id) }}"
-                onclick="return confirm('Etes-vous sûr(e) ?')">
-                <i class="voyager-mail"></i> <span>Envoyer emails d'invitation</span>
-            </a>
+            @if ($company->id_odoo)
+                <a class="btn btn-primary" style="margin-right: 5px"
+                    href="{{ route('companies.emails.send', $company->id) }}"
+                    onclick="return confirm('Etes-vous sûr(e) ?')">
+                    <span>Envoyer emails d'invitation</span>
+                </a>
 
-            @if (Auth::user()->role->name == 'admin')
-            <a class="btn btn-danger" style="margin-right: 5px" href="{{ route('companies.integrity-check', $company->id) }}"
-                onclick="return confirm('Etes-vous sûr(e) ?')">
-                <span>Vérification d'intégrité</span>
-            </a>
+                <a class="btn btn-danger" style="margin-right: 5px"
+                    href="{{ route('companies.integrity-check', $company->id) }}"
+                    onclick="return confirm('Etes-vous sûr(e) ?')">
+                    <span>Vérification d'intégrité</span>
+                </a>
             @endif
         @endif
 
@@ -40,12 +42,10 @@
         </a> --}}
 
         @if (!$company->invite_code)
-            @if (!sizeof($company->users) > 0)
-                <a href="{{ route('companies.invite-code.generate', $company->id) }}" class="btn btn-info"
-                    style="margin-right: 5px">
-                    <i class="voyager-external"></i> <span>Générer un code de partage</span>
-                </a>
-            @endif
+            <a href="{{ route('companies.invite-code.generate', $company->id) }}" class="btn btn-warning"
+                style="margin-right: 5px">
+                <i class="voyager-external"></i> <span>Générer un code de partage</span>
+            </a>
 
             <a target="_blank" href="{{ route('account.create', ['company' => $company->id]) }}" class="btn btn-success"
                 style="margin-right: 5px">
@@ -222,13 +222,13 @@
                                                         <label class="label label-warning">Jamais connecté Odoo</label>
                                                     @endif
 
-                                                    @if ($user->status == 0)
-                                                        <label class="label label-danger">Désactivé</label>
+                                                    @if ($user->status == 1 && $user->password_temp)
+                                                        <label class="label label-info">Non connecté</label>
                                                     @endif
                                                 </td>
                                                 <td class="no-sort no-click bread-actions text-right">
                                                     @if (!$user->id_odoo_partner)
-                                                        @if ($user->role->name == 'user-manager')
+                                                        @if ($user->pivot->manager_flg)
                                                             <button class="btn btn-sm btn-danger"
                                                                 onclick="updateManager('{{ $user->id }}')"
                                                                 style="margin-right: 5px">
@@ -257,7 +257,7 @@
                                                         <a class="btn btn-info" style="margin-right: 5px"
                                                             href="{{ route('account.resend', $user->id) }}"
                                                             onclick="return confirm('Etes-vous sûr(e) ?')">
-                                                            <i class="voyager-mail"></i> <span>Réenvoyer email</span>
+                                                            <span>Réenvoyer email</span>
                                                         </a>
                                                     @endif
 

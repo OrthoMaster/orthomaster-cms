@@ -18,6 +18,36 @@ use Illuminate\Support\Str;
 
 class CompanyController extends Controller
 {
+    public function index(Request $request)
+    {
+        $query = Company::query();
+        if ($request->filled('name')) {
+            $query->where('name', 'LIKE', '%' . $request->name . '%');
+        }
+        if ($request->filled('first_name')) {
+            $query->where('first_name', 'LIKE', '%' . $request->first_name . '%');
+        }
+        if ($request->filled('email')) {
+            $query->where('email', 'LIKE', '%' . $request->email . '%');
+        }
+
+        if ($request->has('status')) {
+            if ($request->status === '2') {
+                $query->whereNotNull('invite_code');
+            }
+
+            // TODO: When has error in sync process
+            if ($request->status === '3') {
+                $query->where('status', '=', 'error');
+            }
+        }
+
+        $companies = $query->latest('id')->paginate(20);
+        $companies->appends($request->query());
+
+        return view('companies.index', compact('companies'));
+    }
+
     public function show(string $id)
     {
         $company = Company::findById($id);
@@ -158,7 +188,6 @@ class CompanyController extends Controller
         DB::beginTransaction();
         try {
             $userRole = Role::where('name', 'user')->first();
-            // $managerRole = Role::where('name', 'user-manager')->first();
 
             // Add members
             foreach ($company->users_temp as $temp) {
@@ -193,7 +222,7 @@ class CompanyController extends Controller
                     'date_of_birth' => $temp['dob'] ? $temp['dob'] : null,
 
                     'status' => Status::PENDING->value,
-                    'created_by' => Auth::user()->id
+                    'created_by' => Auth::id()
                 ]);
 
                 // Add user to company
@@ -203,21 +232,22 @@ class CompanyController extends Controller
             }
 
             $company->invite_code = null;
-            // $company->users_temp = null;
+            $company->users_temp = null;
             $company->status = null;
             $company->save();
 
             DB::commit();
 
-            return $this->connectOdoo($id);
+            // Send email to all members
+            dispatch(function () use ($id) {
+                (new \App\Http\Controllers\CompanyController())->sendAuthEmails($id);
+            })->afterResponse();
 
-            // return back()->with([
-            //     'message' => 'Généré avec succès',
-            //     'alert-type' => 'success'
-            // ]);
+            return $this->connectOdoo($id);
         } catch (\Exception $e) {
             DB::rollback();
 
+            Log::error($e->getMessage(), ['company', 'fill-member', $id]);
             return back()->with([
                 'message' => $e->getMessage(),
                 'alert-type' => 'error'
@@ -243,6 +273,7 @@ class CompanyController extends Controller
                 $storeOdooCompany = $odooAccountController->storeCompany($company);
 
                 if (!$storeOdooCompany) {
+                    Log::error('Can not create Company with Odoo', ['odoo', 'create-company', $company->id]);
                     return back()->with([
                         'message' => "[Société] La connexion à Odoo a échoué.",
                         'alert-type' => 'error'
@@ -257,6 +288,7 @@ class CompanyController extends Controller
                     // Connect user with Odoo
                     $storedOdooUser = $odooAccountController->store($member);
                     if (!$storedOdooUser) {
+                        Log::error('Can not create User with Odoo', ['odoo', 'create-member-of-company', $member->id]);
                         $storeOdooUserSuccessFlg = false;
                         continue;
                     }
@@ -277,6 +309,7 @@ class CompanyController extends Controller
             }
 
             if (!$storeOdooUserSuccessFlg) {
+                Log::error('Can not sync Company and Members to Odoo', ['odoo', 'company', $company->id]);
                 return back()->with([
                     'message' => "Une erreur s'est produite lors de la connexion à Odoo.",
                     'alert-type' => 'error'
@@ -288,7 +321,7 @@ class CompanyController extends Controller
                 'alert-type' => 'success'
             ]);
         } catch (\Exception $e) {
-            Log::error($e->getMessage(), ['company', 'connect-odoo', 'odoo']);
+            Log::error($e->getMessage(), ['odoo', 'company', $company->id]);
             return back()->with([
                 'message' => $e->getMessage(),
                 'alert-type' => 'error'
@@ -344,7 +377,7 @@ class CompanyController extends Controller
                 'alert-type' => 'success'
             ]);
         } catch (\Exception $e) {
-            Log::error($e->getMessage(), ['company', 'send-auth-emails']);
+            Log::error($e->getMessage(), ['company', 'integrity-check']);
             return back()->with([
                 'message' => $e->getMessage(),
                 'alert-type' => 'error'

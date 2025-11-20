@@ -6,8 +6,18 @@
             <div class="row">
                 <div class="col-md-8">
                     <div class="panel panel-bordered">
-                        <div class="panel-heading">
+                        <div class="panel-heading" style="display: flex; justify-content: space-between; align-items: center;">
                             <h3 class="panel-title">Nombre de connexions des utilisateurs</h3>
+                            <div class="btn-group" style="margin-right: 15px">
+                                <button type="button" class="btn btn-sm btn-info dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                                    <span id="selectedPeriod">7 jours</span> <span class="caret"></span>
+                                </button>
+                                <ul class="dropdown-menu dropdown-menu-right">
+                                    <li><a href="#" data-days="7">7 jours</a></li>
+                                    <li><a href="#" data-days="30">1 mois</a></li>
+                                    <li><a href="#" data-days="90">3 mois</a></li>
+                                </ul>
+                            </div>
                         </div>
                         <div class="panel-body">
                             <canvas id="dailyAppOpenChart"></canvas>
@@ -33,38 +43,71 @@
 @section('javascript')
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script>
-        const dailyAppOpenChart = document.getElementById('dailyAppOpenChart');
-        const daoc_labels = @json($dailyAppOpens->pluck('formatted_date'));
-        const daoc_data = @json($dailyAppOpens->pluck('count'));
-        new Chart(dailyAppOpenChart, {
-            type: 'line',
-            data: {
-                labels: daoc_labels,
-                datasets: [{
-                    label: 'Nombre de connexions',
-                    data: daoc_data,
-                    borderColor: 'rgba(54, 162, 235, 1)',
-                    backgroundColor: 'rgba(54, 162, 235, 0.1)',
-                    fill: true,
-                    borderWidth: 2,
-                    tension: 0.3,
-                    pointRadius: 4,
-                    pointBackgroundColor: 'rgba(54, 162, 235, 1)',
-                }]
-            },
-            options: {
-                responsive: true,
-                scales: {
-                    y: {
-                        beginAtZero: false,
-                        ticks: {
-                            precision: 0
+        let dailyAppOpenChartInstance;
+        const dailyAppOpenCanvas = document.getElementById('dailyAppOpenChart');
+
+        // Fonction pour créer/mettre à jour le graphique
+        function updateChart(labels, data) {
+            if (dailyAppOpenChartInstance) {
+                dailyAppOpenChartInstance.destroy();
+            }
+
+            dailyAppOpenChartInstance = new Chart(dailyAppOpenCanvas, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Nombre de connexions',
+                        data: data,
+                        borderColor: 'rgba(54, 162, 235, 1)',
+                        backgroundColor: 'rgba(54, 162, 235, 0.1)',
+                        fill: true,
+                        borderWidth: 2,
+                        tension: 0.3,
+                        pointRadius: 4,
+                        pointBackgroundColor: 'rgba(54, 162, 235, 1)',
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            beginAtZero: false,
+                            ticks: {
+                                precision: 0
+                            }
                         }
                     }
                 }
-            }
+            });
+        }
+
+        // Charger les données initiales
+        updateChart(@json($dailyAppOpens->pluck('formatted_date')), @json($dailyAppOpens->pluck('count')));
+
+        // Gestion du dropdown
+        document.querySelectorAll('.dropdown-menu a').forEach(item => {
+            item.addEventListener('click', function(e) {
+                e.preventDefault();
+                const days = this.getAttribute('data-days');
+                const text = this.textContent;
+                
+                document.getElementById('selectedPeriod').textContent = text;
+                
+                // Appel AJAX pour récupérer les nouvelles données
+                fetch(`{{ route('dashboard.app-opens-chart-data') }}?days=${days}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        updateChart(data.labels, data.counts);
+                    })
+                    .catch(error => {
+                        console.error('Erreur:', error);
+                        alert('Erreur lors du chargement des données');
+                    });
+            });
         });
 
+        // Chart 2 (inchangé)
         const chart2 = document.getElementById('chart2');
         new Chart(chart2, {
             type: 'doughnut',

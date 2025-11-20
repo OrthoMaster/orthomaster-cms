@@ -46,7 +46,7 @@
                                     </option>
                                     <option value="1" @selected(request('status') === '1')>{{ App\Status::ACTIVE->label() }}
                                     </option>
-                                    <option value="">---</option>
+                                    <option value="all" @selected(request('status') === 'all')>---</option>
                                 </select>
                             </div>
                             <div class="col-md-12" style="margin-bottom: 0">

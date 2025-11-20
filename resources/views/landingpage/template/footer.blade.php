@@ -21,7 +21,7 @@
                             class="text-sm hover:text-primary transition-colors">À propos</a>
                     </li>
 
-                    <li><a target="_blank" href="https://www.orthomaster.fr/mentions-l%C3%A9gales"
+                    <li><a target="_blank" href="{{ route('web.legal-notice') }}"
                             class="text-sm hover:text-primary transition-colors">Mentions légales</a></li>
                     <li><a target="_blank" href="https://www.orthomaster.fr/terms-conditions"
                             class="text-sm hover:text-primary transition-colors">Conditions générales</a></li>

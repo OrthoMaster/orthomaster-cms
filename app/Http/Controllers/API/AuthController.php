@@ -52,29 +52,7 @@ class AuthController extends Controller
 
         return response()->json([
             'status' => 'success',
-            'data'   => [
-                'reset' => $user->password_temp != null,
-                'user'  => [
-                    'id'    => $user->id,
-                    'email' => $user->email,
-                    'name' => $user->name,
-
-                    // Sync with old version
-                    'id_user' => $user->id_user,
-                    'id_odoo_partner' => $user->id_odoo_partner,
-                    'id_odoo_user' => $user->id_odoo_user,
-                    'office_id' => $user->companies()->first()?->office_id,
-                    // 'office_id' => $user->company ? $user->company->office_id : null,
-                    'tel' => $user->phone,
-                    "enabled" => 1,
-                    "job_function" => $user->profession ? $user->profession->name : null,
-                ],
-                'token' => [
-                    'jwt_token' => $token,
-                    'refresh_token' => $token, // Sync with old version
-                ],
-                'token_type' => 'Bearer',
-            ],
+            'data'   => $this->customizeUserArray($user, $token),
         ]);
     }
 
@@ -152,18 +130,14 @@ class AuthController extends Controller
     /**
      * Get info of current auth user
      */
-    public function me()
+    public function me(Request $request)
     {
         $user = Auth::user();
+        $token = $request->user()->currentAccessToken()->token;
 
         return response()->json([
             'status' => 'success',
-            'data'   => [
-                'user' => [
-                    'id'    => $user->id,
-                    'email' => $user->email,
-                ],
-            ],
+            'data'   => $this->customizeUserArray($user, $token),
         ]);
     }
 
@@ -208,5 +182,60 @@ class AuthController extends Controller
         return response()->json([
             'status'  => 'success',
         ]);
+    }
+
+    static function customizeUserArray($user, $token)
+    {
+        return [
+            'user'  => [
+                'id'    => $user->id,
+                'email' => $user->email,
+                'name' => $user->name,
+                'first_name' => $user->first_name,
+                'first_name_birth' => $user->first_name_birth,
+                'date_of_birth' => $user->date_of_birth ? $user->date_of_birth->format('d/m/Y') : null,
+                'phone' => $user->phone,
+
+                'country_code' => $user->country_code,
+                'postal_code' => $user->postal_code,
+                'city' => $user->city,
+
+                'student_flg' => $user->student_flg,
+                'expires_at' => $user->expires_at ? $user->expires_at->format('d/m/Y') : null,
+                
+                'establishment' => $user->establishment_id,
+                'establishment' => $user->establishment ? $user->establishment->name : null,
+                'orther_establishment' => $user->orther_establishment,
+
+                'profession_id' => $user->profession_id,
+                'profession' => $user->profession ? $user->profession->name : null,
+                'orther_profession' => $user->orther_profession,
+
+                'no_secu' => $user->no_secu,
+                'funding_organization_id' => $user->funding_organization_id,
+                'funding_organization' => $user->organization ? $user->organization->name : null,
+
+                // Reset password
+                'reset_password_flg' => $user->password_temp != null,
+
+                // Company
+                'has_company' => sizeof($user->companiesUserIsManager) > 0,
+                'belongs_to_company' => sizeof($user->companiesUserIsMember) > 0,
+
+                // Sync with old version
+                'id_user' => $user->id_user,
+                'id_odoo_partner' => $user->id_odoo_partner,
+                'id_odoo_user' => $user->id_odoo_user,
+
+                'tel' => $user->phone,
+                "enabled" => 1,
+                "job_function" => $user->profession ? $user->profession->name : null,
+            ],
+            'token' => [
+                'jwt_token' => $token,
+                'refresh_token' => $token, // Sync with old version
+            ],
+            'token_type' => 'Bearer',
+        ];
     }
 }

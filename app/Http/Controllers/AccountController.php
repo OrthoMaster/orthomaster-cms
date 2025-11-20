@@ -39,14 +39,14 @@ class AccountController extends Controller
             $query->where('name', 'LIKE', '%' . $request->name . '%');
         }
         if ($request->filled('first_name')) {
-            $query->where('first_name', 'LIKE', '%' . $request->name . '%');
+            $query->where('first_name', 'LIKE', '%' . $request->first_name . '%');
         }
         if ($request->filled('email')) {
-            $query->where('email', 'LIKE', '%' . $request->name . '%');
+            $query->where('email', 'LIKE', '%' . $request->email . '%');
         }
 
         if ($request->has('status')) {
-            if ($request->status) {
+            if ($request->status !== 'all') {
                 $query->where('status', $request->status);
             }
         } else {

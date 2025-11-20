@@ -35,6 +35,11 @@ class Company extends Model
         return $this->belongsToMany(Package::class, 'package_company');
     }
 
+    public function createdBy()
+    {
+        return $this->hasOne(User::class, 'id', 'created_by');
+    }
+
     public static function getAll()
     {
         return Company::where('active_flg', true)

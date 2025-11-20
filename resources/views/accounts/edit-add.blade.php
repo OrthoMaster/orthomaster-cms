@@ -342,7 +342,7 @@
                                         <select class="form-control select2" id="responsable" name="created_by">
                                             <option value="">---</option>
                                             @foreach ($admins as $admin)
-                                                <option value="{{ $organization->id }}" @selected(old('created_by', $user->created_by ?? '') == $admin->id)>
+                                                <option value="{{ $admin->id }}" @selected(old('created_by', $user->created_by ?? '') == $admin->id)>
                                                     {{ $admin->name . ' ' . $admin->first_name }}</option>
                                             @endforeach
                                         </select>

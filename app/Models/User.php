@@ -31,9 +31,10 @@ class User extends \TCG\Voyager\Models\User
     protected function casts(): array
     {
         return [
-            'date_of_birth' => 'datetime',
+            'date_of_birth' => 'date',
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'expires_at' => 'datetime',
         ];
     }
 

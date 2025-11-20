@@ -12,6 +12,7 @@ use App\Http\Controllers\CompanyController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\TrainingPermissionController;
 use App\Http\Controllers\VideoController;
+use App\Http\Controllers\WebController;
 use Illuminate\Support\Facades\Route;
 use TCG\Voyager\Facades\Voyager;
 
@@ -44,11 +45,13 @@ Route::post('/password', [AuthController::class, 'reset'])->name('password.updat
 
 
 Route::get('/group/register/{code}', [AuthCompanyRequestController::class, 'view'])->name('register.company.view');
-Route::post('/group/register/{code}', [AuthCompanyRequestController::class, 'submit'])->name('register.company.submit');
-Route::post('/group/register/{code}/draft', [AuthCompanyRequestController::class, 'saveAsDraft'])->name('register.company.draft');
+Route::post('/group/register/{code}/draft', [AuthCompanyRequestController::class, 'submit'])->name('register.company.draft');
+
+Route::get('/legal-notice', [WebController::class, 'legalNotice'])->name('web.legal-notice');
 
 Route::group(['prefix' => 'admin', 'middleware' => ['cmsAdmin']], function () {
     Route::get('/', [DashboardController::class, 'index'])->name('voyager.dashboard');
+    Route::get('/dashboard/charts/app-opens', [DashboardController::class, 'getAppOpensChartData'])->name('dashboard.app-opens-chart-data');
 
     // Images
     Route::post('/upload-image-s3/lesson', [ImageController::class, 'uploadLessonImageToS3'])->name('upload.image.s3.lesson');
@@ -93,12 +96,13 @@ Route::group(['prefix' => 'admin', 'middleware' => ['cmsAdmin']], function () {
     Route::post('/accounts/{id}/training-permissions', [TrainingPermissionController::class, 'updateWithUser'])->name('account.training-permissions.update');
 
     // Companies
+    Route::get('/companies', [CompanyController::class, 'index'])->name('voyager.companies.index');
     Route::get('/companies/{id}', [CompanyController::class, 'show'])->name('voyager.companies.show');
     Route::get('/companies/{id}/invite-code', [CompanyController::class, 'generateInviteCode'])->name('companies.invite-code.generate');
-    
+
     Route::get('/companies/{id}/odoo', [CompanyController::class, 'connectOdoo'])->name('companies.odoo.connect');
     Route::get('/companies/{id}/send-emails', [CompanyController::class, 'sendAuthEmails'])->name('companies.emails.send');
-    
+
     Route::get('/companies/{id}/back-editable', [CompanyController::class, 'backEditable'])->name('companies.back-editable');
     Route::post('/companies/{id}/fill-data', [CompanyController::class, 'fillDataFromTemps'])->name('companies.fill-data');
     Route::post('/companies/{id}/user/{userId}/update-manager', [CompanyController::class, 'updateManager'])->name('companies.manager.update');
@@ -110,5 +114,4 @@ Route::group(['prefix' => 'admin', 'middleware' => ['cmsAdmin']], function () {
 
     Route::get('/companies/{id}/training-permissions', [TrainingPermissionController::class, 'storeWithCompany'])->name('companies.training-permissions');
     Route::post('/companies/{id}/training-permissions', [TrainingPermissionController::class, 'updateWithCompany'])->name('companies.training-permissions.update');
-
 });
