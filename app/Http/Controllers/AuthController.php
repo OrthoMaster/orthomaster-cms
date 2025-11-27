@@ -179,7 +179,7 @@ class AuthController extends Controller
                 'profession_id' => $professionId,
                 'other_profession' => $otherProfession,
 
-                'no_prof_type_id' => $noProfType,
+                'no_prof_type_id' => $noProfType !== 'other' ? $noProfType : null,
                 'no_prof' => $noProf,
 
                 'invite_code' => $request->invite_code,

@@ -90,7 +90,7 @@
                                 <th>Contact</th>
                                 <th>Infos</th>
                                 <th>Statut</th>
-                                <th>Responsable</th>
+                                <th>Créé</th>
                                 <th class="text-right">Actions</th>
                             </tr>
                         </thead>
@@ -133,8 +133,11 @@
                                         @endif
                                     </td>
                                     <td>
+                                        <div>
+                                            {{ $user->created_at . ($user->created_from ? ' | ' . $user->created_from : '') . ($user->invite_code ? ' | ' . $user->invite_code : '') }}
+                                        </div>
                                         @if ($user->createdBy)
-                                            {{ $user->createdBy->name . ' ' . $user->createdBy->first_name }}
+                                            <div>{{ $user->createdBy->name . ' ' . $user->createdBy->first_name }}</div>
                                         @endif
                                     </td>
                                     <td class="text-right">

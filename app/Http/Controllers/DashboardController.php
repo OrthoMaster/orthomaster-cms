@@ -13,6 +13,11 @@ use Illuminate\Support\Facades\DB;
 
 class DashboardController extends Controller
 {
+
+    public function chatbot() {
+        return view('dashboard.chatbot');
+    }
+
     public function index()
     {
         $days = request()->get('days', 7);

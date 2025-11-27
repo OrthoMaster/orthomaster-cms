@@ -51,6 +51,7 @@ Route::get('/legal-notice', [WebController::class, 'legalNotice'])->name('web.le
 
 Route::group(['prefix' => 'admin', 'middleware' => ['cmsAdmin']], function () {
     Route::get('/', [DashboardController::class, 'index'])->name('voyager.dashboard');
+    Route::get('/chatbot', [DashboardController::class, 'chatbot'])->name('voyager.chatbot');
     Route::get('/dashboard/charts/app-opens', [DashboardController::class, 'getAppOpensChartData'])->name('dashboard.app-opens-chart-data');
 
     // Images
