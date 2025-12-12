@@ -202,28 +202,30 @@ class CompanyController extends Controller
                 if ($organization) $organizationId = $organization->id;
 
                 // Create new user
-                $user = User::create([
-                    'role_id' => $userRole->id,
-                    'name' => mb_convert_case(trim($temp['name']), MB_CASE_TITLE, 'UTF-8'),
-                    'first_name' => mb_convert_case(trim($temp['firstname']), MB_CASE_TITLE, 'UTF-8'),
-                    'email' => $temp['email'],
-                    'password_temp' => $passwordTemp,
-                    'password' => bcrypt($passwordTemp),
-
-                    'establishment_id' => $company->establishment_id,
-                    'profession_id' => $professionId,
-
-                    'no_prof_type_id' => $temp['rppsType'] !== 'other' ? $temp['rppsType'] : null,
-                    'no_prof' => $temp['rpps'],
-
-                    'funding_organization_id' => $organizationId,
-                    'no_secu' => trim($temp['secu']),
-                    'first_name_birth' => mb_convert_case(trim($temp['firstnameBirth']), MB_CASE_TITLE, 'UTF-8'),
-                    'date_of_birth' => $temp['dob'] ? $temp['dob'] : null,
-
-                    'status' => Status::PENDING->value,
-                    'created_by' => Auth::id()
-                ]);
+                $user = User::firstOrCreate(
+                    ['email' => $temp['email']],
+                    [
+                        'role_id' => $userRole->id,
+                        'name' => mb_convert_case(trim($temp['name']), MB_CASE_TITLE, 'UTF-8'),
+                        'first_name' => mb_convert_case(trim($temp['firstname']), MB_CASE_TITLE, 'UTF-8'),
+                        'password_temp' => $passwordTemp,
+                        'password' => bcrypt($passwordTemp),
+                        
+                        'establishment_id' => $company->establishment_id,
+                        'profession_id' => $professionId,
+                        
+                        'no_prof_type_id' => $temp['rppsType'] !== 'other' ? $temp['rppsType'] : null,
+                        'no_prof' => $temp['rpps'],
+                        
+                        'funding_organization_id' => $organizationId,
+                        'no_secu' => trim($temp['secu']),
+                        'first_name_birth' => mb_convert_case(trim($temp['firstnameBirth']), MB_CASE_TITLE, 'UTF-8'),
+                        'date_of_birth' => $temp['dob'] ?: null,
+                        
+                        'status' => Status::ACTIVE->value,
+                        'created_by' => Auth::id()
+                    ]
+                );
 
                 // Add user to company
                 $company->users()->attach($user->id, [

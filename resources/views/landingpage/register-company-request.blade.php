@@ -54,21 +54,36 @@
                             l'établissement</h2>
 
                         <div class="space-y-4">
-                            <div>
-                                <label for="company-name" class="block text-sm text-gray-500 mb-2">
-                                    Nom de l'établissement <span class="text-red-500">*</span>
-                                </label>
-                                <input type="text" id="company-name" name="company_name"
-                                    class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all"
-                                    placeholder="Nom de l'établissement" maxlength="200" autofocus required
-                                    value="{{ $company->name }}">
-                                <p id="company-name-error" class="mt-2 text-sm text-red-600 hidden"></p>
-                            </div>
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div class="md:col-span-2">
+                                    <label for="company-name" class="block text-sm text-gray-500 mb-2">
+                                        Nom de l'établissement <span class="text-red-500">*</span>
+                                    </label>
+                                    <input type="text" id="company-name" name="company_name"
+                                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all"
+                                        placeholder="Nom de l'établissement" maxlength="200" autofocus required
+                                        value="{{ $company->name }}">
+                                    <p id="company-name-error" class="mt-2 text-sm text-red-600 hidden"></p>
+                                </div>
 
+                                <div>
+                                    <label for="company-estab" class="block text-sm text-gray-500 mb-2">
+                                        Type de l'établissement
+                                    </label>
+                                    <select id="company-estab" name="company_estab"
+                                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all bg-white">
+                                        @foreach ($estabs as $estab)
+                                            <option value="{{ $estab->id }}" data-code="{{ $estab->code }}"
+                                                @selected($estab->id == $company->establishment_id)>
+                                                {{ $estab->name }}</option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                            </div>
                             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                                 <div>
                                     <label for="email" class="block text-sm text-gray-500 mb-2">
-                                        Email
+                                        Email <span class="text-red-500">*</span>
                                     </label>
                                     <input type="email" id="company-email" name="company_email" maxlength="100"
                                         class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all"
@@ -99,11 +114,12 @@
 
                             <div>
                                 <label for="address" class="block text-sm text-gray-500 mb-2">
-                                    Adresse <span class="text-red-500">*</span>
+                                    Adresse
                                 </label>
                                 <input type="text" id="address" name="address"
                                     class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all"
-                                    placeholder="Adresse complète" maxlength="255" required value="{{ $company->address }}">
+                                    placeholder="Adresse complète" maxlength="255" required
+                                    value="{{ $company->address }}">
                                 <p id="address-error" class="mt-2 text-sm text-red-600 hidden"></p>
                             </div>
 
@@ -154,6 +170,32 @@
                             <h2 class="text-lg font-semibold text-gray-800 font-heading">Étape 2 : Membres de l'équipe</h2>
                         </div>
 
+                        <!-- Current members - STA -->
+                        @if ($company->users->isNotEmpty())
+                            <div id="current-members" class="space-y-4 mb-6">
+                                @foreach ($company->users as $currentMember)
+                                    <div
+                                        class="bg-gray-50 border border-gray-200 rounded-lg pl-4 p-2 cursor-pointer relative">
+                                        <div class="flex items-start justify-between">
+                                            <div class="flex-1">
+                                                @if ($currentMember->pivot->manager_flg)
+                                                    <div class="mb-1">
+                                                        <span
+                                                            class="px-2 py-1 bg-blue-500 text-white text-[10px] rounded-full">Responsable</span>
+                                                    </div>
+                                                @endif
+                                                <h3 class="text-md font-semibold text-gray-800 mb-0">
+                                                    {{ $currentMember->name . ' ' . $currentMember->first_name }}</h3>
+                                                <div class="text-xs text-gray-500 mb-2">{{ $currentMember->email }}</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                @endforeach
+                            </div>
+                        @endif
+                        <!-- Current members - END -->
+
+
                         <!-- Members List -->
                         <div id="members-list" class="space-y-4 mb-6">
                             <!-- Empty State -->
@@ -163,7 +205,10 @@
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                         d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                                 </svg>
-                                <p>Aucun membre ajouté</p>
+                                @if ($company->users->isEmpty())
+                                    <p>Aucun membre ajouté</p>
+                                @endif
+
                                 <p class="text-sm">Cliquez sur "Ajouter" pour commencer</p>
                             </div>
 
@@ -195,7 +240,9 @@
                                 </svg>
                             </button>
                             @if (!$company->status == App\Status::PENDING->value)
-                                <button id="submit-button" onclick="submitForm()" type="button"
+                                <button id="submit-button"
+                                    onclick="submitForm()"
+                                    type="button"
                                     class="px-6 py-3 bg-primary text-white font-medium rounded-lg hover:bg-orange-600 transition-colors focus:ring-4 focus:ring-orange-200">
                                     Soumettre
                                 </button>
@@ -317,19 +364,6 @@
                             </button>
                             <div id="profession-content" class="px-4 pb-4 space-y-4">
                                 <div class="mt-4">
-                                    <div class="flex items-center justify-between p-4 bg-gray-50 rounded-lg pb-4">
-                                        <div>
-                                            <label class="text-md text-gray-700">Étudiant</label>
-                                        </div>
-                                        <button type="button" id="student-toggle" onclick="toggleStudentSwitch()"
-                                            class="relative inline-flex h-6 w-11 items-center rounded-full bg-gray-300 transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2">
-                                            <span id="student-toggle-circle"
-                                                class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform translate-x-1"></span>
-                                        </button>
-                                    </div>
-                                </div>
-
-                                <div>
                                     <label for="member-job" class="block text-sm text-gray-500 mb-2">
                                         Fonction professionelle <span class="text-red-500">*</span>
                                     </label>
@@ -478,6 +512,35 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Confirm Modal -->
+            <div id="confirm-modal"
+                class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+                <div class="bg-white rounded-lg shadow-xl max-w-md w-full p-6 md:p-8 transform transition-all">
+                    <div class="text-center">
+                        <div class="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-red-100 mb-4">
+                            <svg class="h-10 w-10 text-red-600" xmlns="http://www.w3.org/2000/svg" fill="none"
+                                viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round"
+                                    d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+                            </svg>
+                        </div>
+                        <h3 class="text-xl font-semibold text-gray-800 mb-2 font-heading">Confirmation</h3>
+                        <p id="confirm-message" class="text-gray-600 mb-6">Êtes-vous sûr de vouloir continuer ?</p>
+                        <div class="flex gap-3">
+                            <button onclick="closeConfirmModal()"
+                                class="flex-1 px-6 py-3 bg-gray-200 text-gray-700 font-medium rounded-lg hover:bg-gray-300 transition-colors">
+                                Annuler
+                            </button>
+                            <button id="confirm-action-btn"
+                                class="flex-1 px-6 py-3 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 transition-colors">
+                                Confirmer
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
         </div>
     </main>
 @endsection
@@ -558,7 +621,6 @@
         let memberIdCounter = members.length;
         let editingMemberId = null;
         let isLeader = false;
-        let isStudent = false;
 
         function nextStep(step) {
             // Step 1 - Company
@@ -584,7 +646,7 @@
                     hideError('company-name-error');
                 }
 
-                if (companyEmail && !validateEmail(companyEmail)) {
+                if (!companyEmail || !validateEmail(companyEmail)) {
                     showError('company-email-error', "Veuillez saisir un email valide !");
                     hasError = true;
                     if (!firstError) {
@@ -608,16 +670,16 @@
                     hideError('siret-error');
                 }
 
-                if (!address) {
-                    showError('address-error', "Veuillez saisir l'adresse !");
-                    hasError = true;
-                    if (!firstError) {
-                        firstError = true;
-                        scrollToAndFocus('address', false);
-                    }
-                } else {
-                    hideError('address-error');
-                }
+                // if (!address) {
+                //     showError('address-error', "Veuillez saisir l'adresse !");
+                //     hasError = true;
+                //     if (!firstError) {
+                //         firstError = true;
+                //         scrollToAndFocus('address', false);
+                //     }
+                // } else {
+                //     hideError('address-error');
+                // }
 
                 if (!postalCode) {
                     showError('postal-code-error', "Veuillez saisir le code postal !");
@@ -642,6 +704,7 @@
                 }
 
                 if (hasError) return;
+                saveAsDraft();
             }
 
             // Next step
@@ -709,20 +772,24 @@
             const fnbField = document.getElementById('first-name-birth-field');
             const secuField = document.getElementById('secu-field');
 
-            if (dataCode === 'opco-ep' || dataCode === 'other') {
+            // Dob
+            if (dataCode === 'opco-ep' || dataCode === 'fifpl' || dataCode === 'other') {
                 dobField.classList.remove('hidden');
+            } else {
+                dobField.classList.add('hidden');
+                document.getElementById('member-dob').value = '';
+                hideError('member-dob-error');
+            }
+
+            // Others
+            if (dataCode === 'opco-ep' || dataCode === 'other') {
                 fnbField.classList.remove('hidden');
                 secuField.classList.remove('hidden');
             } else {
-                dobField.classList.add('hidden');
                 fnbField.classList.add('hidden');
                 secuField.classList.add('hidden');
 
-
-                document.getElementById('member-dob').value = '';
                 document.getElementById('member-secu').value = '';
-
-                hideError('member-dob-error');
                 hideError('member-secu-error');
             }
         }
@@ -734,7 +801,6 @@
 
             editingMemberId = null;
             isLeader = false;
-            isStudent = false;
             document.getElementById('modal-title').textContent = 'Ajouter un membre';
             document.getElementById('save-member-btn').textContent = 'Vérifier & Ajouter';
 
@@ -756,7 +822,6 @@
 
             editingMemberId = memberId;
             isLeader = member.isLeader;
-            isStudent = member.isStudent;
 
             document.getElementById('modal-title').textContent = 'Modifier le membre';
             document.getElementById('save-member-btn').textContent = 'Vérifier & Enregistrer';
@@ -776,7 +841,6 @@
 
             toggleOpcoEp();
             updateLeaderToggle();
-            updateStudentToggle();
             document.getElementById('add-member-modal').classList.remove('hidden');
             setTimeout(() => {
                 document.getElementById('member-email').focus();
@@ -805,28 +869,6 @@
             }
         }
 
-        function toggleStudentSwitch() {
-            isStudent = !isStudent;
-            updateStudentToggle();
-        }
-
-        function updateStudentToggle() {
-            const toggle = document.getElementById('student-toggle');
-            const circle = document.getElementById('student-toggle-circle');
-
-            if (isStudent) {
-                toggle.classList.remove('bg-gray-300');
-                toggle.classList.add('bg-primary');
-                circle.classList.remove('translate-x-1');
-                circle.classList.add('translate-x-6');
-            } else {
-                toggle.classList.remove('bg-primary');
-                toggle.classList.add('bg-gray-300');
-                circle.classList.remove('translate-x-6');
-                circle.classList.add('translate-x-1');
-            }
-        }
-
         function closeAddMemberModal() {
             document.getElementById('add-member-modal').classList.add('hidden');
             clearMemberForm();
@@ -835,7 +877,6 @@
         function clearMemberForm() {
             editingMemberId = null;
             isLeader = false;
-            isStudent = false;
             document.getElementById('member-email').value = '';
             document.getElementById('member-name').value = '';
             document.getElementById('member-firstname').value = '';
@@ -848,7 +889,6 @@
 
             toggleOpcoEp();
             updateLeaderToggle();
-            updateStudentToggle();
             hideError('member-email-error');
             hideError('member-name-error');
             hideError('member-firstname-error');
@@ -934,7 +974,7 @@
 
             // Dob
             const dob = document.getElementById('member-dob').value;
-            if (dataCode == 'opco-ep' || dataCode == 'other') {
+            if (dataCode == 'opco-ep' || dataCode == 'fifpl' || dataCode == 'other') {
                 if (!dob || !isDateInPast(dob)) {
                     hasError = true;
                     errorMessage += (errorMessage ? ', ' : '') + 'Date de naissance';
@@ -1034,7 +1074,6 @@
                     member.secu = secu;
 
                     member.isLeader = isLeader;
-                    member.isStudent = isStudent;
                 }
             } else {
                 // Add new member
@@ -1061,8 +1100,7 @@
                     rpps: rpps,
                     secu: secu,
 
-                    isLeader: isLeader,
-                    isStudent: isStudent
+                    isLeader: isLeader
                 };
                 members.push(member);
             }
@@ -1097,7 +1135,6 @@
                             <div class="flex-1">
                                 <div class="mb-1">
                                     ${member.isLeader ? '<span class="px-2 py-1 bg-blue-500 text-white text-[10px] rounded-full">Responsable</span>' : ''}
-                                    ${member.isStudent ? '<span class="px-2 py-1 bg-green-600 text-white text-[10px] rounded-full">Étudiant</span>' : ''}
                                 </div>
                                 <h3 class="text-md font-semibold text-gray-800 mb-0">${member.name} ${member.firstname}</h3>
                                 <div class="text-xs text-gray-500 mb-2">${member.email || '<em class="text-gray-400">Email non renseigné</em>'}</div>
@@ -1113,15 +1150,15 @@
                             </div>
                         </div>
                         ${member.hasError ? `
-                        <div class="space-y-1 text-xs text-yellow-500 mt-2">
-                            <div class="flex gap-1">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-yellow-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                                </svg>
-                                <span class="text-xs"><small> Manquant: ${member.errorMessage}</small></span>
+                            <div class="space-y-1 text-xs text-yellow-500 mt-2">
+                                <div class="flex gap-1">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-yellow-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                    </svg>
+                                    <span class="text-xs"><small> Manquant: ${member.errorMessage}</small></span>
+                                </div>
                             </div>
-                        </div>
-                    ` : ''}
+                        ` : ''}
                     </div>
                 `;
             }).join('');
@@ -1173,6 +1210,8 @@
         }
 
         function submitForm() {
+            let hasDBManager = @json($company->hasManager());
+
             // No member
             if (members.length === 0) {
                 showError('members-error', "Veuillez ajouter au moins un membre !");
@@ -1190,12 +1229,19 @@
 
             // No manager
             const totalLeader = members.filter(m => m.isLeader).length;
-            if (totalLeader <= 0) {
+            if (!hasDBManager && totalLeader <= 0) {
                 showError('members-error', "Veuillez définir au moins une personne responsable pédagogique !");
                 return;
             }
             hideError('members-error');
 
+            // Submit
+            openConfirmModal('Confirmez-vous les informations des membres que vous avez fournies ?', function() {
+                submit();
+            });
+        }
+
+        function submit() {
             // Disable submit button
             disableSubmitButton();
 
@@ -1271,6 +1317,32 @@
 
         function closeErrorModal() {
             document.getElementById('error-modal').classList.add('hidden');
+        }
+
+        function openConfirmModal(message, onConfirm) {
+            const modal = document.getElementById('confirm-modal');
+            const messageElement = document.getElementById('confirm-message');
+            const confirmBtn = document.getElementById('confirm-action-btn');
+
+            messageElement.textContent = message;
+            modal.classList.remove('hidden');
+
+            // Remove old event
+            const newConfirmBtn = confirmBtn.cloneNode(true);
+            confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
+
+            // Add new event
+            newConfirmBtn.addEventListener('click', function() {
+                closeConfirmModal();
+                if (typeof onConfirm === 'function') {
+                    onConfirm();
+                }
+            });
+        }
+
+        function closeConfirmModal() {
+            const modal = document.getElementById('confirm-modal');
+            modal.classList.add('hidden');
         }
 
         // Validation functions

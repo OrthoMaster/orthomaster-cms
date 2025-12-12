@@ -44,7 +44,6 @@
                 </svg>
                 Web  <small style="color:#eb7b0f; font-size:14px">*</small>
             </a>
-            {{-- <a href="{{ setting('mail.web_app_link') }}" class="download-button">Version Web</a> --}}
         </div>
 
         <small class="sub-version-web"><span style="color:#eb7b0f;">*</span> La version web est uniquement accessible sur ordinateur.</small>

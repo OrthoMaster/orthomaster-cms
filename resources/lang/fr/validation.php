@@ -44,7 +44,7 @@ return [
     'declined_if' => 'Le champ :attribute doit être refusé lorsque :other vaut :value.',
     'different' => 'Les champs :attribute et :other doivent être différents.',
     'digits' => 'Le champ :attribute doit avoir :digits chiffres.',
-    'digits_between' => 'Le champ :attribute doit avoir entre :min and :max chiffres.',
+    'digits_between' => 'Le champ :attribute doit avoir entre :min et :max chiffres.',
     'dimensions' => 'Le champ :attribute a des dimensions d\'image non valides.',
     'distinct' => 'Le champ a une valeur en double.',
     'doesnt_end_with' => 'Le champ :attribute ne peut pas se terminer par l\'un des éléments suivants : :values.',

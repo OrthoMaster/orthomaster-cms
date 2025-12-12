@@ -16,12 +16,14 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 
 class User extends \TCG\Voyager\Models\User
 {
     use HasFactory, Notifiable, HasApiTokens;
 
     protected $guarded = ['id'];
+    protected $appends = ['missing_fields_message'];
 
     protected $hidden = [
         'password',
@@ -94,6 +96,12 @@ class User extends \TCG\Voyager\Models\User
         return $this->hasOne(User::class, 'id', 'created_by');
     }
 
+    public function notifications()
+    {
+        return $this->hasMany(SystemNotification::class, 'user_id', 'id')
+            ->with('actor');
+    }
+
     public function packages()
     {
         return $this->belongsToMany(Package::class);
@@ -102,6 +110,43 @@ class User extends \TCG\Voyager\Models\User
     public function carts()
     {
         return $this->hasMany(Cart::class);
+    }
+
+    protected function missingFieldsMessage(): Attribute
+    {
+        return Attribute::make(
+            get: function () {
+                if (!$this->funding_organization_id) {
+                    return 'Manquant: Organisme de formation.';
+                }
+
+                $errorMessage = '';
+
+                // Opco-ep
+                if ($this->function_organization_id === 1) {
+                    if (!$this->date_of_birth) {
+                        $errorMessage += ($errorMessage ? ', ' : '') + 'Date de naissance';
+                    }
+
+                    if (!$this->no_secu) {
+                        $errorMessage += ($errorMessage ? ', ' : '') + 'N° SECU';
+                    }
+                }
+
+                // FIFPL
+                if ($this->function_organization_id === 2) {
+                    if (!$this->date_of_birth) {
+                        $errorMessage += ($errorMessage ? ', ' : '') + 'Date de naissance';
+                    }
+                }
+
+                if ($errorMessage) {
+                    return 'Manquant: ' . $errorMessage;
+                }
+
+                return null;
+            }
+        );
     }
 
     /**
@@ -154,6 +199,11 @@ class User extends \TCG\Voyager\Models\User
         return User::where('id', $id)
             ->with(['role', 'companiesUserIsMember', 'organization'])
             ->first();
+    }
+
+    public static function findByEmail($email)
+    {
+        return User::where('email', $email)->first();
     }
 
     /**

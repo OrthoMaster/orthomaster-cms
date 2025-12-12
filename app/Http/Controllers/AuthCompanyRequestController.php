@@ -2,16 +2,65 @@
 
 namespace App\Http\Controllers;
 
+use App\Mail\CreatedCompanyByUserMail;
 use App\Models\Company;
+use App\Models\Establishment;
 use App\Models\FundingOrganization;
 use App\Models\NoProfType;
 use App\Models\Profession;
+use App\Models\User;
 use App\Status;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Str;
 
 class AuthCompanyRequestController extends Controller
 {
+    public function storeByUser(Request $request)
+    {
+        if (!$request->has('email')) {
+            return abort(404);
+        }
+
+        $user = User::findByEmail($request->email);
+        // Can not create company when is manager
+        if ($user->companiesUserIsManager->isNotEmpty()) {
+            return abort(404);
+        }
+
+        try {
+            do {
+                $inviteCode = strtoupper(Str::random(8));
+            } while (Company::where('invite_code', $inviteCode)->exists());
+            do {
+                $joinCode = Str::random(12);
+            } while (Company::where('join_code', $joinCode)->exists());
+
+            // Create new company
+            $company = Company::create([
+                'name' => 'Votre établissement',
+                'invite_code' => $inviteCode,
+                'join_code' => $joinCode,
+                'active_flg' => true,
+                'created_by' => $user->id,
+            ]);
+            // Add user to company
+            $company->users()->attach($user->id, [
+                'manager_flg' => true,
+            ]);
+
+            // Send email
+            Mail::to($user->email)->send(new CreatedCompanyByUserMail($user, $company));
+            Log::channel('mail')->info('After created company: ' . $user->email, ['create-company', $company->id]);
+
+            return redirect()->route('register.company.view', $inviteCode);
+        } catch (\Exception $e) {
+            Log::error($e->getMessage(), ['create-company-by-user', $request->except('token')]);
+            return abort(500);
+        }
+    }
+
     public function view($code)
     {
         $company = Company::findByInviteCode($code);
@@ -19,6 +68,7 @@ class AuthCompanyRequestController extends Controller
             return view('landingpage.template.error-group-code', ['statusCode' => 404]);
         };
 
+        $estabs = Establishment::getAll();
         $professions = Profession::getAll();
         $noProfTypes = NoProfType::getAll();
         $organizations = FundingOrganization::getAll();
@@ -30,7 +80,7 @@ class AuthCompanyRequestController extends Controller
 
         return view(
             'landingpage.register-company-request',
-            compact('company', 'professions', 'noProfTypes', 'organizations', 'countries')
+            compact('company', 'estabs', 'professions', 'noProfTypes', 'organizations', 'countries')
         );
     }
 
@@ -47,6 +97,7 @@ class AuthCompanyRequestController extends Controller
 
             $company->name = $request->company_name;
             $company->email = $request->company_email;
+            $company->establishment_id = $request->company_estab;
 
             $company->siret = $request->siret;
             $company->phone = $request->phone;
@@ -69,7 +120,7 @@ class AuthCompanyRequestController extends Controller
                     (new \App\Http\Controllers\CompanyController())->fillDataFromTemps($company->id);
                 })->afterResponse();
             }
-            
+
             // Return success
             return response()->json([
                 'status' => 'success',

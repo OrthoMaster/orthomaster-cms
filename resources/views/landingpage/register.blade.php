@@ -84,7 +84,8 @@
                                             <label for="invite-code" class="block text-sm text-sm text-gray-500">
                                                 Code d’invitation
                                             </label>
-                                            <p class="text-xs text-primary hover:underline cursor-pointerregister" onclick="toggleInviteInput()">
+                                            <p class="text-xs text-primary hover:underline cursor-pointerregister"
+                                                onclick="toggleInviteInput()">
                                                 Supprimer
                                             </p>
                                         </div>
@@ -294,15 +295,19 @@
                                     <label class="block text-md text-gray-800 mb-2">
                                         Numéro professionnel
                                     </label>
-                                    <div class="px-4 py-4 mb-4 bg-gray-50 text-xs text-gray-500 border border-gray-300 rounded-lg transition-all">
-                                        L’application OrthoMaster est réservée aux professionnels de santé.<br/>
-                                        Afin de nous assurer de cela, merci de nous indiquer votre numéro professionnel.<br/>
-                                        Il sera vérifié automatiquement et <b class="font-semibold text-gray-600">votre accès sera confirmé par mail dès que votre
-                                        numéro sera validé</b>.<br/>
+                                    <div
+                                        class="px-4 py-4 mb-4 bg-gray-50 text-xs text-gray-500 border border-gray-300 rounded-lg transition-all">
+                                        L’application OrthoMaster est réservée aux professionnels de santé.<br />
+                                        Afin de nous assurer de cela, merci de nous indiquer votre numéro
+                                        professionnel.<br />
+                                        Il sera vérifié automatiquement et <b class="font-semibold text-gray-600">votre
+                                            accès sera confirmé par mail dès que votre
+                                            numéro sera validé</b>.<br />
                                         En cas d’erreur ou si vous laissez cette information vierge, nous devrons procéder à
-                                        une vérification manuelle qui peut prendre du temps.<br/>
-                                        Vous ne vous rappelez pas de votre RPPS ? Retrouvez le sur 
-                                        <a class="text-blue-400 underline" href="{{ setting('system.check_rpps_link') }}" target="_blank">ici</a> (France).<br/><br/>
+                                        une vérification manuelle qui peut prendre du temps.<br />
+                                        Vous ne vous rappelez pas de votre RPPS ? Retrouvez le sur
+                                        <a class="text-blue-400 underline" href="{{ setting('system.check_rpps_link') }}"
+                                            target="_blank">ici</a> (France).<br /><br />
                                         Merci pour votre compréhension.
                                     </div>
 
@@ -400,8 +405,8 @@
                 class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
                 <div class="bg-white rounded-lg shadow-xl max-w-md w-full p-6 md:p-8 transform transition-all">
                     <div class="text-center">
-                        <div class="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-green-100 mb-4">
-                            <svg class="h-10 w-10 text-green-600" fill="none" stroke="currentColor"
+                        <div class="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-orange-200 mb-4">
+                            <svg class="h-10 w-10 text-primary" fill="none" stroke="currentColor"
                                 viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7">
                                 </path>
@@ -410,11 +415,29 @@
                         <h3 class="text-xl font-semibold text-gray-800 mb-2 font-heading">Inscription validée !
                         </h3>
                         <p class="text-gray-600 mb-6">Regardez vos mails, nous vous avons envoyé un mot de passe provisoire
-                            pour vous connecter à l'application ORTHOMASTER.</p>
-                        <button onclick="closeSuccessModal()"
-                            class="w-full px-6 py-3 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 transition-colors">
-                            Fermer
-                        </button>
+                            pour vous connecter à l'application OrthoMaster.</p>
+
+                        @if (request('inapp'))
+                            <button onclick="closeSuccessModal()"
+                                class="w-full px-6 py-3 bg-primary text-white font-medium rounded-lg hover:bg-orange-600 transition-colors focus:ring-4 focus:ring-orange-200">
+                                Fermer
+                            </button>
+                        @else
+                            <p class="text-gray-600 mb-6 text-left">Souhaitez-vous créer un Espace Pro pour explorer avec
+                                votre équipe ?</p>
+
+                            <div class="flex flex-col md:flex-row gap-3">
+                                <button onclick="createEspacePro()"
+                                    class="w-full md:w-2/3 px-6 py-3 bg-primary text-white font-medium rounded-lg hover:bg-orange-600 transition-colors focus:ring-4 focus:ring-orange-200">
+                                    Créer Espace Pro
+                                </button>
+
+                                <button onclick="closeSuccessModal()"
+                                    class="w-full md:w-1/3 px-6 py-3 text-primary font-medium rounded-lg border border-primary transition-colors">
+                                    Plus tard
+                                </button>
+                            </div>
+                        @endif
                     </div>
                 </div>
             </div>
@@ -548,6 +571,11 @@
             </div>
         </div>
     </main>
+
+    <form id="pro-form" method="POST" action="{{ route('register.store.user') }}">
+        <input type="hidden" id="pro-email" name="email" value="" />
+        @csrf
+    </form>
 @endsection
 
 @section('css')
@@ -1105,9 +1133,6 @@
             } else {
                 window.location.href = "https://orthomaster.fr";
             }
-
-            // window.location.href = "https://orthomaster.fr";
-            // document.getElementById('success-modal').classList.add('hidden');
         }
 
         function closePendingModal() {
@@ -1120,9 +1145,6 @@
             } else {
                 window.location.href = "https://orthomaster.fr";
             }
-
-            // window.location.href = "https://orthomaster.fr";
-            // document.getElementById('pending-modal').classList.add('hidden');
         }
 
         function redirectToPasswordReset() {
@@ -1163,6 +1185,13 @@
             const submitButton = document.getElementById('submit-button');
             submitButton.disabled = false;
             submitButton.innerHTML = 'Soumettre';
+        }
+
+        function createEspacePro() {
+            // document.getElementById('success-modal').classList.add('hidden');
+            document.getElementById('checking-modal').classList.remove('hidden');
+            document.getElementById('pro-email').value = document.getElementById('email').value;
+            document.getElementById('pro-form').submit();
         }
 
         // Add "enter" to move step

@@ -3,7 +3,11 @@
 namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
+use App\Models\Establishment;
+use App\Models\FundingOrganization;
 use App\Models\OldVersionUser;
+use App\Models\Profession;
+use App\Models\SystemNotification;
 use App\Models\User;
 use App\Status;
 use Carbon\Carbon;
@@ -142,6 +146,32 @@ class AuthController extends Controller
     }
 
     /**
+     * Get full info for Profile screen
+     */
+    public function more(Request $request)
+    {
+        $companyIsMember = $request->user()->companiesUserIsMember()
+            ->with('establishment:id,name')
+            ->first();
+        $companyIsManager = $request->user()->companiesUserIsManager()
+            ->with('establishment:id,name')
+            ->first();
+        $hasNotifications = sizeof(SystemNotification::getByReceiver($request->user()->id)) > 0;
+
+        $estabs = Establishment::getAll();
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'companyIsMember' => $companyIsMember,
+                'companyIsManager' => $companyIsManager,
+                'hasNotifications' => $hasNotifications,
+                'estabs' => $estabs
+            ]
+        ]);
+    }
+
+    /**
      * Change password for the first time
      */
     public function changeInitPassword(Request $request)
@@ -172,6 +202,135 @@ class AuthController extends Controller
         ]);
     }
 
+    /**
+     * Get info to view Profile Info screen
+     */
+    public function getPreFromData()
+    {
+        try {
+            $estabs = Establishment::getAll();
+            $professions = Profession::getAll();
+            $organizations = FundingOrganization::getAll();
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'estabs' => $estabs,
+                    'professions' => $professions,
+                    'organizations' => $organizations
+                ]
+            ]);
+        } catch (\Exception $e) {
+            Log::channel('api')->error($e->getMessage(), ['pre-form-data', 'profile']);
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la suppression',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Update profile
+     */
+    public function updateProfile(Request $request)
+    {
+
+        try {
+            $validator = $request->validate([
+                'name' => 'required|string|max:100',
+                'first_name' => 'nullable|string|max:100',
+                'phone' => 'nullable|regex:/^\+?[0-9]{1,3}[\s\-]?(\(?\d{1,4}\)?[\s\-]?){1,}[0-9]{1,}$/|min:10|max:20',
+                'date_of_birth' => 'nullable|date_format:d/m/Y',
+                'first_name_birth' => 'nullable|string|max:100',
+
+                'country' => 'nullable|max:100',
+                'postal_code' => 'nullable|max:10',
+                'city' => 'nullable|max:30',
+            ]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->validator->errors()->first(),
+            ], 422);
+        }
+
+        $dateOfBirth = null;
+        if ($request->filled('date_of_birth')) {
+            try {
+                $dateOfBirth = \Carbon\Carbon::createFromFormat('d/m/Y', $request->date_of_birth)->format('Y-m-d');
+            } catch (\Exception $e) {
+                $dateOfBirth = null;
+            }
+        }
+
+        try {
+            $user = $request->user();
+            $user->update([
+                'name' => mb_convert_case(trim($request->name), MB_CASE_TITLE, 'UTF-8'),
+                'first_name' => mb_convert_case(trim($request->first_name), MB_CASE_TITLE, 'UTF-8'),
+                'first_name_birth' => mb_convert_case(trim($request->first_name_birth), MB_CASE_TITLE, 'UTF-8'),
+                'date_of_birth' => $dateOfBirth,
+
+                'phone' => $request->phone,
+                'country' => $request->country,
+                'postal_code' => trim($request->postal_code),
+                'city' => mb_convert_case(trim($request->city), MB_CASE_TITLE, 'UTF-8'),
+
+                'profession_id' => $request->profession_id,
+                'funding_organization_id' => $request->funding_organization_id,
+
+                'no_secu' => $request->no_secu,
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => "Profil mis à jour avec succès"
+            ], 200);
+        } catch (\Exception $e) {
+            Log::channel('api')->error($e->getMessage(), ['update-profile', $request->user()->id]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la suppression',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Update password
+     */
+    public function changePassword(Request $request)
+    {
+        $request->validate([
+            'new_password' => 'required|string|min:8|confirmed',
+        ]);
+
+        try {
+            $user = User::find(Auth::user()->id);
+            $user->password = Hash::make($request->new_password);
+            $user->save();
+
+            // Sync with old system
+            dispatch(function () use ($user, $request) {
+                (new \app\Http\Controllers\Odoo\OdooAccountController(app(\App\Services\OdooService::class)))
+                    ->syncPassword($user->id_odoo_user, $request->new_password);
+            })->afterResponse();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Le mot de passe a été modifié avec succès.',
+            ]);
+        } catch (\Exception $e) {
+            Log::channel('api')->error($e->getMessage(), ['change-password', $request->user()->id]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la suppression',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
     public function logout()
     {
         $user = Auth::user();
@@ -196,14 +355,15 @@ class AuthController extends Controller
                 'date_of_birth' => $user->date_of_birth ? $user->date_of_birth->format('d/m/Y') : null,
                 'phone' => $user->phone,
 
+                'country' => $user->country,
                 'country_code' => $user->country_code,
                 'postal_code' => $user->postal_code,
                 'city' => $user->city,
 
                 'student_flg' => $user->student_flg,
                 'expires_at' => $user->expires_at ? $user->expires_at->format('d/m/Y') : null,
-                
-                'establishment' => $user->establishment_id,
+
+                'establishment_id' => $user->establishment_id,
                 'establishment' => $user->establishment ? $user->establishment->name : null,
                 'orther_establishment' => $user->orther_establishment,
 

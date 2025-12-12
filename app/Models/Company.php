@@ -30,6 +30,23 @@ class Company extends Model
             ->withTimestamps();
     }
 
+    public function hasManager()
+    {
+        return $this->users()->wherePivot('manager_flg', true)->exists();
+    }
+
+    public function managers()
+    {
+        return $this->users()->wherePivot('manager_flg', true)
+            ->with('organization')
+            ->get();
+    }
+
+    public function members()
+    {
+        return $this->users()->wherePivot('manager_flg', false)->get();
+    }
+
     public function packages()
     {
         return $this->belongsToMany(Package::class, 'package_company');
@@ -59,5 +76,10 @@ class Company extends Model
         return Company::where('invite_code', $code)
             ->with(['establishment', 'users', 'users.role', 'users.organization', 'users.profession'])
             ->first();
+    }
+
+    public static function findByJoinCode($code)
+    {
+        return Company::where('join_code', $code)->first();
     }
 }

@@ -43,6 +43,7 @@ Route::post('/forgot-password', [AuthController::class, 'sendResetLink'])->name(
 Route::get('/reset-password', [AuthController::class, 'viewResetPage'])->name('password.reset');
 Route::post('/password', [AuthController::class, 'reset'])->name('password.update');
 
+Route::post('/group/create-by-user', [AuthCompanyRequestController::class, 'storeByUser'])->name('register.store.user');
 
 Route::get('/group/register/{code}', [AuthCompanyRequestController::class, 'view'])->name('register.company.view');
 Route::post('/group/register/{code}/draft', [AuthCompanyRequestController::class, 'submit'])->name('register.company.draft');

@@ -47,7 +47,7 @@
             height: 30px;
             margin-bottom: 40px;
             display: flex;
-            align-items: center;
+            align-items: center !important;
         }
 
         .header h1 {
@@ -302,7 +302,7 @@
         .action-button {
             display: inline-block;
             background-color: #eb7b0f;
-            color: white;
+            color: white !important;
             text-decoration: none;
             padding: 12px 30px;
             border-radius: 6px;

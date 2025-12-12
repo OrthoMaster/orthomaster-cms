@@ -185,8 +185,10 @@
                                         <tr>
                                             <th>Nom - Prénom</th>
                                             <th>Email</th>
+                                            <th>Date de naissance</th>
                                             <th>Fonction</th>
                                             <th>Organisme</th>
+                                            <th>SECU</th>
                                             <th>Statut</th>
                                             <th class="actions text-right dt-not-orderable">Actions</th>
                                         </tr>
@@ -203,10 +205,16 @@
                                                 </td>
                                                 <td>{{ $user->email }}</td>
                                                 <td>
+                                                    {{ $user->date_of_birth ? $user->date_of_birth->format('d/m/Y') : '' }}
+                                                </td>
+                                                <td>
                                                     {{ $user->profession_id ? $user->profession->name : $user->other_profession }}
                                                 </td>
                                                 <td>
                                                     {{ $user->funding_organization_id ? $user->organization->name : ' ' }}
+                                                </td>
+                                                <td>
+                                                    {{ $user->no_secu }}
                                                 </td>
                                                 <td>
                                                     @if ($user->id_odoo_partner)

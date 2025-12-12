@@ -158,6 +158,16 @@ class AuthController extends Controller
             // Condition active
             $isActive = (!$isStudent && $checkedRpps) || ($checkInviteCode == 'code-valid');
 
+            // Country name
+            $countryName = null;
+            if ($request->country) {
+                $path = public_path('countries.json');
+                $json = file_get_contents($path);
+                $countries = json_decode($json, true);
+                $countryName = $countries[$request->country] ?? null;
+            }
+            
+
             // Create new user
             $user = User::create([
                 'role_id' => $userRole->id,
@@ -167,6 +177,8 @@ class AuthController extends Controller
                 'password_temp' => $passwordTemp,
                 'password' => bcrypt($passwordTemp),
                 'phone' => $request->phone,
+
+                'country' => $countryName,
                 'country_code' => $request->country,
                 'postal_code' => trim($request->postal_code),
                 'city' => mb_convert_case(trim($request->city), MB_CASE_TITLE, 'UTF-8'),
