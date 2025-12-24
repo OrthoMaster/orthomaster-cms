@@ -17,6 +17,11 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'cmsAdmin' => \App\Http\Middleware\CmsAdminMiddleware::class,
         ]);
+
+        // Except csrf with Stripe webhook
+        $middleware->validateCsrfTokens(except: [
+            'api/webhooks/stripe',
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
         $exceptions->render(function (HttpException $e, $request) {

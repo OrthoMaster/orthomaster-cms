@@ -5,7 +5,9 @@ use App\Http\Controllers\API\AuthController;
 use App\Http\Controllers\API\CartController;
 use App\Http\Controllers\API\ChatbotSearchController;
 use App\Http\Controllers\API\CompanyController;
+use App\Http\Controllers\API\PaymentController;
 use App\Http\Controllers\API\QuotationController;
+use App\Http\Controllers\API\StripeWebhookController;
 use App\Http\Controllers\API\TrainingController;
 use App\Http\Controllers\Odoo\OdooAccountController;
 use App\Http\Controllers\SystemNotificationController;
@@ -21,8 +23,8 @@ Route::get('/quotation', [QuotationController::class, 'getContent']);
 Route::get('/quotation/sample', [QuotationController::class, 'generateSample']);
 Route::get('/quotation/sample/signed', [QuotationController::class, 'addSignature']);
 
-/** Odoo - STA */
-/** Odoo - END */
+// Stripe webhook
+Route::post('/webhooks/stripe', [StripeWebhookController::class, 'handleWebhook']);
 
 // Lesson
 Route::get('/lessons/findContentId/{contentId}', [APILessonController::class, 'findByContentId']);
@@ -89,4 +91,11 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::delete('/cart/clear', [CartController::class, 'clear']);
     Route::put('/cart/members', [CartController::class, 'syncMembers']);
     Route::post('/cart', [CartController::class, 'submit']);
+
+    // Payment
+    Route::prefix('payments')->group(function () {
+        Route::post('/invoices/{invoice}/create-intent', [PaymentController::class, 'createPaymentIntent']);
+        Route::post('/invoices/{invoice}/confirm', [PaymentController::class, 'confirmPayment']);
+        Route::post('/invoices/{invoice}/cancel', [PaymentController::class, 'cancelPayment']);
+    });
 });
