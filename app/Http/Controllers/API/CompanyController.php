@@ -384,10 +384,10 @@ class CompanyController extends Controller
         }
     }
 
-    public function getMembers()
+    public function getMembers(Request $request)
     {
         try {
-            $user = User::find(Auth::user()->id);
+            $user = User::find($request->user()->id);
             $members = null;
 
             $company = $user->companiesUserIsManager()->first();

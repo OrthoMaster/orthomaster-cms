@@ -17,7 +17,6 @@ Route::get('/user', function (Request $request) {
     return $request->user();
 })->middleware('auth:sanctum');
 
-
 Route::get('/quotation', [QuotationController::class, 'getContent']);
 Route::get('/quotation/sample', [QuotationController::class, 'generateSample']);
 Route::get('/quotation/sample/signed', [QuotationController::class, 'addSignature']);
@@ -73,8 +72,9 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/members', [CompanyController::class, 'getMembers']);
 
     
-    Route::post('/company', [CompanyController::class, 'createCompany']);
+    
     Route::get('/company', [CompanyController::class, 'getCompany']);
+    Route::post('/company', [CompanyController::class, 'createCompany']);
     Route::get('/company/pre-data', [CompanyController::class, 'getPreFromData']);
     Route::put('/company/{id}', [CompanyController::class, 'updateCompany']);
     Route::patch('/company/update-manager', [CompanyController::class, 'updateManager']);
@@ -83,10 +83,10 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::patch('/company/quit', [CompanyController::class, 'quitCompany']);
 
     // Cart
-    Route::get('/cart', [CartController::class, 'show']);
-    Route::post('/cart/add/{id}', [CartController::class, 'addPackage']);
+    Route::get('/cart', [CartController::class, 'getDetails']);
+    Route::put('/cart/add/{id}', [CartController::class, 'addPackage']);
     Route::delete('/cart/remove/{id}', [CartController::class, 'removePackage']);
     Route::delete('/cart/clear', [CartController::class, 'clear']);
-    Route::post('/cart/members', [CartController::class, 'syncMembers']);
+    Route::put('/cart/members', [CartController::class, 'syncMembers']);
     Route::post('/cart', [CartController::class, 'submit']);
 });

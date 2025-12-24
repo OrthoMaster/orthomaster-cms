@@ -104,7 +104,9 @@ class User extends \TCG\Voyager\Models\User
 
     public function packages()
     {
-        return $this->belongsToMany(Package::class);
+        return $this->belongsToMany(Package::class, 'package_user')
+            ->withPivot('progress')
+            ->withTimestamps();
     }
 
     public function carts()

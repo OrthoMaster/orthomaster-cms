@@ -116,9 +116,6 @@
                                                     @endif
                                                 </td>
                                                 <td>
-                                                    @if ($user['isStudent'])
-                                                        <div><span class="label label-success">Étudiant</span></div>
-                                                    @endif
                                                     <div><small>Fonction: </small>
                                                         <strong>{{ $user['job'] ? $user['jobLabel'] : '-' }}</strong>
                                                     </div>

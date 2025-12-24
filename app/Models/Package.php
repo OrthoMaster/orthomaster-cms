@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 class Package extends Model
 {
     protected $guarded = ['id'];
+    protected $appends = ['duration_text'];
 
     public function training()
     {
@@ -26,6 +27,24 @@ class Package extends Model
     public function companies()
     {
         return $this->belongsToMany(Company::class, 'package_company');
+    }
+
+    public function getDurationTextAttribute()
+    {
+        if (!$this->duration) {
+            return '0m';
+        }
+        
+        $hours = floor($this->duration / 60);
+        $minutes = $this->duration % 60;
+        
+        if ($hours > 0 && $minutes > 0) {
+            return "{$hours}h {$minutes}m";
+        } elseif ($hours > 0) {
+            return "{$hours}h";
+        } else {
+            return "{$minutes}m";
+        }
     }
 
     public function scopeActive($query)

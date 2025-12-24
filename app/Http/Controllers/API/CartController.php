@@ -6,23 +6,29 @@ use App\Http\Controllers\Controller;
 use App\Models\Cart;
 use App\Models\Package;
 use App\Models\User;
+use App\Status;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 
 class CartController extends Controller
 {
-    public function show()
+    public function getDetails(Request $request)
     {
         try {
-            $carts = Cart::getByUser(Auth::user()->id);
+            $carts = Cart::getByUser($request->user()->id);
+            $carts->load('items.package');
+
+            foreach ($carts as $cart) {
+                $cart->updateTotalDuration();
+            }
 
             return response()->json([
                 'success' => true,
                 'data' => $carts
             ]);
         } catch (\Exception $e) {
-            Log::channel('api')->error($e->getMessage(), ['show-carts']);
+            Log::channel('api')->error($e->getMessage(), ['cart', $request->user()->id]);
             return response()->json([
                 'success' => false,
                 'message' => $e->getMessage()
@@ -32,16 +38,22 @@ class CartController extends Controller
 
     public function addPackage($id, Request $request)
     {
-        try {
-            $package = Package::findById($id);
-            if (!$package) {
-                return response()->json([
-                    'success' => false,
-                ], 404);
-            }
+        $package = Package::findById($id);
+        if (!$package) {
+            return response()->json([
+                'success' => false,
+            ], 404);
+        }
 
+        try {
             // Check addable - not in selected packages
-            $user = User::find(Auth::user()->id);
+            $user = $request->user();
+
+            // if ($user->student_flg) {
+            //     return response()->json([
+            //         'success' => false,
+            //     ], 409);
+            // }
             if (!$user->student_flg) {
                 $packageIds = $user->packages->pluck('packages.id')->toArray();
                 if (in_array($package->id, $packageIds)) {
@@ -52,14 +64,14 @@ class CartController extends Controller
             }
 
             // Add item to cart
-            $cart = Cart::findByUser(Auth::user()->id, $request->cart_id);
-            $cart->items()->updateOrCreate(['package_id' => 1]);
+            $cart = Cart::findByUser($user->id);
+            $cart->items()->updateOrCreate(['package_id' => $package->id]);
 
             return response()->json([
                 'success' => true,
             ]);
         } catch (\Exception $e) {
-            Log::channel('api')->error($e->getMessage(), ['cart', 'add-package']);
+            Log::channel('api')->error($e->getMessage(), ['cart', 'add-package'], $request->user()->id);
             return response()->json([
                 'success' => false,
                 'message' => $e->getMessage()
@@ -70,22 +82,22 @@ class CartController extends Controller
     public function removePackage($id, Request $request)
     {
         try {
-            $cart = Cart::findByUser(Auth::user()->id, $request->cart_id);
+            $cart = Cart::findByUser($request->user()->id);
             $cart->items()->where('package_id', $id)->delete();
 
             return response()->json([
                 'success' => true,
             ]);
         } catch (\Exception $e) {
-            Log::channel('api')->error($e->getMessage(), ['cart', 'remove-package']);
+            Log::channel('api')->error($e->getMessage(), ['cart', 'remove-package', $request->user()->id]);
             return response()->json([
                 'success' => false,
-                'message' => $e->getMessage()
             ], 500);
         }
     }
 
-    public function clear(Request $request) {
+    public function clear(Request $request)
+    {
         try {
             $cart = Cart::findByUser(Auth::user()->id, $request->cart_id);
             $cart->items()->delete();
@@ -94,7 +106,7 @@ class CartController extends Controller
                 'success' => true,
             ]);
         } catch (\Exception $e) {
-            Log::channel('api')->error($e->getMessage(), ['cart', 'clear-package']);
+            Log::channel('api')->error($e->getMessage(), ['cart', 'clear-package', $request->user()->id]);
             return response()->json([
                 'success' => false,
                 'message' => $e->getMessage()
@@ -102,22 +114,25 @@ class CartController extends Controller
         }
     }
 
-    public function syncMembers(Request $request) {
-        $cart = Cart::findByUser(Auth::user()->id, $request->cart_id);
-        
-        $members = $request->has('members') ? $request->members : [];
-        foreach ($members as $member) {
-            // Check member
+    public function syncMembers(Request $request)
+    {
+        $cart = Cart::findByUser($request->user()->id);
+        try {
+            $members = $request->has('members') ? $request->members : [];
+            $cart->members()->sync($members);
+            $cart->estimatePriceTotal();
 
-            // Add into cart
+            return response()->json([
+                'success' => true,
+            ]);
+        } catch (\Exception $e) {
+            Log::channel('api')->error($e->getMessage(), ['cart', 'sync-member', $request->user()->id]);
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage()
+            ], 500);
         }
-
-        return response()->json([
-            'success' => false,
-        ]);
     }
 
-    public function submit(Request $request) {
-        
-    }
+    public function submit(Request $request) {}
 }

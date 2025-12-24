@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Odoo\OdooAccountController;
+use App\Mail\CreatedCompanyByUserMail;
 use App\Models\Company;
 use App\Models\FundingOrganization;
 use App\Models\Profession;
@@ -13,6 +14,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use TCG\Voyager\Models\Role;
 use Illuminate\Support\Str;
 
@@ -210,18 +212,18 @@ class CompanyController extends Controller
                         'first_name' => mb_convert_case(trim($temp['firstname']), MB_CASE_TITLE, 'UTF-8'),
                         'password_temp' => $passwordTemp,
                         'password' => bcrypt($passwordTemp),
-                        
+
                         'establishment_id' => $company->establishment_id,
                         'profession_id' => $professionId,
-                        
+
                         'no_prof_type_id' => $temp['rppsType'] !== 'other' ? $temp['rppsType'] : null,
                         'no_prof' => $temp['rpps'],
-                        
+
                         'funding_organization_id' => $organizationId,
                         'no_secu' => trim($temp['secu']),
                         'first_name_birth' => mb_convert_case(trim($temp['firstnameBirth']), MB_CASE_TITLE, 'UTF-8'),
                         'date_of_birth' => $temp['dob'] ?: null,
-                        
+
                         'status' => Status::ACTIVE->value,
                         'created_by' => Auth::id()
                     ]
@@ -380,6 +382,36 @@ class CompanyController extends Controller
             ]);
         } catch (\Exception $e) {
             Log::error($e->getMessage(), ['company', 'integrity-check']);
+            return back()->with([
+                'message' => $e->getMessage(),
+                'alert-type' => 'error'
+            ]);
+        }
+    }
+
+    public function resendEmailRegisterCompany($id)
+    {
+        $user = User::find($id);
+        if (!$user) {
+            return abort(404);
+        }
+
+        $company = $user->companiesUserIsManager()->first();
+
+        if (!$company) {
+            return abort(400);
+        }
+        
+        try {
+            Mail::to($user->email)->send(new CreatedCompanyByUserMail($user, $company));
+            Log::channel('mail')->info('After created company: ' . $user->email, ['create-company', $company->id]);
+
+            return back()->with([
+                'message' => "Envoyé l'email avec succès.",
+                'alert-type' => 'success'
+            ]);
+        } catch (\Exception $e) {
+            Log::error($e->getMessage(), ['company', 'resend-register-company-email']);
             return back()->with([
                 'message' => $e->getMessage(),
                 'alert-type' => 'error'

@@ -71,95 +71,100 @@
         @if (isset($users) && $users->count() > 0)
             <div class="panel panel-bordered">
                 <div class="panel-body">
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div>Trouvez <b>{{ $users->total() }}</b> {{ $users->total() > 1 ? 'résultats' : 'résultat' }}
+                    <div class="table-responsive">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div>Trouvez <b>{{ $users->total() }}</b>
+                                    {{ $users->total() > 1 ? 'résultats' : 'résultat' }}
+                                </div>
+                                <span>Page <b>{{ $users->currentPage() }}/{{ $users->lastPage() }}</b></span>
                             </div>
-                            <span>Page <b>{{ $users->currentPage() }}/{{ $users->lastPage() }}</b></span>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="table-navigation">
-                                {{ $users->links() }}
+                            <div class="col-md-6">
+                                <div class="table-navigation">
+                                    {{ $users->links() }}
+                                </div>
                             </div>
                         </div>
-                    </div>
-                    <table class="table table-striped database-tables">
-                        <thead>
-                            <tr>
-                                <th>Nom complet</th>
-                                <th>Contact</th>
-                                <th>Infos</th>
-                                <th>Statut</th>
-                                <th>Créé</th>
-                                <th class="text-right">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach ($users as $user)
+                        <table class="table table-striped database-tables">
+                            <thead>
                                 <tr>
-                                    <td>
-                                        <p><strong>{{ $user->name . ' ' . $user->first_name }}</strong></p>
-                                    </td>
-                                    <td>
-                                        <div>{{ $user->email }}</div>
-                                        <p>{{ $user->phone }}</p>
-                                    </td>
-                                    <td>
-                                        @if ($user->student_flg)
-                                            <p>Étudiant</p>
-                                        @endif
-
-                                        @foreach ($user->companies as $company)
-                                            <div><strong>{{ $company->name }}</strong>
-                                                @if ($company->pivot->manager_flg)
-                                                    <span class="label label-primary">Responsable</span>
-                                                @endif
-                                            </div>
-                                            <small>{{ $company->address . ' ' . $company->postal_code . ' ' . $company->city }}</small>
-                                            <br />
-                                        @endforeach
-                                    </td>
-                                    <td>
-                                        @if ($user->status == 2)
-                                            <label class="label label-warning">En attend</label>
-                                        @elseif ($user->status == 1)
-                                            <label class="label label-primary">Actif</label>
-
-                                            @if ($user->password_temp)
-                                                <label class="label label-info">Non connecté</label>
+                                    <th>Nom complet</th>
+                                    <th>Contact</th>
+                                    <th>Infos</th>
+                                    <th>Statut</th>
+                                    <th>Créé</th>
+                                    <th class="text-right">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach ($users as $user)
+                                    <tr>
+                                        <td>
+                                            <p><strong>{{ $user->name . ' ' . $user->first_name }}</strong></p>
+                                        </td>
+                                        <td>
+                                            <div>{{ $user->email }}</div>
+                                            <p>{{ $user->phone }}</p>
+                                        </td>
+                                        <td>
+                                            @if ($user->student_flg)
+                                                <p>Étudiant</p>
                                             @endif
-                                        @else
-                                            <label class="label label-danger">Désactivé</label>
-                                        @endif
-                                    </td>
-                                    <td>
-                                        <div>
-                                            {{ $user->created_at . ($user->created_from ? ' | ' . $user->created_from : '') . ($user->invite_code ? ' | ' . $user->invite_code : '') }}
-                                        </div>
-                                        @if ($user->createdBy)
-                                            <div>{{ $user->createdBy->name . ' ' . $user->createdBy->first_name }}</div>
-                                        @endif
-                                    </td>
-                                    <td class="text-right">
-                                        {{-- @if (!$user->student_flg)
+
+                                            @foreach ($user->companies as $company)
+                                                <div><strong>{{ $company->name }}</strong>
+                                                    @if ($company->pivot->manager_flg)
+                                                        <span class="label label-primary">Responsable</span>
+                                                    @endif
+                                                </div>
+                                                <small>{{ $company->address . ' ' . $company->postal_code . ' ' . $company->city }}</small>
+                                                <br />
+                                            @endforeach
+                                        </td>
+                                        <td>
+                                            @if ($user->status == 2)
+                                                <label class="label label-warning">En attend</label>
+                                            @elseif ($user->status == 1)
+                                                <label class="label label-primary">Actif</label>
+
+                                                @if ($user->password_temp)
+                                                    <label class="label label-info">Non connecté</label>
+                                                @endif
+                                            @else
+                                                <label class="label label-danger">Désactivé</label>
+                                            @endif
+                                        </td>
+                                        <td>
+                                            <div>
+                                                {{ $user->created_at . ($user->created_from ? ' | ' . $user->created_from : '') . ($user->invite_code ? ' | ' . $user->invite_code : '') }}
+                                            </div>
+                                            @if ($user->createdBy)
+                                                <div>{{ $user->createdBy->name . ' ' . $user->createdBy->first_name }}
+                                                </div>
+                                            @endif
+                                        </td>
+                                        <td class="text-right">
+                                            {{-- @if (!$user->student_flg)
                                             <a href="{{ route('account.training-permissions', $user->id) }}"
                                                 class="btn btn-sm btn-primary">
                                                 <i class="voyager-book"></i>
                                                 <span class="hidden-xs hidden-sm">Formations</span>
                                             </a>
                                         @endif --}}
-                                        <a href="{{ route('account.edit', $user->id) }}" class="btn btn-sm btn-warning">
-                                            <i class="voyager-edit"></i>
-                                            <span class="hidden-xs hidden-sm">Modifier</span>
-                                        </a>
+                                            <a href="{{ route('account.edit', $user->id) }}"
+                                                class="btn btn-sm btn-warning">
+                                                <i class="voyager-edit"></i>
+                                                <span class="hidden-xs hidden-sm">Modifier</span>
+                                            </a>
 
-                                    </td>
-                                </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
-                    <div class="table-navigation" style="margin-bottom: 2em">
-                        {{ $users->links() }}
+                                        </td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                        <div class="table-navigation" style="margin-bottom: 2em">
+                            {{ $users->links() }}
+                        </div>
                     </div>
                 </div>
             </div>

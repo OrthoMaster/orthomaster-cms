@@ -44,7 +44,9 @@ class Company extends Model
 
     public function members()
     {
-        return $this->users()->wherePivot('manager_flg', false)->get();
+        return $this->users()->wherePivot('manager_flg', false)
+            ->with('organization')    
+            ->get();
     }
 
     public function packages()

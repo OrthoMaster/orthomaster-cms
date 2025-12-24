@@ -113,6 +113,7 @@ Route::group(['prefix' => 'admin', 'middleware' => ['cmsAdmin']], function () {
 
     Route::get('/companies/{id}/integrity-check', [CompanyController::class, 'integrityCheck'])->name('companies.integrity-check');
 
+    Route::get('/companies/manager/{id}/register-company-email', [CompanyController::class, 'resendEmailRegisterCompany'])->name('companies.register-company-email');
 
     Route::get('/companies/{id}/training-permissions', [TrainingPermissionController::class, 'storeWithCompany'])->name('companies.training-permissions');
     Route::post('/companies/{id}/training-permissions', [TrainingPermissionController::class, 'updateWithCompany'])->name('companies.training-permissions.update');

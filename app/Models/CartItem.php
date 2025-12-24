@@ -12,4 +12,9 @@ class CartItem extends Model
     {
         return $this->belongsTo(Cart::class);
     }
+
+    public function package()
+    {
+        return $this->hasOne(Package::class, 'id', 'package_id');
+    }
 }

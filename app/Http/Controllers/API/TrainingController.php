@@ -14,15 +14,22 @@ class TrainingController extends Controller
     public function getAll(Request $request)
     {
         try {
-            $user = User::find(Auth::user()->id);
-            $packageIds = $user->packages->pluck('packages.id')->toArray();
+            $user = $request->user();
+
+            // Packages
+            $userPackages = $user->packages()->get()->keyBy('id');
 
             $trainings = Training::getAll(true);
 
-            $trainings->each(function ($training) use ($user, $packageIds) {
-                $training->packages->each(function ($package) use ($user, $packageIds) {
-                    // If student_flg = true or has permission with package
-                    $package->available_flg = $user->student_flg || in_array($package->id, $packageIds);
+            $trainings->each(function ($training) use ($user, $userPackages) {
+                $training->packages->each(function ($package) use ($user, $userPackages) {
+                    // Check available
+                    $package->available_flg = $user->student_flg || $userPackages->has($package->id);
+
+                    // Get progress
+                    $package->progress = $userPackages->has($package->id)
+                        ? $userPackages->get($package->id)->pivot->progress
+                        : 0;
 
                     $package->modules->each(function ($module) {
                         $module->demo_flg = $module->hasDemo();
