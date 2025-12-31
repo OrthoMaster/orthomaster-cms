@@ -332,7 +332,8 @@ class CompanyController extends Controller
 
             // Invite user
             $joinRequestController = new CompanyJoinRequestController();
-            $result = $joinRequestController->invite($company->join_code, $request->user()->id, $request->user()->id);
+            
+            $result = $joinRequestController->invite($company->join_code, $request->user()->id, $user->id);
 
             if ($result == 'success') {
                 return response()->json([

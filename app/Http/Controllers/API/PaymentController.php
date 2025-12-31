@@ -3,8 +3,11 @@
 namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\InvoiceController;
+use App\Models\Cart;
 use App\Models\Invoice;
 use App\Services\StripeService;
+use App\Status;
 use Illuminate\Http\Request;
 
 class PaymentController extends Controller
@@ -17,23 +20,59 @@ class PaymentController extends Controller
     }
 
     /**
-     * Tạo payment intent cho invoice
+     * Create payment intent
      */
-    public function createPaymentIntent(Request $request, Invoice $invoice)
+    public function createPaymentIntent(Request $request)
     {
-        // Kiểm tra quyền truy cập invoice
-        if ($invoice->user_id !== $request->user()->id) {
+        $cart = Cart::findByUser($request->user()->id);
+        if (!$cart) {
             return response()->json([
                 'success' => false,
-                'message' => 'Unauthorized',
+                'message' => "Le panier d'achat n'existe pas.",
             ], 403);
         }
 
-        // Kiểm tra trạng thái invoice
+        if (!$request->amount || !is_numeric($request->amount)) {
+            return response()->json([
+                'success' => false,
+                'message' => "Le panier d'achat n'existe pas.",
+            ], 403);
+        }
+
+        if (!$cart->invoice_id) {
+            $invoice = Invoice::create([
+                'user_id' => $request->user()->id,
+                'amount' => $request->amount,
+                'currency' => 'eur'
+            ]);
+            $cart->invoice_id = $invoice->id;
+            $cart->save();
+        } else {
+            $invoice = Invoice::find($cart->invoice_id);
+
+            if (!$invoice) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "La facture n'existe pas.",
+                ], 403);
+            }
+
+            $invoice->amount = $request->amount;
+            $invoice->save();
+        }
+
+        $invoice->promotion_code = $request->promotionCode;
+        $invoice->discount_amount = $request->discountAmount ? $request->discountAmount : 0;
+        $invoice->tva_amount = $request->tvaAmount ? $request->tvaAmount : null;
+        $invoice->client_company = $request->companyName;
+        $invoice->client_address = $request->companyAddress;
+        $invoice->save();
+
+        // Check invoice status
         if ($invoice->status === Invoice::STATUS_PAID) {
             return response()->json([
                 'success' => false,
-                'message' => 'Invoice already paid',
+                'message' => 'Facture déjà payée',
             ], 400);
         }
 
@@ -42,6 +81,7 @@ class PaymentController extends Controller
         if ($result['success']) {
             return response()->json([
                 'success' => true,
+                'invoice_id' => $invoice->id,
                 'client_secret' => $result['client_secret'],
                 'payment_intent_id' => $result['payment_intent_id'],
                 'publishable_key' => config('services.stripe.key'),
@@ -55,20 +95,13 @@ class PaymentController extends Controller
     }
 
     /**
-     * Xác nhận thanh toán (gọi từ app sau khi user hoàn tất)
+     * Confirm payment (call from app after user complete)
      */
     public function confirmPayment(Request $request, Invoice $invoice)
     {
         $request->validate([
             'payment_intent_id' => 'required|string',
         ]);
-
-        if ($invoice->user_id !== $request->user()->id) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Unauthorized',
-            ], 403);
-        }
 
         $result = $this->stripeService->confirmPayment($request->payment_intent_id);
 
@@ -78,16 +111,23 @@ class PaymentController extends Controller
             if ($status === 'succeeded') {
                 $invoice->markAsPaid();
 
+                // Disable cart to sync and create invoice paper
+                $cartController = new CartController();
+                $cartController->complete($invoice->id);
+
+                // Sync and create document
+                $invController = new InvoiceController();
+                $invController->generateInvoiceDocument($invoice->id);
+
                 return response()->json([
                     'success' => true,
-                    'message' => 'Payment successful',
-                    'invoice' => $invoice->fresh(),
+                    'message' => 'Paiement réussi !',
                 ]);
             }
 
             return response()->json([
                 'success' => false,
-                'message' => "Payment status: {$status}",
+                'message' => "État du paiement: {$status}",
                 'status' => $status,
             ]);
         }
@@ -99,7 +139,7 @@ class PaymentController extends Controller
     }
 
     /**
-     * Hủy thanh toán
+     * Cancel
      */
     public function cancelPayment(Request $request, Invoice $invoice)
     {

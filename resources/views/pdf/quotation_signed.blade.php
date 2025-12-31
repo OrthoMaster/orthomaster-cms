@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="UTF-8">
-    <title>Devis {{ $contract_number }}</title>
+    <title>Devis #{{ $no }}</title>
     <style>
         * {
             margin: 0;
@@ -225,11 +225,6 @@
         .signature-image {
             height: 100px;
         }
-        .client-signature-image {
-            height: 90px;
-            margin-bottom: 5px;
-            margin-top: 10px;
-        }
 
         .signature-placeholder {
             margin-top: 15px;
@@ -249,7 +244,7 @@
             font-size: 8pt;
             line-height: 1.4;
             color: #666;
-            margin-top: 40px;
+            margin-top: 20px;
         }
 
         /* Utility Classes */
@@ -281,7 +276,7 @@
                         <div class="company-name">{{ $company['name'] }}</div>
                         <div>{{ $company['address'] }}</div>
                         <div>{{ $company['postal_code'] }} {{ $company['city'] }}</div>
-                        
+
                         <div class="mt-10">
                             <div><strong>N° SIRET :</strong> {{ $company['siret'] }}</div>
                             <div><strong>Organisme de Formation :</strong> {{ $company['formation_number'] }}</div>
@@ -296,7 +291,7 @@
 
     <!-- Contract Title -->
     <div class="contract-title">
-        Devis #{{ $contract_number }}
+        Devis #{{ $no }}
     </div>
 
     <!-- Info Box -->
@@ -304,7 +299,9 @@
         <table>
             <tr>
                 <td class="info-label">Date de la commande : </td>
-                <td><div class="text-center">{{ $contract_date }}</div></td>
+                <td>
+                    <div class="text-center">{{ $date }}</div>
+                </td>
                 <td class="info-label">Vendeur : </td>
                 <td class="text-center">{{ $company['vendor'] }}</td>
             </tr>
@@ -317,13 +314,13 @@
             <tr>
                 <td>
                     <div class="section-title">Dates de formation</div>
-                    <div>{{ $formation_dates }}</div>
+                    <div>{{ $rangeDate }}</div>
                 </td>
                 <td>
                     <div class="learners-box">
                         <div class="section-title">Apprenants</div>
-                        @foreach ($learners as $learner)
-                            <div class="learner-item">{{ $learner }}</div>
+                        @foreach ($members as $member)
+                            <div class="learner-item">{{ $member->name . ' ' . $member->first_name }}</div>
                         @endforeach
                     </div>
                 </td>
@@ -338,40 +335,42 @@
         <thead>
             <tr>
                 <th style="width: 45%;">DESCRIPTION</th>
-                <th class="text-right" style="width: 13%;">QUANTITÉ</th>
-                <th class="text-right" style="width: 14%;">PRIX UNITAIRE</th>
-                <th class="text-right" style="width: 10%;">TVA</th>
-                <th class="text-right" style="width: 18%;">MONTANT</th>
+                <th class="text-right" style="width: 20%;">PRIX UNITAIRE</th>
+                <th class="text-right" style="width: 15%;">QUANTITÉ</th>
+                <th class="text-right" style="width: 20%;">MONTANT HT</th>
             </tr>
         </thead>
         <tbody>
             @foreach ($items as $item)
                 <tr>
-                    <td>{{ $item['description'] }}</td>
-                    <td class="text-right">{{ number_format($item['quantity'], 2, ',', ' ') }}
-                        {{ $item['unit'] ?? 'Unité(s)' }}</td>
-                    <td class="text-right">{{ number_format($item['unit_price'], 2, ',', ' ') }} €</td>
-                    <td class="text-right">{{ $item['tva_rate'] ?? $tva_rate }}%</td>
-                    <td class="text-right">{{ number_format($item['amount'], 2, ',', ' ') }} €</td>
+                    <td>{{ $item->package->name }}</td>
+                    <td class="text-right">
+                        {{ number_format(($item->package->duration / 60) * $unitPrice, 2, ',', ' ') }} €
+                    </td>
+                    <td class="text-right">{{ number_format(sizeof($members), 2, ',', ' ') }}
+                        {{ sizeof($members) > 1 ? 'Unité(s)' : 'Unité' }}</td>
+                    <td class="text-right">
+                        {{ number_format(($item->package->duration / 60) * $unitPrice * sizeof($members), 2, ',', ' ') }}
+                        €</td>
                 </tr>
             @endforeach
 
             <!-- Subtotal Row -->
             <tr class="total-row">
-                <td colspan="4" class="text-right">Montant hors taxes</td>
-                <td class="text-right">{{ number_format($subtotal, 2, ',', ' ') }} €</td>
+                <td colspan="3" class="text-right">Montant hors taxes</td>
+                <td class="text-right">{{ number_format($amount_ht, 2, ',', ' ') }} €</td>
             </tr>
 
             <!-- TVA Row -->
             <tr class="total-row">
-                <td colspan="4" class="text-right">TVA {{ $tva_rate }}%</td>
+                <td colspan="3" class="text-right">TVA {{ $tva }}%</td>
                 <td class="text-right">{{ number_format($tva_amount, 2, ',', ' ') }} €</td>
             </tr>
 
             <!-- Total Row -->
             <tr class="grand-total">
-                <td colspan="4" class="text-right"><strong>Total</strong></td>
-                <td class="text-right"><strong>{{ number_format($total, 2, ',', ' ') }} €</strong></td>
+                <td colspan="3" class="text-right"><strong>Total</strong></td>
+                <td class="text-right"><strong>{{ number_format($amount, 2, ',', ' ') }} €</strong></td>
             </tr>
         </tbody>
     </table>
@@ -396,8 +395,8 @@
                     </td>
                     <td>
                         <div><strong>Signature</strong></div>
-                        <img src="{{ $signatory['signature'] }}" alt="Client signature" height="90" class="client-signature-image">
-                        <div style="padding-left: 40px;">{{ $signatory['name'] . ' ' . $signatory['first_name'] }}</div>
+                        <img src="{{ $signatureLink }}" alt="Client signature" height="90" class="client-signature-image">
+                        <div style="padding-left: 40px;">{{ $signatory }}</div>
                     </td>
                 </tr>
             </tbody>

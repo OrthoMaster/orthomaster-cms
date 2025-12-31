@@ -5,11 +5,14 @@ use App\Http\Controllers\API\AuthController;
 use App\Http\Controllers\API\CartController;
 use App\Http\Controllers\API\ChatbotSearchController;
 use App\Http\Controllers\API\CompanyController;
+use App\Http\Controllers\API\ContractController;
 use App\Http\Controllers\API\PaymentController;
+use App\Http\Controllers\API\PromotionController;
 use App\Http\Controllers\API\QuotationController;
 use App\Http\Controllers\API\StripeWebhookController;
 use App\Http\Controllers\API\TrainingController;
-use App\Http\Controllers\Odoo\OdooAccountController;
+use App\Http\Controllers\GeneratePdfController;
+use App\Http\Controllers\InvoiceController;
 use App\Http\Controllers\SystemNotificationController;
 use App\Http\Controllers\Tracking\TrkAppOpenController;
 use Illuminate\Http\Request;
@@ -64,7 +67,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
     Route::delete('/notifications', [SystemNotificationController::class, 'deleteAll']);
     Route::delete('/notifications/{id}', [SystemNotificationController::class, 'delete']);
-    
+
     Route::get('/notifications/unread-count', [SystemNotificationController::class, 'getUnreadCount']);
 
     // Trainings
@@ -73,8 +76,6 @@ Route::middleware(['auth:sanctum'])->group(function () {
     // Company
     Route::get('/members', [CompanyController::class, 'getMembers']);
 
-    
-    
     Route::get('/company', [CompanyController::class, 'getCompany']);
     Route::post('/company', [CompanyController::class, 'createCompany']);
     Route::get('/company/pre-data', [CompanyController::class, 'getPreFromData']);
@@ -90,12 +91,32 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::delete('/cart/remove/{id}', [CartController::class, 'removePackage']);
     Route::delete('/cart/clear', [CartController::class, 'clear']);
     Route::put('/cart/members', [CartController::class, 'syncMembers']);
-    Route::post('/cart', [CartController::class, 'submit']);
+
+    Route::prefix('contracts')->group(function () {
+        Route::get('/preview', [ContractController::class, 'previewFromCart']);
+        Route::post('/generate', [ContractController::class, 'generate']);
+        Route::post('/sign', [ContractController::class, 'sign']);
+    });
 
     // Payment
     Route::prefix('payments')->group(function () {
-        Route::post('/invoices/{invoice}/create-intent', [PaymentController::class, 'createPaymentIntent']);
-        Route::post('/invoices/{invoice}/confirm', [PaymentController::class, 'confirmPayment']);
-        Route::post('/invoices/{invoice}/cancel', [PaymentController::class, 'cancelPayment']);
+        Route::post('/invoices/create-intent', [PaymentController::class, 'createPaymentIntent']);
+        Route::put('/invoices/{invoice}/confirm', [PaymentController::class, 'confirmPayment']);
+        Route::put('/invoices/{invoice}/cancel', [PaymentController::class, 'cancelPayment']);
+    });
+
+    // Promotion
+    Route::prefix('promotions')->group(function () {
+        Route::post('/validate', [PromotionController::class, 'validate']);
+    });
+
+    Route::prefix('generate')->group(function () {
+        Route::get('/invoices/{id}', [GeneratePdfController::class, 'paymentInvoice']);
     });
 });
+
+Route::prefix('generate')->group(function () {
+    Route::get('/invoices/{id}', [GeneratePdfController::class, 'paymentInvoice']);
+});
+
+// Route::get('/generate', [ContractController::class, 'generate']);

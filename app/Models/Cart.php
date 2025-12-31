@@ -2,35 +2,48 @@
 
 namespace App\Models;
 
+use App\Organization;
 use App\Status;
 use Illuminate\Database\Eloquent\Model;
 
 class Cart extends Model
 {
     protected $guarded = ['id'];
-    protected $appends = ['duration_text', 'member_ids', 'members_grouped'];
+    protected $appends = ['duration_text', 'member_ids', 'members_grouped', 'contract_creatable'];
 
     protected $casts = [
         'price_total_ht' => 'decimal:2',
         'tva_total' => 'decimal:2',
         'price_total' => 'decimal:2',
+        'contract_creatable' => 'boolean'
     ];
 
+    // Scopes
+    public function scopeActive($query)
+    {
+        return $query->where('status', '!=', Status::DELETED->value);
+    }
+    public function scopeDeleted($query)
+    {
+        return $query->where('status', Status::DELETED->value);
+    }
+
+    // Append Cols
     public function getDurationTextAttribute()
     {
         if (!$this->duration_total) {
-            return '0m';
+            return '0 m';
         }
 
         $hours = floor($this->duration_total / 60);
         $minutes = $this->duration_total % 60;
 
         if ($hours > 0 && $minutes > 0) {
-            return "{$hours}h {$minutes}m";
+            return "{$hours} h {$minutes} m";
         } elseif ($hours > 0) {
-            return "{$hours}h";
+            return "{$hours} h";
         } else {
-            return "{$minutes}m";
+            return "{$minutes} m";
         }
     }
 
@@ -58,6 +71,31 @@ class Cart extends Model
             ->values();
     }
 
+    public function getContractCreatableAttribute()
+    {
+        $checkHasFifpl = $this->members()
+            ->whereHas('organization', function ($query) {
+                $query->where('code', 'fifpl');
+            })
+            ->exists();
+
+        if ($checkHasFifpl) {
+            return $this->duration_total >= Organization::FIFPL_MIN_DURATION->value;
+        }
+
+        $checkHasOpco = $this->members()
+            ->whereHas('organization', function ($query) {
+                $query->where('code', 'opco-ep');
+            })
+            ->exists();
+
+        if ($checkHasOpco) {
+            return $this->duration_total >= Organization::OPCO_MIN_DURATION->value;
+        }
+
+        return false;
+    }
+
     public function user()
     {
         return $this->belongsTo(User::class);
@@ -77,6 +115,7 @@ class Cart extends Model
     public static function getByUser($userId)
     {
         return Cart::where('user_id', $userId)
+            ->active()
             ->with(['items', 'items.package', 'members', 'members.organization'])
             ->orderBy('created_at')
             ->get();
@@ -87,12 +126,14 @@ class Cart extends Model
         if ($cartId) {
             return Cart::where('user_id', $userId)
                 ->where('id', $cartId)
+                ->active()
                 ->with('items')
                 ->first();
         }
 
         $cart = Cart::where('user_id', $userId)
             ->with('items')
+            ->active()
             ->first();
         if (!$cart) {
             return Cart::create(['user_id' => $userId]);
@@ -117,10 +158,13 @@ class Cart extends Model
         return $totalDuration;
     }
 
-    public function estimatePriceTotal() {
-        $unitPrice = (float) setting('system.price_per_hour');
+    public function estimatePriceTotal()
+    {
+        $unitPrice = (float) setting('system.unit_price');
         $tva = (float) setting('system.tva');
-        $totalHT = round(($this->duration_total / 60) * sizeof($this->members) * $unitPrice, 2);
+        $cntMembers = sizeof($this->members) > 0 ? sizeof($this->members) : 1;
+
+        $totalHT = round(($this->duration_total / 60) * $cntMembers * $unitPrice, 2);
 
         $this->unit_price = $unitPrice;
         $this->tva = $tva;
@@ -128,8 +172,89 @@ class Cart extends Model
         $this->tva_total = round($totalHT * $tva / 100, 2);
         $this->price_total = $totalHT + round($totalHT * $tva / 100, 2);
 
-        $this->status = Status::PENDING->value;
-
+        $this->status = Status::PENDING->value; // is calculated
         $this->save();
+    }
+
+    public function hasOpco()
+    {
+        return $this->members()
+            ->whereHas('organization', function ($query) {
+                $query->where('code', 'opco-ep');
+            })
+            ->exists();
+    }
+
+    public function hasFifpl()
+    {
+        return $this->members()
+            ->whereHas('organization', function ($query) {
+                $query->where('code', 'fifpl');
+            })
+            ->exists();
+    }
+
+    public function getMemberOrganizationIds()
+    {
+        return $this->members()
+            ->whereNotNull('funding_organization_id')
+            ->pluck('funding_organization_id')
+            ->unique()
+            ->values();
+    }
+
+    public function getMemberByOrganization($organizationId)
+    {
+        return $this->members()
+            ->whereNotNull('funding_organization_id')
+            ->where('funding_organization_id', $organizationId)
+            ->get();
+    }
+
+    public function groupItemsByDurationBestFit($groupDuration = 43200)
+    {
+        // Eager load package
+        $items = $this->items()
+            ->with('package')
+            ->get()
+            ->sortByDesc(function ($item) {
+                return $item->package->duration ?? 0;
+            })
+            ->values();
+
+        $groups = collect([]);
+
+        foreach ($items as $item) {
+            $itemDuration = $item->package->duration ?? 0;
+
+            $bestGroup = null;
+            $minRemaining = $groupDuration + 1;
+
+            // Find group fit with item duration
+            foreach ($groups as $group) {
+                $currentDuration = $this->calculateGroupDuration($group);
+                $remaining = $groupDuration - $currentDuration;
+
+                if ($remaining >= $itemDuration && $remaining < $minRemaining) {
+                    $bestGroup = $group;
+                    $minRemaining = $remaining;
+                }
+            }
+
+            if ($bestGroup) {
+                $bestGroup->push($item);
+            } else {
+                $groups->push(collect([$item]));
+            }
+        }
+
+        return $groups;
+    }
+
+    private function calculateGroupDuration($group)
+    {
+        return $group->sum(function ($item) {
+            return $item->package->duration ?? 0;
+        });
     }
 }

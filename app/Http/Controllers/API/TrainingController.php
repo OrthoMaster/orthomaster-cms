@@ -18,10 +18,11 @@ class TrainingController extends Controller
 
             // Packages
             $userPackages = $user->packages()->get()->keyBy('id');
+            $userPackageIds = $userPackages->keys()->toArray();
 
             $trainings = Training::getAll(true);
 
-            $trainings->each(function ($training) use ($user, $userPackages) {
+            $trainings->each(function ($training) use ($user, $userPackages, $userPackageIds) {
                 $training->packages->each(function ($package) use ($user, $userPackages) {
                     // Check available
                     $package->available_flg = $user->student_flg || $userPackages->has($package->id);
@@ -35,6 +36,19 @@ class TrainingController extends Controller
                         $module->demo_flg = $module->hasDemo();
                     });
                 });
+
+                // Sort
+                $userOwnedPackages = $training->packages->filter(function ($package) use ($userPackageIds) {
+                    return in_array($package->id, $userPackageIds);
+                });
+
+                $otherPackages = $training->packages->filter(function ($package) use ($userPackageIds) {
+                    return !in_array($package->id, $userPackageIds);
+                });
+
+                // Merge
+                $training->packages = $userOwnedPackages->merge($otherPackages);
+                $training->setRelation('packages', $training->packages);
             });
 
             return response()->json([
