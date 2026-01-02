@@ -15,7 +15,8 @@ class Cart extends Model
         'price_total_ht' => 'decimal:2',
         'tva_total' => 'decimal:2',
         'price_total' => 'decimal:2',
-        'contract_creatable' => 'boolean'
+        'contract_creatable' => 'boolean',
+        'company_flg' => 'boolean'
     ];
 
     // Scopes
@@ -26,6 +27,14 @@ class Cart extends Model
     public function scopeDeleted($query)
     {
         return $query->where('status', Status::DELETED->value);
+    }
+    public function scopeIndividual($query)
+    {
+        return $query->where('company_flg', false);
+    }
+    public function scopeCompany($query)
+    {
+        return $query->where('company_flg', true);
     }
 
     // Append Cols
@@ -112,16 +121,26 @@ class Cart extends Model
             ->withTimestamps();
     }
 
-    public static function getByUser($userId)
+    public static function getByUser($userId, $companyCartFlg = false)
     {
+        if ($companyCartFlg) {
+            return Cart::where('user_id', $userId)
+                ->company()
+                ->active()
+                ->with(['items', 'items.package', 'members', 'members.organization'])
+                ->orderBy('created_at')
+                ->get();
+        }
+
         return Cart::where('user_id', $userId)
+            ->individual()
             ->active()
             ->with(['items', 'items.package', 'members', 'members.organization'])
             ->orderBy('created_at')
             ->get();
     }
 
-    public static function findByUser($userId, $cartId = null)
+    public static function findByUser($userId, $cartId = null, $companyCartFlg = false)
     {
         if ($cartId) {
             return Cart::where('user_id', $userId)
@@ -131,12 +150,25 @@ class Cart extends Model
                 ->first();
         }
 
-        $cart = Cart::where('user_id', $userId)
-            ->with('items')
-            ->active()
-            ->first();
+        if ($companyCartFlg) {
+            $cart = Cart::where('user_id', $userId)
+                ->company()
+                ->active()
+                ->with('items')
+                ->first();
+        } else {
+            $cart = Cart::where('user_id', $userId)
+                ->individual()
+                ->active()
+                ->with('items')
+                ->first();
+        }
+
         if (!$cart) {
-            return Cart::create(['user_id' => $userId]);
+            return Cart::create([
+                'user_id' => $userId,
+                'company_flg' => $companyCartFlg
+            ]);
         }
 
         return $cart;
@@ -192,23 +224,6 @@ class Cart extends Model
                 $query->where('code', 'fifpl');
             })
             ->exists();
-    }
-
-    public function getMemberOrganizationIds()
-    {
-        return $this->members()
-            ->whereNotNull('funding_organization_id')
-            ->pluck('funding_organization_id')
-            ->unique()
-            ->values();
-    }
-
-    public function getMemberByOrganization($organizationId)
-    {
-        return $this->members()
-            ->whereNotNull('funding_organization_id')
-            ->where('funding_organization_id', $organizationId)
-            ->get();
     }
 
     public function groupItemsByDurationBestFit($groupDuration = 43200)

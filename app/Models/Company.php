@@ -26,6 +26,7 @@ class Company extends Model
     public function users()
     {
         return $this->belongsToMany(User::class)
+            ->orderBy('name')
             ->withPivot('manager_flg')
             ->withTimestamps();
     }
@@ -37,15 +38,19 @@ class Company extends Model
 
     public function managers()
     {
-        return $this->users()->wherePivot('manager_flg', true)
+        return $this->users()
+            ->orderBy('name')    
+            ->wherePivot('manager_flg', true)
             ->with('organization')
             ->get();
     }
 
     public function members()
     {
-        return $this->users()->wherePivot('manager_flg', false)
-            ->with('organization')    
+        return $this->users()
+            ->orderBy('name')    
+            ->wherePivot('manager_flg', false)
+            ->with('organization')
             ->get();
     }
 
@@ -57,6 +62,11 @@ class Company extends Model
     public function createdBy()
     {
         return $this->hasOne(User::class, 'id', 'created_by');
+    }
+
+    public function usersWithPackages()
+    {
+        return $this->users()->with(['packages', 'packages.training'])->get();
     }
 
     public static function getAll()
@@ -83,5 +93,23 @@ class Company extends Model
     public static function findByJoinCode($code)
     {
         return Company::where('join_code', $code)->first();
+    }
+
+    public function getMemberOrganizationIds()
+    {
+        return $this->users()
+            ->whereNotNull('funding_organization_id')
+            ->pluck('funding_organization_id')
+            ->unique()
+            ->sort()
+            ->values();
+    }
+
+    public function getMemberByOrganization($organizationId)
+    {
+        return $this->users()
+            ->whereNotNull('funding_organization_id')
+            ->where('funding_organization_id', $organizationId)
+            ->get();
     }
 }

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
 use App\Models\Cart;
+use App\Models\FundingOrganization;
 use App\Models\Package;
 use App\Models\User;
 use App\Status;
@@ -143,25 +144,140 @@ class CartController extends Controller
         return true;
     }
 
-    // public function syncMembers(Request $request)
-    // {
-    //     $cart = Cart::findByUser($request->user()->id);
-    //     try {
-    //         $members = $request->has('members') ? $request->members : [];
-    //         $cart->members()->sync($members);
-    //         $cart->estimatePriceTotal();
+    /**
+     * Get payment methods base on members of company
+     */
+    public function getPaymentMethods(Request $request)
+    {
+        $company = $request->user()->companiesUserIsManager()->first();
+        if (!$company) {
+            return response()->json([
+                'success' => false,
+            ], 403);
+        }
 
-    //         return response()->json([
-    //             'success' => true,
-    //         ]);
-    //     } catch (\Exception $e) {
-    //         Log::channel('api')->error($e->getMessage(), ['cart', 'sync-member', $request->user()->id]);
-    //         return response()->json([
-    //             'success' => false,
-    //             'message' => $e->getMessage()
-    //         ], 500);
-    //     }
-    // }
+        $organizationIds = $company->getMemberOrganizationIds();
+
+        $methods = array([
+            'id' => '0',
+            'title' => 'Paiment par Carte',
+            'description' => 'Paiement immédiat par carte bancaire',
+        ]);
+
+        foreach ($organizationIds as $id) {
+            if ($id == 1) { // OPCO-EP
+                array_push($methods, [
+                    'id' => $id,
+                    'title' => 'Faire dossier OPCO',
+                    'description' => 'Financement par OPCO-EP',
+                    'terms' => [
+                        'Documents requis: devis, convention, programme de formation',
+                        'Minimum duration: 4 heures',
+                    ]
+                ]);
+            }
+
+            if ($id == 2) { // FIFPL
+                array_push($methods, [
+                    'id' => $id,
+                    'title' => 'Faire dossier FIFPL',
+                    'description' => 'Financement par OPCO-EP',
+                    'terms' => [
+                        'Documents requis: devis, convention, programme de formation',
+                        'Minimum duration: 4 heures',
+                    ]
+                ]);
+            }
+
+            if ($id != 1 && $id != 2) {
+                $organization = FundingOrganization::find($id);
+                if ($organization) {
+                    array_push($methods, [
+                        'id' => $id,
+                        'title' => 'Faire dossier ' . $organization->name,
+                        'description' => $organization->description,
+                    ]);
+                }
+            }
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => $methods
+        ]);
+    }
+
+    /**
+     * Details of cart from company espace
+     */
+    public function getDetailsProCart(Request $request)
+    {
+        try {
+            $cart = Cart::findByUser($request->user()->id, null, true);
+            if (!$cart) {
+                return response()->json([
+                    'success' => false,
+                    'data' => null
+                ]);
+            }
+
+            $company = $request->user()->companiesUserIsManager()->first();
+            if (!$company) {
+                return response()->json([
+                    'success' => false,
+                    'data' => null
+                ]);
+            }
+
+            $members = null;
+            if ($request->payment_method == '0' || $request->payment_method == 'card') {
+                $cart->payment_type = 0;
+                $members = $company->users;
+            } else {
+                $cart->payment_type = $request->payment_method;
+                $members = $company->getMemberByOrganization($request->payment_method);
+            }
+
+            $cart->save();
+            $cart->load('items.package');
+            $cart->updateTotalDuration();
+            $cart->estimatePriceTotal();
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'cart' => $cart,
+                    'members' => $members,
+                ]
+            ]);
+        } catch (\Exception $e) {
+            Log::channel('api')->error($e->getMessage(), ['cart', $request->user()->id]);
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function syncMembers(Request $request)
+    {
+        $cart = Cart::findByUser($request->user()->id, null, true);
+        try {
+            $members = $request->has('members') ? $request->members : [];
+            $cart->members()->sync($members);
+            $cart->estimatePriceTotal();
+
+            return response()->json([
+                'success' => true,
+            ]);
+        } catch (\Exception $e) {
+            Log::channel('api')->error($e->getMessage(), ['cart', 'sync-member', $request->user()->id]);
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage()
+            ], 500);
+        }
+    }
 
     // public function completeWithMembers($invoiceId)
     // {

@@ -92,6 +92,10 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::delete('/cart/clear', [CartController::class, 'clear']);
     Route::put('/cart/members', [CartController::class, 'syncMembers']);
 
+    Route::get('/pro-cart', [CartController::class, 'getDetailsProCart']);
+
+    Route::get('/payment-methods', [CartController::class, 'getPaymentMethods']);
+
     Route::prefix('contracts')->group(function () {
         Route::get('/preview', [ContractController::class, 'previewFromCart']);
         Route::post('/generate', [ContractController::class, 'generate']);

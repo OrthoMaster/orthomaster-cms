@@ -43,6 +43,8 @@ class CompanyController extends Controller
         $managers = $company->managers();
         $members = $company->members()->count() > 0 ? $company->members() : null;
 
+        $usersWithPackages = $company->usersWithPackages();
+
         // Pre-data if move to edit screen
         $estabs = Establishment::getAll();
 
@@ -52,7 +54,8 @@ class CompanyController extends Controller
                 'company' => $company,
                 'managers' => $managers,
                 'members' => $members,
-                'estabs' => $estabs
+                'users' => $usersWithPackages,
+                'estabs' => $estabs,
             ]
         ]);
     }
