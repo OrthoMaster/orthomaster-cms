@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Cart;
 use App\Models\FundingOrganization;
 use App\Models\Package;
+use App\Models\Training;
 use App\Models\User;
 use App\Status;
 use Illuminate\Http\Request;
@@ -259,12 +260,48 @@ class CartController extends Controller
         }
     }
 
+    public function previewProCart(Request $request) {
+        try {
+            $cart = Cart::findByUser($request->user()->id, null, true);
+            if (!$cart) {
+                return response()->json([
+                    'success' => false,
+                    'data' => null
+                ]);
+            }
+
+            $cart->load(['items', 'items.package']);
+            $cart->updateTotalDuration();
+            $cart->estimatePriceTotal();
+
+            $cart->grouped_items = $cart->groupItemsByDurationBestFit();
+
+            return response()->json([
+                'success' => true,
+                'data' => $cart
+            ]);
+        } catch (\Exception $e) {
+            Log::channel('api')->error($e->getMessage(), ['pro-cart', 'preview', $request->user()->id]);
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage()
+            ], 500);
+        }
+    }
+
     public function syncMembers(Request $request)
     {
         $cart = Cart::findByUser($request->user()->id, null, true);
+        if (!$cart) {
+            return response()->json([
+                'success' => false,
+            ], 404);
+        }
+
         try {
             $members = $request->has('members') ? $request->members : [];
             $cart->members()->sync($members);
+            $cart->items()->delete();
             $cart->estimatePriceTotal();
 
             return response()->json([
@@ -272,6 +309,94 @@ class CartController extends Controller
             ]);
         } catch (\Exception $e) {
             Log::channel('api')->error($e->getMessage(), ['cart', 'sync-member', $request->user()->id]);
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get trainings with available packages
+     * The packages still have members who haven't selected it yet.
+     */
+    public function getTrainingsWithPackages(Request $request)
+    {
+        // $user = User::find($request->user()->id);
+        $company = $request->user()->companiesUserIsManager()->first();
+        $cart = Cart::findByUser($request->user()->id, null, true);
+
+        $memberIds = $cart->members()->pluck('users.id')->toArray();
+        $totalMembers = count($memberIds);
+
+        // Get trainings with packages
+        $trainings = Training::active()->with([
+            'packages' => function ($query) use ($memberIds, $totalMembers) {
+                $query->withCount([
+                    'users as registered_members_count' => function ($q) use ($memberIds) {
+                        if (!empty($memberIds)) {
+                            $q->whereIn('users.id', $memberIds);
+                        } else {
+                            $q->whereRaw('1 = 0');
+                        }
+                    }
+                ]);
+            }
+        ])
+            ->get()
+            ->map(function ($training) use ($totalMembers) {
+                $training->packages = $training->packages->map(function ($package) use ($totalMembers) {
+                    $package->disabled_flg = $totalMembers > 0
+                        ? $package->registered_members_count >= $totalMembers
+                        : false;
+                    return $package;
+                });
+                return $training;
+            });
+
+
+        return response()->json([
+            'success' => true,
+            'data' => $trainings
+        ]);
+    }
+
+    /**
+     * Add array package ids to cart
+     */
+    public function addPackagesToProCart(Request $request)
+    {
+        if (!$request->has('packageIds')) {
+            return response()->json([
+                'success' => false,
+            ], 404);
+        }
+
+        $cart = Cart::findByUser($request->user()->id, null, true);
+        if (!$cart) {
+            return response()->json([
+                'success' => false,
+            ], 404);
+        }
+
+        try {
+            $packageIds = $request->input('packageIds');
+            $cart->items()
+                ->whereNotIn('package_id', $packageIds)
+                ->delete();
+            foreach ($packageIds as $pkgId) {
+                $cart->items()->updateOrCreate(['package_id' => $pkgId]);
+            }
+
+            $cart->updateTotalDuration();
+
+            return response()->json([
+                'success' => true,
+                'is_creatable' => $cart->contract_creatable,
+                'cnt_groups' => sizeof($cart->groupItemsByDurationBestFit())
+            ]);
+        } catch (\Exception $e) {
+            Log::channel('api')->error($e->getMessage(), ['pro-cart', 'packages'], $request->user()->id);
             return response()->json([
                 'success' => false,
                 'message' => $e->getMessage()

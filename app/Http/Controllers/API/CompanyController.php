@@ -6,6 +6,7 @@ use App\Http\Controllers\CompanyJoinRequestController;
 use App\Http\Controllers\Controller;
 use App\Models\Company;
 use App\Models\Establishment;
+use App\Models\Training;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -335,7 +336,7 @@ class CompanyController extends Controller
 
             // Invite user
             $joinRequestController = new CompanyJoinRequestController();
-            
+
             $result = $joinRequestController->invite($company->join_code, $request->user()->id, $user->id);
 
             if ($result == 'success') {
@@ -359,7 +360,8 @@ class CompanyController extends Controller
         }
     }
 
-    public function quitCompany(Request $request) {
+    public function quitCompany(Request $request)
+    {
         try {
             // Get company
             $company = $request->user()->companiesUserIsMember()->first();

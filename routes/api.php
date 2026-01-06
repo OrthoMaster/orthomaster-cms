@@ -44,6 +44,9 @@ Route::prefix('auth')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth:sanctum');
     Route::get('/me', [AuthController::class, 'me'])->middleware('auth:sanctum');
     Route::get('/more', [AuthController::class, 'more'])->middleware('auth:sanctum');
+
+    // Device
+    Route::post('/device', [AuthController::class, 'storeDevice'])->middleware('auth:sanctum');
 });
 
 // Tracking
@@ -85,22 +88,23 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::patch('/company/invite-member', [CompanyController::class, 'inviteMember']);
     Route::patch('/company/quit', [CompanyController::class, 'quitCompany']);
 
+
     // Cart
     Route::get('/cart', [CartController::class, 'getDetails']);
     Route::put('/cart/add/{id}', [CartController::class, 'addPackage']);
     Route::delete('/cart/remove/{id}', [CartController::class, 'removePackage']);
     Route::delete('/cart/clear', [CartController::class, 'clear']);
-    Route::put('/cart/members', [CartController::class, 'syncMembers']);
 
+    // Pro-cart
     Route::get('/pro-cart', [CartController::class, 'getDetailsProCart']);
+    Route::get('/pro-cart/payment-methods', [CartController::class, 'getPaymentMethods']);
+    Route::put('/pro-cart/members', [CartController::class, 'syncMembers']);
+    Route::get('/pro-cart/trainings', [CartController::class, 'getTrainingsWithPackages']);
+    Route::put('/pro-cart/trainings', [CartController::class, 'addPackagesToProCart']);
+    Route::get('/pro-cart/preview', [CartController::class, 'previewProCart']);
 
-    Route::get('/payment-methods', [CartController::class, 'getPaymentMethods']);
-
-    Route::prefix('contracts')->group(function () {
-        Route::get('/preview', [ContractController::class, 'previewFromCart']);
-        Route::post('/generate', [ContractController::class, 'generate']);
-        Route::post('/sign', [ContractController::class, 'sign']);
-    });
+    Route::post('/pro-cart/contract/generate', [ContractController::class, 'generate']);
+    Route::post('/pro-cart/contract/sign', [ContractController::class, 'sign']);
 
     // Payment
     Route::prefix('payments')->group(function () {

@@ -158,16 +158,16 @@ class GeneratePdfController extends Controller
                     $pdf->Write(0, $date);
 
                     // Signature
-                    $pdf->Image($signatureLink, 100, 240, 80);
+                    $pdf->Image($signatureLink, 100, 240, 60);
                 }
             }
 
-            $pdfContent = $pdf->Output('S');
+            $pdfContent = $pdf->Output('', 'S');
 
             // Create file name
             $fileName = 'quotations_signed/' . $cartId . '/programme.pdf';
-            $path = Storage::disk('s3')->put($fileName, $pdfContent, 'public');;
-            if ($path) {
+            $success = Storage::disk('s3')->put($fileName, $pdfContent, 'public');;
+            if ($success) {
                 $url = Storage::disk('s3')->url($fileName);
             }
 

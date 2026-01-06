@@ -39,11 +39,11 @@ class Package extends Model
         $minutes = $this->duration % 60;
         
         if ($hours > 0 && $minutes > 0) {
-            return "{$hours}h {$minutes}m";
+            return "{$hours} h {$minutes} m";
         } elseif ($hours > 0) {
-            return "{$hours}h";
+            return "{$hours} h";
         } else {
-            return "{$minutes}m";
+            return "{$minutes} m";
         }
     }
 

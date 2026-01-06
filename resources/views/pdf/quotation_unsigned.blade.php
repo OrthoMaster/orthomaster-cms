@@ -268,7 +268,9 @@
                         <div class="client-name">{{ $client['name'] }}</div>
                         <div class="small">{{ $client['address'] }}</div>
                         <div class="small">{{ $client['postal_code'] }} {{ $client['city'] }}</div>
-                        <div class="small"><strong>N° SIRET :</strong> {{ $client['siret'] }}</div>
+                        @if ($client['siret'])
+                            <div class="small"><strong>N° SIRET :</strong> {{ $client['siret'] }}</div>
+                        @endif
                     </div>
                 </td>
                 <td style="text-align: right;">

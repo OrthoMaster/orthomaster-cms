@@ -114,6 +114,11 @@ class User extends \TCG\Voyager\Models\User
         return $this->hasMany(Cart::class);
     }
 
+    public function devices()
+    {
+        return $this->hasMany(DeviceToken::class);
+    }
+
     protected function missingFieldsMessage(): Attribute
     {
         return Attribute::make(

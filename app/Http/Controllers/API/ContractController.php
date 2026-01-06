@@ -19,60 +19,9 @@ class ContractController extends Controller
 {
     const COMMON_PROGRAM_PDF_LINK = 'https://content-orthomaster-prod.s3.eu-west-1.amazonaws.com/application-data/templates/program.pdf';
 
-    public function previewFromCart(Request $request)
-    {
-        $cart = Cart::findByUser($request->user()->id);
-        if (!$cart) {
-            return response()->json([
-                'success' => false,
-                'message' => "Le panier d'achat n'existe pas."
-            ]);
-        }
-
-        if (!$cart->contract_creatable) {
-            return response()->json([
-                'success' => false,
-                'message' => "Vous n'êtes pas autorisé à faire un dossier."
-            ]);
-        }
-
-        $contractOpcoTotal = 0;
-        if ($cart->hasOpco()) {
-            $contractOpcoTotal = intval($cart->duration_total / Organization::OPCO_MAX_DURATION->value) + 1;
-
-            // Check min duration
-            if ($cart->duration_total % Organization::OPCO_MAX_DURATION->value < Organization::OPCO_MIN_DURATION->value) {
-                return response()->json([
-                    'success' => false,
-                    'message' => "Nombre d'heures insuffisant pour satisfaire aux exigences minimales du dossier OPCO-EP (minimum " . (Organization::OPCO_MIN_DURATION->value / 60) . " heures par formation)."
-                ]);
-            }
-        }
-
-        $contractFifplTotal = 0;
-        if ($cart->hasFifpl()) {
-            $contractFifplTotal = intval($cart->duration_total / Organization::FIFPL_MAX_DURATION->value) + 1;
-
-            // Check min duration
-            if ($cart->duration_total % Organization::FIFPL_MAX_DURATION->value < Organization::FIFPL_MIN_DURATION->value) {
-                return response()->json([
-                    'success' => false,
-                    'message' => "Nombre d'heures insuffisant pour satisfaire aux exigences minimales du dossier FIFPL (minimum " . (Organization::FIFPL_MIN_DURATION->value / 60) . " heures par formation)."
-                ]);
-            }
-        }
-
-        return response()->json([
-            'success' => true,
-            'opco' => $contractOpcoTotal,
-            'fifpl' => $contractFifplTotal,
-        ]);
-    }
-
     public function generate(Request $request)
     {
-        $userId = $request->user()->id;
-        $cart = Cart::findByUser($userId);
+        $cart = Cart::findByUser($request->user()->id, null, true);
         if (!$cart) {
             return response()->json([
                 'success' => false,
@@ -87,7 +36,7 @@ class ContractController extends Controller
             ], 403);
         }
 
-        $reponseData = $this->generateContractWithGroupedOrganization($userId);
+        $reponseData = $this->generateContractsByProCart($request->user()->id);
         return response()->json([
             'success' => true,
             'data' => $reponseData,
@@ -128,7 +77,7 @@ class ContractController extends Controller
 
         try {
             // Sign to contract
-            $this->generateContractWithGroupedOrganization($request->user()->id, $signatureUrl, $signData['fullName']);
+            $this->generateContractsByProCart($request->user()->id, $signatureUrl, $signData['fullName']);
 
             // Sign to program
             $generatePdfController = new GeneratePdfController();
@@ -160,13 +109,13 @@ class ContractController extends Controller
         }
     }
 
-    private function generateContractWithGroupedOrganization($userId, $signatureLink = null, $signatory = null)
+    private function generateContractsByProCart($userId, $signatureLink = null, $signatory = null)
     {
         try {
             $generatePdfController = new GeneratePdfController();
 
-            $cart = Cart::findByUser($userId);
-            $organizationIds = $cart->getMemberOrganizationIds();
+            $cart = Cart::findByUser($userId, null, true);
+            $cart->load(['members', 'items', 'items.package']);
 
             $user = User::find($userId);
             $company = $user->companiesUserIsManager()->first();
@@ -175,59 +124,79 @@ class ContractController extends Controller
 
             $reponseData = [];
 
-            foreach ($organizationIds as $organizationId) {
-                $organization = FundingOrganization::find($organizationId);
-                if (!$organization) {
-                    continue;
-                }
+            if ($cart->payment_type == '0') {
+                return null;
+            }
 
+            $organization = FundingOrganization::find($cart->payment_type);
+            if (!$organization) {
+                return null;
+            }
+
+            // OPCO-EP
+            if ($cart->payment_type == '1') {
+                $itemGroups = $cart->groupItemsByDurationBestFit(Organization::OPCO_MAX_DURATION->value);
+                $contractTotal = sizeof($itemGroups);
                 $pdfLinks = [];
 
-                $members = $cart->getMemberByOrganization($organizationId);
-                if ($organization->code === 'opco-ep') {
-                    $itemGroups = $cart->groupItemsByDurationBestFit(Organization::OPCO_MAX_DURATION->value);
-                    $contractTotal = sizeof($itemGroups);
+                foreach ($itemGroups as $key => $group) {
 
-                    foreach ($itemGroups as $key => $group) {
-                        $pdf = $generatePdfController->quotationTemp(
-                            $cart->id,
-                            $cartNo . '_' . $organization->code . ($contractTotal > 1 ? '_' . ($key + 1) : ''),
-                            now()->format('d/m/Y'),
-                            now()->addMonth()->format('d/m/Y'),
-                            $company,
-                            now()->format('d/m/Y') . ' - ' . now()->addMonth()->format('d/m/Y'),
-                            $organization->name,
-                            $members,
-                            $group,
-                            Organization::OPCO_UNIT_PRICE->value,
-                            (float) setting('system.tva'),
-                            $cart->duration_total,
-                            $signatureLink,
-                            $signatory
-                        );
+                    $pdf = $generatePdfController->quotationTemp(
+                        $cart->id,
+                        $cartNo . '_' . $organization->code . ($contractTotal > 1 ? '_' . ($key + 1) : ''),
+                        now()->format('d/m/Y'),
+                        now()->addMonth()->format('d/m/Y'),
+                        $company,
+                        now()->format('d/m/Y') . ' - ' . now()->addMonth()->format('d/m/Y'),
+                        $organization->name,
+                        $cart->users,
+                        $group,
+                        Organization::OPCO_UNIT_PRICE->value,
+                        (float) setting('system.tva'),
+                        $cart->calculateGroupDuration($group),
+                        $signatureLink,
+                        $signatory
+                    );
 
-                        if ($pdf) {
-                            array_push($pdfLinks, $pdf);
-                        }
+                    if ($pdf) {
+                        array_push($pdfLinks, $pdf);
                     }
-                } else if ($organization->code === 'fifpl') {
-                    $itemGroups = $cart->groupItemsByDurationBestFit(Organization::FIFPL_MAX_DURATION->value);
-                    $contractTotal = sizeof($itemGroups);
+                }
+
+                array_push($reponseData, array(
+                    'group' => 'Dossiers',
+                    'pdfLinks' => $pdfLinks
+                ));
+
+                // Add common program pdf 
+                array_push($reponseData, array(
+                    'group' => 'Programme',
+                    'pdfLinks' => [$this::COMMON_PROGRAM_PDF_LINK]
+                ));
+            }
+
+            // FIFPL - Each person 1 contract
+            if ($cart->payment_type == '2') {
+                $itemGroups = $cart->groupItemsByDurationBestFit(Organization::FIFPL_MAX_DURATION->value);
+                $contractTotal = sizeof($itemGroups);
+
+                foreach ($cart->members as $user) {
+                    $pdfLinks = [];
 
                     foreach ($itemGroups as $key => $group) {
                         $pdf = $generatePdfController->quotationTemp(
                             $cart->id,
-                            $cartNo . '_' . $organization->code . ($contractTotal > 1 ? '_' . ($key + 1) : ''),
+                            $cartNo . '_' . $organization->code . '_' . $user->name . '-' . $user->id . ($contractTotal > 1 ? '_' . ($key + 1) : ''),
                             now()->format('d/m/Y'),
                             now()->addMonth()->format('d/m/Y'),
                             $company,
                             now()->addMonth()->format('d/m/Y') . ' - ' . now()->addMonth(2)->format('d/m/Y'),
                             $organization->name,
-                            $members,
+                            [$user],
                             $group,
                             Organization::FIFPL_UNIT_PRICE->value,
                             (float) setting('system.tva'),
-                            $cart->duration_total,
+                            $cart->calculateGroupDuration($group),
                             $signatureLink,
                             $signatory
                         );
@@ -236,20 +205,39 @@ class ContractController extends Controller
                             array_push($pdfLinks, $pdf);
                         }
                     }
-                } else {
-                    $itemGroups = $cart->groupItemsByDurationBestFit();
-                    $contractTotal = sizeof($itemGroups);
+
+                    // Add pdf
+                    array_push($reponseData, array(
+                        'group' => $user->name,
+                        'pdfLinks' => $pdfLinks
+                    ));
+                }
+
+                // Add common program pdf 
+                array_push($reponseData, array(
+                    'group' => 'Programme',
+                    'pdfLinks' => [$this::COMMON_PROGRAM_PDF_LINK]
+                ));
+            }
+
+
+            if ($cart->payment_type != '1' && $cart->payment_type != '2') {
+                $itemGroups = $cart->groupItemsByDurationBestFit();
+                $contractTotal = sizeof($itemGroups);
+
+                foreach ($cart->members as $user) {
+                    $pdfLinks = [];
 
                     foreach ($itemGroups as $group) {
                         $pdf = $generatePdfController->quotationTemp(
                             $cart->id,
-                            $cartNo,
+                            $cartNo . '_' . $user->name . '-' . $user->id,
                             now()->format('d/m/Y'),
                             now()->addMonth()->format('d/m/Y'),
                             $company,
                             now()->format('d/m/Y') . '- ' . now()->addMonth()->format('d/m/Y'),
                             $organization->name,
-                            $members,
+                            [$user],
                             $group,
                             (float) setting('system.unit_price'),
                             (float) setting('system.tva'),
@@ -262,14 +250,18 @@ class ContractController extends Controller
                             array_push($pdfLinks, $pdf);
                         }
                     }
+
+                    // Add pdf
+                    array_push($reponseData, array(
+                        'group' => $user->name,
+                        'pdfLinks' => $pdfLinks
+                    ));
                 }
 
                 // Add common program pdf 
-                array_push($pdfLinks, $this::COMMON_PROGRAM_PDF_LINK);
-
                 array_push($reponseData, array(
-                    'organization' => $organization->name,
-                    'pdfLinks' => $pdfLinks
+                    'group' => 'Programme',
+                    'pdfLinks' => [$this::COMMON_PROGRAM_PDF_LINK]
                 ));
             }
 

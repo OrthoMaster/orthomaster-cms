@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
+use App\Models\DeviceToken;
 use App\Models\Establishment;
 use App\Models\FundingOrganization;
 use App\Models\OldVersionUser;
@@ -16,6 +17,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Validator;
 use TCG\Voyager\Models\Role;
 
 class AuthController extends Controller
@@ -397,5 +399,46 @@ class AuthController extends Controller
             ],
             'token_type' => 'Bearer',
         ];
+    }
+
+    public function storeDevice(Request $request) {
+        $validator = Validator::make($request->all(), [
+            'fcm_token' => 'required|string|max:255',
+            'device_id' => 'required|string|max:255',
+            'device_type' => 'required|in:ios,android,web',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => $validator->errors()->first(),
+            ], 422);
+        }
+
+        try {
+            // Update or create device token
+            DeviceToken::updateOrCreate(
+                [
+                    'user_id' => $request->user()->id,
+                    'device_id' => $request->device_id,
+                ],
+                [
+                    'fcm_token' => $request->fcm_token,
+                    'device_type' => $request->device_type,
+                    'platform' => $request->platform,
+                    'last_used_at' => now(),
+                ]
+            );
+
+            return response()->json([
+                'success' => true,
+            ], 200);
+
+        } catch (\Exception $e) {
+            Log::channel('api')->error($e->getMessage(), ['device-token']);
+            return response()->json([
+                'success' => false,
+            ], 500);
+        }
     }
 }

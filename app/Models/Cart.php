@@ -82,27 +82,21 @@ class Cart extends Model
 
     public function getContractCreatableAttribute()
     {
-        $checkHasFifpl = $this->members()
-            ->whereHas('organization', function ($query) {
-                $query->where('code', 'fifpl');
-            })
-            ->exists();
-
-        if ($checkHasFifpl) {
-            return $this->duration_total >= Organization::FIFPL_MIN_DURATION->value;
+        if (!$this->company_flg) {
+            return false;
         }
 
-        $checkHasOpco = $this->members()
-            ->whereHas('organization', function ($query) {
-                $query->where('code', 'opco-ep');
-            })
-            ->exists();
-
-        if ($checkHasOpco) {
-            return $this->duration_total >= Organization::OPCO_MIN_DURATION->value;
+        if ($this->payment_type == '1') {
+            return $this->duration_total % Organization::OPCO_MAX_DURATION->value == 0
+                || $this->duration_total % Organization::OPCO_MAX_DURATION->value >= Organization::OPCO_MIN_DURATION->value;
         }
 
-        return false;
+        if ($this->payment_type == '2') {
+            return $this->duration_total % Organization::FIFPL_MAX_DURATION->value == 0
+                || $this->duration_total % Organization::FIFPL_MAX_DURATION->value >= Organization::FIFPL_MIN_DURATION->value;
+        }
+
+        return true;
     }
 
     public function user()
@@ -180,6 +174,7 @@ class Cart extends Model
         $totalDuration = $this->items()
             ->with('package')
             ->get()
+            ->fresh()
             ->sum(function ($items) {
                 return $items->package->duration ?? 0;
             });
@@ -228,6 +223,13 @@ class Cart extends Model
 
     public function groupItemsByDurationBestFit($groupDuration = 43200)
     {
+        if ($this->payment_type == '1') {
+            $groupDuration = Organization::OPCO_MAX_DURATION->value;
+        }
+        if ($this->payment_type == '2') {
+            $groupDuration = Organization::FIFPL_MAX_DURATION->value;
+        }
+
         // Eager load package
         $items = $this->items()
             ->with('package')
@@ -266,7 +268,7 @@ class Cart extends Model
         return $groups;
     }
 
-    private function calculateGroupDuration($group)
+    public function calculateGroupDuration($group)
     {
         return $group->sum(function ($item) {
             return $item->package->duration ?? 0;
