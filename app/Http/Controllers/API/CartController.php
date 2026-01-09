@@ -134,13 +134,19 @@ class CartController extends Controller
         $cart->status = Status::DELETED->value;
         $cart->save();
 
-        $user = $cart->user;
-        if (sizeof($cart->members) <= 0) {
-            $cart->members()->syncWithoutDetaching([$user->id]);
-        }
-
+        
         $itemIds = $cart->items()->pluck('package_id')->toArray();
-        $user->packages()->syncWithoutDetaching($itemIds);
+        if (sizeof($cart->members) <= 0) {
+            $user = $cart->user;
+            $cart->members()->syncWithoutDetaching([$user->id]);
+
+            // Active packages for user
+            $user->packages()->syncWithoutDetaching($itemIds);
+        } else {
+            foreach ($cart->members as $user) {
+                $user->packages()->syncWithoutDetaching($itemIds);
+            }
+        }
 
         return true;
     }

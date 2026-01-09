@@ -13,6 +13,7 @@ use App\Http\Controllers\API\StripeWebhookController;
 use App\Http\Controllers\API\TrainingController;
 use App\Http\Controllers\GeneratePdfController;
 use App\Http\Controllers\InvoiceController;
+use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\SystemNotificationController;
 use App\Http\Controllers\Tracking\TrkAppOpenController;
 use Illuminate\Http\Request;
@@ -126,5 +127,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
 Route::prefix('generate')->group(function () {
     Route::get('/invoices/{id}', [GeneratePdfController::class, 'paymentInvoice']);
 });
+
+Route::get('/notifications/send-to-device', [NotificationController::class, 'sendTest']);
+Route::get('/notifications/receipt', [NotificationController::class, 'checkReceipt']);
 
 // Route::get('/generate', [ContractController::class, 'generate']);

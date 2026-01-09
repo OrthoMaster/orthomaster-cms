@@ -79,11 +79,12 @@ class ContractController extends Controller
             // Sign to contract
             $this->generateContractsByProCart($request->user()->id, $signatureUrl, $signData['fullName']);
 
-            // Sign to program
-            $generatePdfController = new GeneratePdfController();
-            $cart = Cart::findByUser($request->user()->id);
+            $cart = Cart::find($signData['cartId']);
             $user = User::find($request->user()->id);
             $company = $user->companiesUserIsManager()->first();
+
+            // Sign to program
+            $generatePdfController = new GeneratePdfController();
             $generatePdfController->programFilePdf(
                 $cart->id,
                 $signatureUrl,
@@ -93,7 +94,11 @@ class ContractController extends Controller
                 now()->format('d/m/Y')
             );
 
-
+            // Active packages
+            $itemIds = $cart->items()->pluck('package_id')->toArray();
+            foreach ($cart->members as $member) {
+                $member->packages()->syncWithoutDetaching($itemIds);
+            }
             $cart->status = Status::DELETED->value;
             $cart->save();
 

@@ -24,7 +24,7 @@ class PaymentController extends Controller
      */
     public function createPaymentIntent(Request $request)
     {
-        $cart = Cart::findByUser($request->user()->id);
+        $cart = Cart::find($request->id);
         if (!$cart) {
             return response()->json([
                 'success' => false,
