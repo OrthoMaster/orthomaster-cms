@@ -5,6 +5,7 @@ namespace App\Http\Controllers\API;
 use App\Http\Controllers\Controller;
 use App\Models\Cart;
 use App\Models\FundingOrganization;
+use App\Models\Invoice;
 use App\Models\Package;
 use App\Models\Training;
 use App\Models\User;
@@ -110,6 +111,16 @@ class CartController extends Controller
             $cart = Cart::findByUser(Auth::user()->id, $request->cart_id);
             $cart->items()->delete();
             $cart->members()->delete();
+
+            if ($cart->invoice_id) {
+                $invoice = Invoice::find($cart->invoice_id);
+                if ($invoice) {
+                    $invoice->destroy();
+                }
+            }
+
+            $cart->invoice_id = null;
+            $cart->save();
 
             return response()->json([
                 'success' => true,

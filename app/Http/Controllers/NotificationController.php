@@ -29,7 +29,7 @@ class NotificationController extends Controller
 
   public function sendTest(Request $request)
   {
-    $fcm = 'ExponentPushToken[h3UZy-KXE10BiNnrcOyITs]';
+    $fcm = 'ExponentPushToken[4qCQ1WMmUu7jMfQeZozAfB]';
 
     $result = $this->expoService->sendToDevice(
       $fcm,

@@ -37,6 +37,7 @@ class User extends \TCG\Voyager\Models\User
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'expires_at' => 'datetime',
+            'notification_flg' => 'boolean'
         ];
     }
 

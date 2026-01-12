@@ -32,10 +32,29 @@ class AuthController extends Controller
             ], 422);
         }
 
-        $deviceName = $request->input('device', 'mobile');
-        $user->tokens()->where('name', $deviceName)->delete();
+        // Delete if has access token
+        $deviceToken = DeviceToken::where('device_id', $request->device_id)
+            ->where('user_id', $user->id)
+            ->first();
+        if ($deviceToken && $deviceToken->accessToken) {
+            $user->tokens()->where('name', $deviceToken->device_id)->delete();
+        }
 
-        $token = $user->createToken($deviceName)->plainTextToken;
+        // Create new access token
+        $deviceName = $request->device_id ? $request->device_id : 'mobile';
+        $token = $user->createToken($deviceName);
+        $deviceToken = DeviceToken::updateOrCreate(
+            [
+                'user_id' => $user->id,
+                'device_id' => $request->device_id,
+            ],
+            [
+                'access_token_id' => $token->accessToken->id,
+                'fcm_token' => $request->fcm_token,
+                'device_type' => $request->device_type,
+                'last_used_at' => now(),
+            ]
+        );
 
         // Sync with old system
         if ($user->password_temp != null) {
@@ -45,7 +64,7 @@ class AuthController extends Controller
             })->afterResponse();
 
             // Clear password temp
-            $user->password_temp = null;
+            // $user->password_temp = null;
             $user->save();
         }
 
@@ -58,7 +77,7 @@ class AuthController extends Controller
 
         return response()->json([
             'status' => 'success',
-            'data'   => $this->customizeUserArray($user, $token),
+            'data'   => $this->customizeUserArray($user, $token->plainTextToken),
         ]);
     }
 
@@ -300,6 +319,30 @@ class AuthController extends Controller
     }
 
     /**
+     * Update settings
+     */
+    public function updateSettings(Request $request)
+    {
+        try {
+            Log::channel('api')->error('ast', $request->all());
+
+            $user = $request->user();
+            $user->update([
+                'notification_flg' => $request->notifications,
+            ]);
+
+            return response()->json([
+                'success' => true,
+            ], 200);
+        } catch (\Exception $e) {
+            Log::channel('api')->error($e->getMessage(), ['update-settings', $request->user()->id]);
+            return response()->json([
+                'success' => false,
+            ], 500);
+        }
+    }
+
+    /**
      * Update password
      */
     public function changePassword(Request $request)
@@ -384,6 +427,11 @@ class AuthController extends Controller
                 'has_company' => sizeof($user->companiesUserIsManager) > 0,
                 'belongs_to_company' => sizeof($user->companiesUserIsMember) > 0,
 
+                // Settings
+                'settings' => [
+                    'notifications' => $user->notification_flg
+                ],
+
                 // Sync with old version
                 'id_user' => $user->id_user,
                 'id_odoo_partner' => $user->id_odoo_partner,
@@ -401,7 +449,8 @@ class AuthController extends Controller
         ];
     }
 
-    public function storeDevice(Request $request) {
+    public function storeDevice(Request $request)
+    {
         $validator = Validator::make($request->all(), [
             'fcm_token' => 'required|string|max:255',
             'device_id' => 'required|string|max:255',
@@ -433,7 +482,6 @@ class AuthController extends Controller
             return response()->json([
                 'success' => true,
             ], 200);
-
         } catch (\Exception $e) {
             Log::channel('api')->error($e->getMessage(), ['device-token']);
             return response()->json([

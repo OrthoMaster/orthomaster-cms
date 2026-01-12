@@ -11,6 +11,8 @@ class Invoice extends Model
     protected $casts = [
         'amount' => 'decimal:2',
         'paid_at' => 'datetime',
+        'created_at' => 'datetime:d-m-Y H:i',
+        'updated_at' => 'datetime:d-m-Y H:i',
     ];
 
     const STATUS_PENDING = 'pending';
@@ -38,5 +40,12 @@ class Invoice extends Model
             'status' => self::STATUS_FAILED,
             'failed_reason' => $reason,
         ]);
+    }
+
+    public static function getInvoiceByUser($userId) {
+        return Invoice::where('user_id', $userId)
+            ->where('status', self::STATUS_PAID)
+            ->orderBy('updated_at', 'desc')
+            ->get();
     }
 }

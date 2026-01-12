@@ -6,13 +6,13 @@ use App\Http\Controllers\API\CartController;
 use App\Http\Controllers\API\ChatbotSearchController;
 use App\Http\Controllers\API\CompanyController;
 use App\Http\Controllers\API\ContractController;
+use App\Http\Controllers\API\DocumentController;
 use App\Http\Controllers\API\PaymentController;
 use App\Http\Controllers\API\PromotionController;
 use App\Http\Controllers\API\QuotationController;
 use App\Http\Controllers\API\StripeWebhookController;
 use App\Http\Controllers\API\TrainingController;
 use App\Http\Controllers\GeneratePdfController;
-use App\Http\Controllers\InvoiceController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\SystemNotificationController;
 use App\Http\Controllers\Tracking\TrkAppOpenController;
@@ -60,6 +60,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/profile/pre-data', [AuthController::class, 'getPreFromData']);
     Route::put('/profile', [AuthController::class, 'updateProfile']);
     Route::post('/profile/password', [AuthController::class, 'changePassword']);
+    Route::put('/profile/settings', [AuthController::class, 'updateSettings']);
 
     // Notification
     Route::get('/notifications', [SystemNotificationController::class, 'getNotifications']);
@@ -89,7 +90,6 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::patch('/company/invite-member', [CompanyController::class, 'inviteMember']);
     Route::patch('/company/quit', [CompanyController::class, 'quitCompany']);
 
-
     // Cart
     Route::get('/cart', [CartController::class, 'getDetails']);
     Route::put('/cart/add/{id}', [CartController::class, 'addPackage']);
@@ -114,6 +114,9 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::put('/invoices/{invoice}/cancel', [PaymentController::class, 'cancelPayment']);
     });
 
+    // Documents
+    Route::get('/documents', [DocumentController::class, 'getAll']);
+    
     // Promotion
     Route::prefix('promotions')->group(function () {
         Route::post('/validate', [PromotionController::class, 'validate']);

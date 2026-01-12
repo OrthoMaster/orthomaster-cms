@@ -16,4 +16,20 @@ class DeviceToken extends Model
     {
         return $this->belongsTo(User::class);
     }
+
+    public function accessToken()
+    {
+        return $this->belongsTo(PersonalAccessToken::class, 'access_token_id');
+    }
+
+    protected static function boot()
+    {
+        parent::boot();
+
+        static::deleting(function ($deviceToken) {
+            if ($deviceToken->accessToken) {
+                $deviceToken->accessToken->delete();
+            }
+        });
+    }
 }
