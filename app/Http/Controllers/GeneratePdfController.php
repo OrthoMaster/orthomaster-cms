@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Cart;
+use App\Models\Contract;
 use App\Models\Invoice;
 use App\Models\User;
 use App\Status;
@@ -169,9 +170,10 @@ class GeneratePdfController extends Controller
             $success = Storage::disk('s3')->put($fileName, $pdfContent, 'public');;
             if ($success) {
                 $url = Storage::disk('s3')->url($fileName);
+                return $url;
             }
 
-            return true;
+            return false;
         } catch (\Exception $e) {
             throw $e;
         }

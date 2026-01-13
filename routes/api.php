@@ -117,18 +117,15 @@ Route::middleware(['auth:sanctum'])->group(function () {
     // Documents
     Route::get('/documents', [DocumentController::class, 'getAll']);
     
-    // Promotion
+    // Promotions
     Route::prefix('promotions')->group(function () {
         Route::post('/validate', [PromotionController::class, 'validate']);
     });
 
+    // Invoice
     Route::prefix('generate')->group(function () {
         Route::get('/invoices/{id}', [GeneratePdfController::class, 'paymentInvoice']);
     });
-});
-
-Route::prefix('generate')->group(function () {
-    Route::get('/invoices/{id}', [GeneratePdfController::class, 'paymentInvoice']);
 });
 
 Route::get('/notifications/send-to-device', [NotificationController::class, 'sendTest']);

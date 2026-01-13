@@ -324,8 +324,6 @@ class AuthController extends Controller
     public function updateSettings(Request $request)
     {
         try {
-            Log::channel('api')->error('ast', $request->all());
-
             $user = $request->user();
             $user->update([
                 'notification_flg' => $request->notifications,

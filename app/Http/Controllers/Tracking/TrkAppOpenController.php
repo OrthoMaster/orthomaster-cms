@@ -30,7 +30,6 @@ class TrkAppOpenController extends Controller
             return false;
         }
 
-        Log::channel('tracking')->info(substr($token, 0, 20).'... | '.$agent, ['app-opens']);
         $created = TrkAppOpens::firstOrCreate(
             ['token' => $token, 'tracking_date' => $date],
             ['user_agent' => $agent]

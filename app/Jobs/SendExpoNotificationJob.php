@@ -1,4 +1,3 @@
-// app/Jobs/SendExpoNotificationJob.php
 <?php
 
 namespace App\Jobs;
@@ -19,7 +18,7 @@ class SendExpoNotificationJob implements ShouldQueue
     public int $timeout = 60;
 
     public function __construct(
-        public array $expoPushTokens,
+        public array $userIds,
         public string $title,
         public string $body,
         public array $data = [],
@@ -28,8 +27,8 @@ class SendExpoNotificationJob implements ShouldQueue
 
     public function handle(ExpoNotificationService $expoService): void
     {
-        $expoService->sendToMultipleDevices(
-            $this->expoPushTokens,
+        $expoService->sendToUsers(
+            $this->userIds,
             $this->title,
             $this->body,
             $this->data,
@@ -41,7 +40,7 @@ class SendExpoNotificationJob implements ShouldQueue
     {
         Log::channel('api')->error('SendExpoNotificationJob failed', [
             'message' => $exception->getMessage(),
-            'tokens' => $this->expoPushTokens,
+            'userIds' => $this->userIds,
         ]);
     }
 }

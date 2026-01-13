@@ -4,6 +4,7 @@ namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\CompanyJoinRequestController;
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\NotificationController;
 use App\Models\Company;
 use App\Models\Establishment;
 use App\Models\Training;
@@ -336,10 +337,11 @@ class CompanyController extends Controller
 
             // Invite user
             $joinRequestController = new CompanyJoinRequestController();
-
             $result = $joinRequestController->invite($company->join_code, $request->user()->id, $user->id);
 
             if ($result == 'success') {
+                app(NotificationController::class)->receiveInviteToJoinCompany([$user->id]);
+
                 return response()->json([
                     'success' => true,
                     'message' => 'Inviter de membre avec succès'

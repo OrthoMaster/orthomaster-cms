@@ -12,7 +12,7 @@ class ExpoNotificationService
     private const MAX_BATCH_SIZE = 100; // Expo limit
 
     /**
-     * Gửi notification đến 1 device
+     * Send notification to 1 device
      */
     public function sendToDevice(
         string $expoPushToken,
@@ -20,12 +20,12 @@ class ExpoNotificationService
         string $body,
         array $data = [],
         array $options = []
-    ): array {
+    ) {
         return $this->sendToMultipleDevices([$expoPushToken], $title, $body, $data, $options);
     }
 
     /**
-     * Gửi notification đến nhiều devices
+     * Send notification to many devices
      */
     public function sendToMultipleDevices(
         array $expoPushTokens,
@@ -33,15 +33,12 @@ class ExpoNotificationService
         string $body,
         array $data = [],
         array $options = []
-    ): array {
+    ) {
         // Validate tokens
         $validTokens = $this->validateTokens($expoPushTokens);
-        
+
         if (empty($validTokens)) {
-            return [
-                'success' => false,
-                'error' => 'No valid Expo Push Tokens provided',
-            ];
+            return false;
         }
 
         // Build messages
@@ -63,7 +60,7 @@ class ExpoNotificationService
     }
 
     /**
-     * Gửi notification đến user (tất cả devices của user)
+     * Send notification to user (all devices of user)
      */
     public function sendToUser(
         int $userId,
@@ -71,24 +68,20 @@ class ExpoNotificationService
         string $body,
         array $data = [],
         array $options = []
-    ): array {
+    ) {
         $devices = \App\Models\DeviceToken::where('user_id', $userId)
-            ->active()
             ->pluck('fcm_token')
             ->toArray();
 
         if (empty($devices)) {
-            return [
-                'success' => false,
-                'error' => 'User has no active devices',
-            ];
+            return false;
         }
 
         return $this->sendToMultipleDevices($devices, $title, $body, $data, $options);
     }
 
     /**
-     * Gửi notification đến nhiều users
+     * Send notification to many users
      */
     public function sendToUsers(
         array $userIds,
@@ -96,17 +89,13 @@ class ExpoNotificationService
         string $body,
         array $data = [],
         array $options = []
-    ): array {
+    ) {
         $devices = \App\Models\DeviceToken::whereIn('user_id', $userIds)
-            ->active()
             ->pluck('fcm_token')
             ->toArray();
 
         if (empty($devices)) {
-            return [
-                'success' => false,
-                'error' => 'No active devices found for these users',
-            ];
+            return false;
         }
 
         return $this->sendToMultipleDevices($devices, $title, $body, $data, $options);
@@ -118,8 +107,8 @@ class ExpoNotificationService
     private function validateTokens(array $tokens): array
     {
         return array_filter($tokens, function ($token) {
-            return is_string($token) && 
-                   (str_starts_with($token, 'ExponentPushToken[') || 
+            return is_string($token) &&
+                (str_starts_with($token, 'ExponentPushToken[') ||
                     str_starts_with($token, 'ExpoPushToken['));
         });
     }
@@ -179,7 +168,7 @@ class ExpoNotificationService
 
             if ($response->successful()) {
                 $result = $response->json();
-                
+
                 // Log errors nếu có
                 $this->handleTicketErrors($result['data'] ?? []);
 
@@ -212,7 +201,7 @@ class ExpoNotificationService
     }
 
     /**
-     * Handle ticket errors và deactivate invalid tokens
+     * Handle ticket errors and deactivate invalid tokens
      */
     private function handleTicketErrors(array $tickets): void
     {
@@ -232,7 +221,7 @@ class ExpoNotificationService
     }
 
     /**
-     * Get receipts để kiểm tra delivery status
+     * Get receipts to check status
      */
     public function getReceipts(array $ticketIds): array
     {

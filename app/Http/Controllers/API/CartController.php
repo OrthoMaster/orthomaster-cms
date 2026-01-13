@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\NotificationController;
 use App\Models\Cart;
 use App\Models\FundingOrganization;
 use App\Models\Invoice;
@@ -158,6 +159,9 @@ class CartController extends Controller
                 $user->packages()->syncWithoutDetaching($itemIds);
             }
         }
+
+        // Notification
+        app(NotificationController::class)->activeNewPackage($cart->member_ids);
 
         return true;
     }

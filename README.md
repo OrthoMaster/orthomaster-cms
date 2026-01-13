@@ -22,4 +22,25 @@ sudo php artisan config:clear
 sudo php artisan route:clear
 sudo php artisan view:clear
 
+sudo php artisan queue:restart
+sleep 5
+
 sudo systemctl restart apache2
+
+sudo supervisorctl status laravel-worker:*
+
+
+## SuperVisor
+
+# Xem status
+sudo supervisorctl status
+
+# Restart workers
+sudo supervisorctl restart laravel-worker:*
+
+# Stop workers
+sudo supervisorctl stop laravel-worker:*
+
+# Start workers
+sudo supervisorctl start laravel-worker:*
+

@@ -46,19 +46,18 @@ class CompanyJoinRequestController extends Controller
         return 'success';
     }
 
-    public function invite($code, $userId, $inviteId)
+    public function invite($code, $createdId, $inviteId)
     {
         try {
             $company = Company::findByJoinCode($code);
-            $user = User::find($userId);
-            if (!$company || !$user) {
-                Log::warning('Not found ' . $code, ['apply-join-company', $userId]);
+            if (!$company) {
+                Log::warning('Not found ' . $code, ['apply-join-company', $createdId]);
                 return 'not-found';
             }
 
             // Check invitation request exists
             $companyRequest = CompanyJoinRequest::where('invite_flg', true)
-                ->where('user_id', $user->id)
+                ->where('user_id', $inviteId)
                 ->where('company_id', $company->id)
                 ->where('status', Status::PENDING->value)
                 ->first();
@@ -68,17 +67,17 @@ class CompanyJoinRequestController extends Controller
 
             // Invite
             $companyRequest = CompanyJoinRequest::create([
-                'user_id' => $user->id,
+                'user_id' => $inviteId,
                 'company_id' => $company->id,
                 'invite_flg' => true,
                 'status' => Status::PENDING->value,
-                'created_by' => $inviteId
+                'created_by' => $createdId
             ]);
 
             // Notification to user
             SystemNotification::create([
-                'user_id' => $user->id,
-                'actor_id' => $inviteId,
+                'user_id' => $inviteId,
+                'actor_id' => $createdId,
                 'type' => 'confirm',
                 'entity_type' => 'CompanyJoinRequest',
                 'entity_id' => $companyRequest->id,
@@ -88,7 +87,7 @@ class CompanyJoinRequestController extends Controller
 
             return 'success';
         } catch (\Exception $e) {
-            Log::channel('api')->error($e->getMessage(), ['invite-member', $code, $userId]);
+            Log::channel('api')->error($e->getMessage(), ['invite-member', $code, $createdId]);
             return 'error';
         }
     }

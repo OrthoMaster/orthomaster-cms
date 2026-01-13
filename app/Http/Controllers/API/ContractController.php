@@ -5,7 +5,9 @@ namespace App\Http\Controllers\API;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\GeneratePdfController;
+use App\Http\Controllers\NotificationController;
 use App\Models\Cart;
+use App\Models\Contract;
 use App\Models\FundingOrganization;
 use App\Models\User;
 use App\Organization;
@@ -85,7 +87,7 @@ class ContractController extends Controller
 
             // Sign to program
             $generatePdfController = new GeneratePdfController();
-            $generatePdfController->programFilePdf(
+            $pdfUrl = $generatePdfController->programFilePdf(
                 $cart->id,
                 $signatureUrl,
                 $company->name,
@@ -93,6 +95,21 @@ class ContractController extends Controller
                 $signData['location'],
                 now()->format('d/m/Y')
             );
+            if ($pdfUrl) {
+                Contract::updateOrCreate(
+                    [
+                        'no' => 'Programme.pdf',
+                        'cart_id' => $cart->id,
+                    ],
+                    [
+                        'document' => $pdfUrl,
+                        'company_id' => $company->id,
+                        'created_by' => $request->user()->id,
+                        'type' => 'programme',
+                        'status' => Status::ACTIVE->value
+                    ]
+                );
+            }
 
             // Active packages
             $itemIds = $cart->items()->pluck('package_id')->toArray();
@@ -101,6 +118,10 @@ class ContractController extends Controller
             }
             $cart->status = Status::DELETED->value;
             $cart->save();
+
+            // Notification
+            app(NotificationController::class)->receiveNewContract([$request->user()->id]);
+            app(NotificationController::class)->activeNewPackage($cart->member_ids);
 
             return response()->json([
                 'success' => true,
@@ -145,10 +166,10 @@ class ContractController extends Controller
                 $pdfLinks = [];
 
                 foreach ($itemGroups as $key => $group) {
-
+                    $qNo = $cartNo . '_' . $organization->code . ($contractTotal > 1 ? '_' . ($key + 1) : '');
                     $pdf = $generatePdfController->quotationTemp(
                         $cart->id,
-                        $cartNo . '_' . $organization->code . ($contractTotal > 1 ? '_' . ($key + 1) : ''),
+                        $qNo,
                         now()->format('d/m/Y'),
                         now()->addMonth()->format('d/m/Y'),
                         $company,
@@ -165,6 +186,11 @@ class ContractController extends Controller
 
                     if ($pdf) {
                         array_push($pdfLinks, $pdf);
+
+                        // Signed
+                        if ($signatory) {
+                            $this->storeSignedContract($qNo, $cart->id, $pdf, $company->id, $organization->name, $userId, 'signed', Status::ACTIVE->value);
+                        }
                     }
                 }
 
@@ -189,9 +215,10 @@ class ContractController extends Controller
                     $pdfLinks = [];
 
                     foreach ($itemGroups as $key => $group) {
+                        $qNo = $cartNo . '_' . $organization->code . '_' . $user->name . '-' . $user->id . ($contractTotal > 1 ? '_' . ($key + 1) : '');
                         $pdf = $generatePdfController->quotationTemp(
                             $cart->id,
-                            $cartNo . '_' . $organization->code . '_' . $user->name . '-' . $user->id . ($contractTotal > 1 ? '_' . ($key + 1) : ''),
+                            $qNo,
                             now()->format('d/m/Y'),
                             now()->addMonth()->format('d/m/Y'),
                             $company,
@@ -208,6 +235,11 @@ class ContractController extends Controller
 
                         if ($pdf) {
                             array_push($pdfLinks, $pdf);
+
+                            // Signed
+                            if ($signatory) {
+                                $this->storeSignedContract($qNo, $cart->id, $pdf, $company->id, $organization->name, $userId, 'signed', Status::ACTIVE->value);
+                            }
                         }
                     }
 
@@ -234,9 +266,11 @@ class ContractController extends Controller
                     $pdfLinks = [];
 
                     foreach ($itemGroups as $group) {
+                        $qNo = $cartNo . '_' . $user->name . '-' . $user->id;
+
                         $pdf = $generatePdfController->quotationTemp(
                             $cart->id,
-                            $cartNo . '_' . $user->name . '-' . $user->id,
+                            $qNo,
                             now()->format('d/m/Y'),
                             now()->addMonth()->format('d/m/Y'),
                             $company,
@@ -253,6 +287,10 @@ class ContractController extends Controller
 
                         if ($pdf) {
                             array_push($pdfLinks, $pdf);
+
+                            if ($signatory) {
+                                $this->storeSignedContract($qNo, $cart->id, $pdf, $company->id, $organization->name, $userId, 'signed', Status::ACTIVE->value);
+                            }
                         }
                     }
 
@@ -275,5 +313,23 @@ class ContractController extends Controller
             Log::channel('api')->error($e->getMessage(), ['sign-contract']);
             throw $e;
         }
+    }
+
+    private function storeSignedContract($no, $cartId, $document, $companyId, $organizationName, $createdById, $type, $status)
+    {
+        return Contract::updateOrCreate(
+            [
+                'no' => $no,
+                'cart_id' => $cartId,
+            ],
+            [
+                'document' => $document,
+                'company_id' => $companyId,
+                'organization' => $organizationName,
+                'created_by' => $createdById,
+                'type' => $type,
+                'status' => $status
+            ]
+        );
     }
 }
