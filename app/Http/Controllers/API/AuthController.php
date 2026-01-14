@@ -9,6 +9,7 @@ use App\Models\FundingOrganization;
 use App\Models\OldVersionUser;
 use App\Models\Profession;
 use App\Models\SystemNotification;
+use App\Models\Topic;
 use App\Models\User;
 use App\Status;
 use Carbon\Carbon;
@@ -232,13 +233,15 @@ class AuthController extends Controller
             $estabs = Establishment::getAll();
             $professions = Profession::getAll();
             $organizations = FundingOrganization::getAll();
+            $topics = Topic::getAll();
 
             return response()->json([
                 'success' => true,
                 'data' => [
                     'estabs' => $estabs,
                     'professions' => $professions,
-                    'organizations' => $organizations
+                    'organizations' => $organizations,
+                    'topics' => $topics,
                 ]
             ]);
         } catch (\Exception $e) {
@@ -321,7 +324,7 @@ class AuthController extends Controller
     /**
      * Update settings
      */
-    public function updateSettings(Request $request)
+    public function updateNotiPermission(Request $request)
     {
         try {
             $user = $request->user();
@@ -333,7 +336,57 @@ class AuthController extends Controller
                 'success' => true,
             ], 200);
         } catch (\Exception $e) {
+            Log::channel('api')->error($e->getMessage(), ['update-noti-permission', $request->user()->id]);
+            return response()->json([
+                'success' => false,
+            ], 500);
+        }
+    }
+
+    /**
+     * Update settings
+     */
+    public function updateSettings(Request $request)
+    {
+        try {
+            $user = $request->user();
+            $user->update([
+                'notification_flg' => $request->notifications,
+            ]);
+            $topics = $request->has('topicIds') ? $request->topicIds : [];
+            $user->topics()->sync($topics);
+
+            return response()->json([
+                'success' => true,
+            ], 200);
+        } catch (\Exception $e) {
             Log::channel('api')->error($e->getMessage(), ['update-settings', $request->user()->id]);
+            return response()->json([
+                'success' => false,
+            ], 500);
+        }
+    }
+
+    /**
+     * Add topic
+     */
+    public function addTopic(Request $request)
+    {
+        if (!$request->has('topicId')) {
+            return response()->json([
+                'success' => false,
+            ]);
+        }
+
+        try {
+            $user = $request->user();
+            $user->topics()->attach($request->topicId);
+
+            return response()->json([
+                'success' => true,
+            ]);
+        } catch (\Exception $e) {
+            Log::channel('api')->error($e->getMessage(), ['add-topic', $request->user()->id]);
             return response()->json([
                 'success' => false,
             ], 500);
@@ -427,7 +480,8 @@ class AuthController extends Controller
 
                 // Settings
                 'settings' => [
-                    'notifications' => $user->notification_flg
+                    'notifications' => $user->notification_flg,
+                    'topics' => $user->topic_ids,
                 ],
 
                 // Sync with old version

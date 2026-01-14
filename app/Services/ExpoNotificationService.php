@@ -53,6 +53,8 @@ class ExpoNotificationService
             $results[] = $response;
         }
 
+        Log::debug('send sms', 'a');
+        
         return [
             'success' => true,
             'results' => $results,

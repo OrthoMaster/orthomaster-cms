@@ -6,6 +6,7 @@ use App\Http\Controllers\API\CartController;
 use App\Http\Controllers\API\ChatbotSearchController;
 use App\Http\Controllers\API\CompanyController;
 use App\Http\Controllers\API\ContractController;
+use App\Http\Controllers\API\DailyQuestionController;
 use App\Http\Controllers\API\DocumentController;
 use App\Http\Controllers\API\PaymentController;
 use App\Http\Controllers\API\PromotionController;
@@ -56,12 +57,19 @@ Route::prefix('tracking')->group(function () {
 });
 
 Route::middleware(['auth:sanctum'])->group(function () {
+    // Daily question
+    Route::get('/daily-question', [DailyQuestionController::class, 'getTodayQuestionByUser']);
+    Route::put('/daily-question', [DailyQuestionController::class, 'answerQuestion']);
+
     // Profile
     Route::get('/profile/pre-data', [AuthController::class, 'getPreFromData']);
     Route::put('/profile', [AuthController::class, 'updateProfile']);
     Route::post('/profile/password', [AuthController::class, 'changePassword']);
     Route::put('/profile/settings', [AuthController::class, 'updateSettings']);
+    Route::put('/profile/notifications', [AuthController::class, 'updateNotiPermission']);
 
+    Route::put('/profile/topics/add', [AuthController::class, 'addTopic']);
+    
     // Notification
     Route::get('/notifications', [SystemNotificationController::class, 'getNotifications']);
     Route::get('/notifications/lastest', [SystemNotificationController::class, 'getLastest']);

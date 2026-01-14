@@ -23,7 +23,7 @@ class User extends \TCG\Voyager\Models\User
     use HasFactory, Notifiable, HasApiTokens;
 
     protected $guarded = ['id'];
-    protected $appends = ['missing_fields_message'];
+    protected $appends = ['missing_fields_message', 'topic_ids'];
 
     protected $hidden = [
         'password',
@@ -39,6 +39,11 @@ class User extends \TCG\Voyager\Models\User
             'expires_at' => 'datetime',
             'notification_flg' => 'boolean'
         ];
+    }
+
+    public function getTopicIdsAttribute()
+    {
+        return $this->topics->pluck('id')->toArray();
     }
 
     public function oldVersion()
@@ -101,6 +106,11 @@ class User extends \TCG\Voyager\Models\User
     {
         return $this->hasMany(SystemNotification::class, 'user_id', 'id')
             ->with('actor');
+    }
+
+    public function topics()
+    {
+        return $this->belongsToMany(Topic::class);
     }
 
     public function packages()
