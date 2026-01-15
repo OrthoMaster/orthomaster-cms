@@ -6,7 +6,7 @@ use App\Http\Controllers\API\CartController;
 use App\Http\Controllers\API\ChatbotSearchController;
 use App\Http\Controllers\API\CompanyController;
 use App\Http\Controllers\API\ContractController;
-use App\Http\Controllers\API\DailyQuestionController;
+use App\Http\Controllers\API\DailyActionController;
 use App\Http\Controllers\API\DocumentController;
 use App\Http\Controllers\API\PaymentController;
 use App\Http\Controllers\API\PromotionController;
@@ -58,8 +58,9 @@ Route::prefix('tracking')->group(function () {
 
 Route::middleware(['auth:sanctum'])->group(function () {
     // Daily question
-    Route::get('/daily-question', [DailyQuestionController::class, 'getTodayQuestionByUser']);
-    Route::put('/daily-question', [DailyQuestionController::class, 'answerQuestion']);
+    Route::get('/daily-action', [DailyActionController::class, 'getTodayActionByUser']);
+    Route::put('/daily-question', [DailyActionController::class, 'answerQuestion']);
+    Route::put('/daily-podcast/count', [DailyActionController::class, 'countTimesPodcast']);
 
     // Profile
     Route::get('/profile/pre-data', [AuthController::class, 'getPreFromData']);
