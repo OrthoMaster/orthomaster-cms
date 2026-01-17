@@ -161,7 +161,10 @@ class CartController extends Controller
         }
 
         // Notification
-        app(NotificationController::class)->activeNewPackage($cart->member_ids);
+        dispatch(function () use ($cart) {
+            (new \App\Http\Controllers\NotificationController(app(\App\Services\ExpoNotificationService::class)))
+                ->activeNewPackage($cart->member_ids);
+        })->afterResponse();
 
         return true;
     }

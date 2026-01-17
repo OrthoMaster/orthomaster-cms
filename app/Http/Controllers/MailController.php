@@ -27,8 +27,6 @@ class MailController extends Controller
                 if (!$isAdmin && setting('mail.notification_email')) {
                     $notiEmails = array_map('trim', array_filter(explode(';', setting('mail.notification_email'))));
                     Mail::to($notiEmails)->send(new NotificationHasNewUserMail($user));
-
-                    Log::channel('mail')->info('Noti admin', ['register', 'noti', $notiEmails]);
                 }
             }
 

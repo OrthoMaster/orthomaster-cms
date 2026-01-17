@@ -19,8 +19,10 @@ class TrkAppOpenController extends Controller
             return response()->json([], 400);
         }
 
-        $this->tracking($request->token, $request->agent);
-        return response()->json([], 200);
+        $result = $this->tracking($request->token, $request->agent);
+        return response()->json([
+            'success' => $result
+        ], 200);
     }
 
     public function tracking($token, $agent)
@@ -30,27 +32,28 @@ class TrkAppOpenController extends Controller
             return false;
         }
 
-        $created = TrkAppOpens::firstOrCreate(
-            ['token' => $token, 'tracking_date' => $date],
-            ['user_agent' => $agent]
-        );
-        if ($created->wasRecentlyCreated) {
-            $report = RptDailyAppOpens::firstOrCreate(
-                ['date' => $date],
-                ['count' => 0]
+        try {
+            $created = TrkAppOpens::firstOrCreate(
+                ['token' => $token, 'tracking_date' => $date],
+                ['user_agent' => $agent]
             );
 
-            // Get total users from Odoo
-            if ($report->wasRecentlyCreated) {
-                $odooAccountController = new OdooAccountController(app(OdooService::class));
-                $report->total_users = $odooAccountController->countTotalActiveUser();
-                $report->save();
+            if ($created->wasRecentlyCreated) {
+                $report = RptDailyAppOpens::firstOrNew(['date' => $date]);
+                $report->increment('count');
+
+                // Get total users from Odoo
+                if (!$report->total_users > 0) {
+                    $odooAccountController = new OdooAccountController(app(OdooService::class));
+                    $report->total_users = $odooAccountController->countTotalActiveUser();
+                    $report->save();
+                }
             }
 
-            $report->increment('count');
-            $report->touch();
+            return true;
+        } catch (\Exception $e) {
+            Log::channel('api')->error($e->getMessage(), ['tracking-open-app']);
+            return false;
         }
-
-        return true;
     }
 }

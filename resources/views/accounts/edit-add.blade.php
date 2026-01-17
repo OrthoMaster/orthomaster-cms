@@ -220,6 +220,10 @@
                                     <button id="confirm-button" type="button" class="btn btn-primary"
                                         style="margin-right: 5px" onclick="confirmAccount();">Confirmer &
                                         Activer</button>
+
+                                    <button id="confirm-button" type="button" class="btn btn-danger"
+                                        style="margin-right: 5px" onclick="deleteAccount();">Refuser &
+                                        Supprimer</button>
                                 @endif
 
                                 @if ($user->status == 1 && $user->password_temp)
@@ -368,6 +372,7 @@
 
     @if ($edit && $user->status == 2)
         <form id="confirm-form" method="post" action="{{ route('account.confirm', $user->id) }}">@csrf</form>
+        <form id="delete-form" method="post" action="{{ route('account.delete', $user->id) }}">@csrf</form>
     @endif
 @endsection
 
@@ -427,6 +432,13 @@
         function confirmAccount() {
             let form = document.getElementById('confirm-form');
             form.submit();
+        }
+
+        function deleteAccount() {
+            if (confirm('Etes-vous sûr de refuser ?')) {
+                let form = document.getElementById('delete-form');
+                form.submit();
+            }
         }
 
         $('document').ready(function() {

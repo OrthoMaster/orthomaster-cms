@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\API\APILessonController;
+use App\Http\Controllers\API\ApplicationTrackingController;
 use App\Http\Controllers\API\AuthController;
 use App\Http\Controllers\API\CartController;
 use App\Http\Controllers\API\ChatbotSearchController;
@@ -11,6 +12,7 @@ use App\Http\Controllers\API\DocumentController;
 use App\Http\Controllers\API\PaymentController;
 use App\Http\Controllers\API\PromotionController;
 use App\Http\Controllers\API\QuotationController;
+use App\Http\Controllers\API\SearchController;
 use App\Http\Controllers\API\StripeWebhookController;
 use App\Http\Controllers\API\TrainingController;
 use App\Http\Controllers\GeneratePdfController;
@@ -70,7 +72,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::put('/profile/notifications', [AuthController::class, 'updateNotiPermission']);
 
     Route::put('/profile/topics/add', [AuthController::class, 'addTopic']);
-    
+
     // Notification
     Route::get('/notifications', [SystemNotificationController::class, 'getNotifications']);
     Route::get('/notifications/lastest', [SystemNotificationController::class, 'getLastest']);
@@ -125,7 +127,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
     // Documents
     Route::get('/documents', [DocumentController::class, 'getAll']);
-    
+
     // Promotions
     Route::prefix('promotions')->group(function () {
         Route::post('/validate', [PromotionController::class, 'validate']);
@@ -135,9 +137,24 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::prefix('generate')->group(function () {
         Route::get('/invoices/{id}', [GeneratePdfController::class, 'paymentInvoice']);
     });
+
+    // Search content
+    Route::prefix('content')->group(function () {
+        Route::get('/pre-search', [SearchController::class, 'getPreSearch']);
+        Route::post('/search', [SearchController::class, 'search']);
+        Route::delete('/search/history/{id}', [SearchController::class, 'deleteKeyword']);
+        Route::delete('/search/histories', [SearchController::class, 'clearHistory']);
+        
+        Route::post('/search/lesson-openable', [SearchController::class, 'checkOpenableLesson']);
+    });
+
+    
+    // Tracking
+    Route::prefix('tracking')->group(function () {
+        Route::post('/error', [ApplicationTrackingController::class, 'errorTracking']);
+        
+    });
 });
 
-Route::get('/notifications/send-to-device', [NotificationController::class, 'sendTest']);
+Route::get('/notifications/test', [NotificationController::class, 'sendTest']);
 Route::get('/notifications/receipt', [NotificationController::class, 'checkReceipt']);
-
-// Route::get('/generate', [ContractController::class, 'generate']);

@@ -29,6 +29,7 @@
                             <table class="table table-hover">
                                 <thead>
                                     <tr>
+                                        <th>Id</th>
                                         <th>Ordre</th>
                                         <th>Titre</th>
                                         <th>Statut</th>
@@ -40,6 +41,7 @@
                                 <tbody>
                                     @foreach ($lessons as $lesson)
                                         <tr>
+                                            <td>{{ $lesson->id }}</td>
                                             <td>{{ $lesson->order_dsp }}</td>
                                             <td>{{ $lesson->title }}</td>
                                             <td>{{ $lesson->published_flg ? 'Publié' : 'Désactivé' }}</td>

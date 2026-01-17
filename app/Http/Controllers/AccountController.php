@@ -200,7 +200,7 @@ class AccountController extends Controller
 
                 'status' => Status::PENDING->value,
 
-                
+
                 'funding_organization_id' => $request->organization,
                 'first_name_birth' => mb_convert_case(trim($request->first_name_birth), MB_CASE_TITLE, 'UTF-8'),
                 'date_of_birth' => $request->date_of_birth ? $request->date_of_birth : null,
@@ -486,6 +486,18 @@ class AccountController extends Controller
         return back()->with([
             'message' => 'Erreur',
             'alert-type' => 'error'
+        ]);
+    }
+
+    // Delete
+    public function destroy(string $id)
+    {
+        $user = User::findOrFail($id);
+        $user->delete();
+
+        return redirect()->route('accounts.index')->with([
+            'message' => 'Supprimer avec succès',
+            'alert-type' => 'success'
         ]);
     }
 }

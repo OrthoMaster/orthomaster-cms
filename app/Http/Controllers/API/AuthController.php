@@ -44,18 +44,22 @@ class AuthController extends Controller
         // Create new access token
         $deviceName = $request->device_id ? $request->device_id : 'mobile';
         $token = $user->createToken($deviceName);
-        $deviceToken = DeviceToken::updateOrCreate(
-            [
-                'user_id' => $user->id,
-                'device_id' => $request->device_id,
-            ],
-            [
-                'access_token_id' => $token->accessToken->id,
-                'fcm_token' => $request->fcm_token,
-                'device_type' => $request->device_type,
-                'last_used_at' => now(),
-            ]
-        );
+
+        if ($request->fcm_token) {
+            $deviceToken = DeviceToken::updateOrCreate(
+                [
+                    'user_id' => $user->id,
+                    'device_id' => $request->device_id,
+                ],
+                [
+                    'access_token_id' => $token->accessToken->id,
+                    'fcm_token' => $request->fcm_token,
+                    'device_type' => $request->device_type,
+                    'last_used_at' => now(),
+                ]
+            );
+        }
+
 
         // Sync with old system
         if ($user->password_temp != null) {
@@ -65,7 +69,7 @@ class AuthController extends Controller
             })->afterResponse();
 
             // Clear password temp
-            // $user->password_temp = null;
+            $user->password_temp = null;
             $user->save();
         }
 
@@ -148,7 +152,6 @@ class AuthController extends Controller
             return response()->json([], 200);
         } catch (\Exception $e) {
             Log::channel('api')->warning($e->getMessage(), ['sync', 'auth']);
-
             return response()->json([], 400);
         }
     }

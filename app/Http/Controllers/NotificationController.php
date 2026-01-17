@@ -9,7 +9,7 @@ use Illuminate\Http\Request;
 class NotificationController extends Controller
 {
   public function __construct(
-    private ExpoNotificationService $expoService
+    protected ExpoNotificationService $expoService
   ) {}
 
   /**
@@ -77,15 +77,15 @@ class NotificationController extends Controller
   }
 
   /**
-   * Quizz
+   * Daily question
    */
-  public function hasNewQuizz($userIds, $title, $body)
+  public function hasNewDailyQuestion($userIds, $title, $body)
   {
     SendExpoNotificationJob::dispatch(
       userIds: $userIds,
       title: $title,
       body: $body,
-      data: ['action' => 'quiz'],
+      data: ['action' => 'daily-question'],
     );
   }
 
@@ -105,13 +105,16 @@ class NotificationController extends Controller
   /**
    * New video
    */
-  public function hasNewVideo($userIds, $title, $body)
+  public function hasNewVideo($userIds, $title, $body, $videoId = null)
   {
     SendExpoNotificationJob::dispatch(
       userIds: $userIds,
       title: $title,
       body: $body,
-      data: ['action' => 'media']
+      data: [
+        'action' => 'media',
+        'id' => $videoId
+      ]
     );
   }
 
@@ -119,13 +122,13 @@ class NotificationController extends Controller
 
 
   /**
-   * Test
+   * Test send notification
    */
   public function sendTest(Request $request)
   {
     $id = $request->id;
 
-    $this->hasNewQuizz(
+    $this->hasNewDailyQuestion(
       [$id],
       "Question du jour ! ❓📝",
       "Si vous ressentez des douleurs à l'arrière de la nuque, quelles en sont les principales causes ?"
@@ -133,8 +136,8 @@ class NotificationController extends Controller
     $this->activeNewPackage([$id]);
     $this->receiveNewContract([$id]);
     $this->receiveInviteToJoinCompany([$id]);
-    $this->receiveReponseAcceptJoinCompany([$id], 'Francis');
-    $this->receiveReponseRefuseJoinCompany([$id], 'Francis');
+    $this->receiveReponseAcceptJoinCompany([$id], 'OrthoMasterTester');
+    $this->receiveReponseRefuseJoinCompany([$id], 'OrthoMasterTester');
     $this->hasNewPodcast(
       [$id],
       "Nouveau podcast! 🎧",
@@ -149,7 +152,9 @@ class NotificationController extends Controller
     return response()->json(true);
   }
 
-
+  /**
+   * Check status of notification
+   */
   public function checkReceipt(Request $request)
   {
     $result = $this->expoService->getReceipts([$request->id]);

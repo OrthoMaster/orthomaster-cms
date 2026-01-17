@@ -66,7 +66,7 @@ Route::group(['prefix' => 'admin', 'middleware' => ['cmsAdmin']], function () {
     Route::delete('/delete-video-s3', [VideoController::class, 'delete'])->name('delete.video.s3');
 
     // Lessons
-    Route::get('/modules/{moduleId}/lesson/create', [LessonController::class, 'create'])->name('lessons.create');
+    Route::get('/modules/{moduleId}/lessons/create', [LessonController::class, 'create'])->name('lessons.create');
 
     Route::get('/modules/{moduleId}/lessons', [LessonController::class, 'index'])->name('modules.lessons.index');
     Route::get('/modules/{moduleId}/lessons/order', [LessonController::class, 'orderView'])->name('modules.lessons.order');
@@ -90,6 +90,7 @@ Route::group(['prefix' => 'admin', 'middleware' => ['cmsAdmin']], function () {
     Route::put('/accounts/{id}', [AccountController::class, 'update'])->name('account.update');
 
     Route::post('/accounts/{id}/confirm', [AccountController::class, 'confirm'])->name('account.confirm');
+    Route::post('/accounts/{id}/delete', [AccountController::class, 'destroy'])->name('account.delete');
     Route::get('/accounts/{id}/resend', [AccountController::class, 'resend'])->name('account.resend');
 
     Route::get('/accounts/{id}/sync', [AccountController::class, 'sync'])->name('account.sync');

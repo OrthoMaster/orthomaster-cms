@@ -120,8 +120,14 @@ class ContractController extends Controller
             $cart->save();
 
             // Notification
-            app(NotificationController::class)->receiveNewContract([$request->user()->id]);
-            app(NotificationController::class)->activeNewPackage($cart->member_ids);
+            dispatch(function () use ($cart) {
+                $notificationController = new \App\Http\Controllers\NotificationController(
+                    app(\App\Services\ExpoNotificationService::class)
+                );
+
+                $notificationController->receiveNewContract([$cart->user_id]);
+                $notificationController->activeNewPackage($cart->member_ids);
+            })->afterResponse();
 
             return response()->json([
                 'success' => true,

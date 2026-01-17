@@ -8,6 +8,11 @@ class Module extends Model
 {
     protected $guarded = ['id'];
 
+    public function package()
+    {
+        return $this->belongsTo(Package::class);
+    }
+
     public function lessons()
     {
         return $this->hasMany(Lesson::class)->orderBy('order_dsp');

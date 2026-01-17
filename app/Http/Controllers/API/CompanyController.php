@@ -340,7 +340,10 @@ class CompanyController extends Controller
             $result = $joinRequestController->invite($company->join_code, $request->user()->id, $user->id);
 
             if ($result == 'success') {
-                app(NotificationController::class)->receiveInviteToJoinCompany([$user->id]);
+                dispatch(function () use ($user) {
+                    (new \App\Http\Controllers\NotificationController(app(\App\Services\ExpoNotificationService::class)))
+                        ->receiveInviteToJoinCompany([$user->id]);
+                })->afterResponse();
 
                 return response()->json([
                     'success' => true,

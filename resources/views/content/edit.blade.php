@@ -318,15 +318,14 @@
                         }
                     }
                 },
-                quizMatch: {
-                    class: QuizMatch,
-                    config: {
-                        image: {
-                            uploader: imageUploader
-                        }
-                    }
-                },
-
+                // quizMatch: {
+                //     class: QuizMatch,
+                //     config: {
+                //         image: {
+                //             uploader: imageUploader
+                //         }
+                //     }
+                // },
                 summary: {
                     class: Summary,
                     config: {

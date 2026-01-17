@@ -300,13 +300,6 @@ class AuthController extends Controller
         // Hit 1 request
         RateLimiter::hit($throttleKey, 180);
 
-        // Check status
-        if ($status === Password::RESET_LINK_SENT) {
-            Log::channel('mail')->info('Sent reset link: ' . $request->email, ['password']);
-        } else {
-            Log::channel('mail')->error('Sent reset link ' . $request->email, ['password', $status]);
-        }
-
         return response()->json(['status' => 'success'], 200);
     }
 
@@ -459,12 +452,5 @@ class AuthController extends Controller
         } catch (\Exception $e) {
             return response()->json(['message' => $e->getMessage()], 500);
         }
-    }
-
-    public function test()
-    {
-        $odooAccountController = new OdooAccountController(app(OdooService::class));
-        $res = $odooAccountController->test();
-        dd($res);
     }
 }
