@@ -17,26 +17,33 @@
     <div class="page-content browse container-fluid">
         @include('voyager::alerts')
         <div class="row">
-            <div class="col-md-6">
+            <div class="col-md-8">
                 <div class="panel panel-bordered">
                     <div class="panel-body">
                         <form class="row" action="{{ route('voyager.companies.index') }}" method="GET">
-                            <div class="col-md-4">
+                            <div class="col-md-3">
                                 <label for="display_name">Email</label>
                                 <input type="text" class="form-control" name="email" value="{{ request('email') }}"
                                     placeholder="Email">
                             </div>
-                            <div class="col-md-4">
+                            <div class="col-md-3">
                                 <label for="display_name">Nom</label>
                                 <input type="text" class="form-control" name="name" value="{{ request('name') }}"
                                     placeholder="Nom">
                             </div>
-                            <div class="col-md-4">
+                            <div class="col-md-3">
                                 <label for="asdfd">Statut</label>
                                 <select class="form-control select2" name="status">
                                     <option value="all" @selected(request('status') === 'all')>---</option>
                                     <option value="2" @selected(request('status') === '2')>En cours de remplir</option>
                                     <option value="3" @selected(request('status') === '3')>Erreur</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label for="asdfd">Créé par</label>
+                                <select class="form-control select2" name="createdBy">
+                                    <option value="all" @selected(request('createdBy') === 'all')>---</option>
+                                    <option value="me" @selected(request('createdBy') === 'me')>moi</option>
                                 </select>
                             </div>
                             <div class="col-md-12" style="margin-bottom: 0">

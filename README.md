@@ -29,9 +29,17 @@ sudo systemctl restart apache2
 
 sudo supervisorctl status laravel-worker:*
 
+sudo php artisan schedule:list
+
+## Crontab
+sudo crontab -u www-data -e
+* * * * * cd /var/www/laravel && php artisan schedule:run >> /dev/null 2>&1
+
+# Check
+sudo -u www-data php artisan schedule:run
+sudo -u www-data php artisan schedule:list
 
 ## SuperVisor
-
 # Xem status
 sudo supervisorctl status
 

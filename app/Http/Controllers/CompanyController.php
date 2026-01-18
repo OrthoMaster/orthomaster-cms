@@ -44,6 +44,12 @@ class CompanyController extends Controller
             }
         }
 
+        if ($request->has('createdBy')) {
+            if ($request->createdBy !== 'all') {
+                $query->where('created_by', '=', $request->user()->id);
+            }
+        }
+
         $companies = $query->latest('id')->paginate(20);
         $companies->appends($request->query());
 
