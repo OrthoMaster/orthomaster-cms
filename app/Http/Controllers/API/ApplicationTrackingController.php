@@ -9,6 +9,6 @@ use Illuminate\Support\Facades\Log;
 class ApplicationTrackingController extends Controller
 {
     public function errorTracking(Request $request) {
-        Log::channel('api')->error(strval($request->error), [$request->code, $request->user()->id]);
+        Log::channel('api')->error($request->code, [$request->user()->id, $request->error]);
     }
 }

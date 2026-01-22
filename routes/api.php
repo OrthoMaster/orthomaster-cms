@@ -88,6 +88,9 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
     // Trainings
     Route::get('/trainings', [TrainingController::class, 'getAll']);
+    Route::get('/trainings/packages/{packageId}', [TrainingController::class, 'getPackage']);
+    Route::post('/trainings/lesson/content', [TrainingController::class, 'getLessonContent']);
+    Route::put('/trainings/lesson/complete', [TrainingController::class, 'completeLesson']);
 
     // Company
     Route::get('/members', [CompanyController::class, 'getMembers']);
@@ -146,6 +149,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::delete('/search/histories', [SearchController::class, 'clearHistory']);
         
         Route::post('/search/lesson-openable', [SearchController::class, 'checkOpenableLesson']);
+
+        Route::post('/s3-url', [SearchController::class, 'getS3Url']);
     });
 
     
@@ -156,5 +161,9 @@ Route::middleware(['auth:sanctum'])->group(function () {
     });
 });
 
-Route::get('/notifications/test', [NotificationController::class, 'sendTest']);
-Route::get('/notifications/receipt', [NotificationController::class, 'checkReceipt']);
+
+Route::group(['prefix' => 'admin', 'middleware' => ['cmsAdmin']], function () {
+    // Test send notification
+    Route::get('/notifications/test', [NotificationController::class, 'sendTest']);
+    Route::get('/notifications/receipt', [NotificationController::class, 'checkReceipt']);
+});

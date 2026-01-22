@@ -39,6 +39,8 @@ sudo crontab -u www-data -e
 sudo -u www-data php artisan schedule:run
 sudo -u www-data php artisan schedule:list
 
+sudo grep CRON /var/log/syslog | tail -20
+
 ## SuperVisor
 # Xem status
 sudo supervisorctl status

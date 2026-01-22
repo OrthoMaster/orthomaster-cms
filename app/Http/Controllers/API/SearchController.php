@@ -10,6 +10,7 @@ use App\Models\TrendingKeyword;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 
 class SearchController extends Controller
 {
@@ -23,8 +24,8 @@ class SearchController extends Controller
         $trendLimit = 5;
 
         $histories = SearchHistory::where('user_id', $userId)
-            ->orderByDesc('search_count')
             ->orderByDesc('updated_at')
+            ->orderByDesc('search_count')
             ->limit($limit)
             ->get(['id', 'keyword', 'search_count', 'updated_at']);
 
@@ -62,6 +63,8 @@ class SearchController extends Controller
         }
 
         $keyword = trim($request->keyword);
+        $keyword = mb_check_encoding($keyword, 'UTF-8') ? $keyword : mb_convert_encoding($keyword, 'UTF-8', 'UTF-8');;
+
         $userId = $request->user()->id;
 
         DB::beginTransaction();
@@ -94,8 +97,8 @@ class SearchController extends Controller
             DB::commit();
 
             // Search 
-            $categories = ['lesson', 'media'];
-            $category = $request->input('category');
+            $categories = ['all', 'lesson', 'media'];
+            $category = $request->category;
             if (!in_array($category, $categories)) {
                 $category = null;
             }
@@ -110,11 +113,11 @@ class SearchController extends Controller
             ];
 
             // Search Lessons
-            if (!$category || $category === 'lesson') {
+            if (!$category || $category === 'all' || $category === 'lesson') {
                 $lessonsQuery = Lesson::with(['module', 'module.package', 'module.package.training'])
                     ->published()
                     ->where(function ($query) use ($keyword) {
-                        $query->where('title', 'LIKE', "%{$keyword}%");
+                        $query->where('title', 'LIKE', '%' . $keyword . '%');
                     });
 
                 $lessons = $lessonsQuery->paginate($perPage, ['*'], 'lessons_page', $lessonsPage);
@@ -130,12 +133,9 @@ class SearchController extends Controller
 
             // Search Videos
             // TODO: Change
-            if (!$category || $category === 'video') {
-                $videosQuery = OldContent::where(function ($query) use ($keyword) {
-                    $query->where('type', 'flash')
-                        ->where('title', 'LIKE', "%{$keyword}%")
-                        ->orWhere('tags', 'LIKE', "%{$keyword}%");
-                });
+            if (!$category || $category === 'all' || $category === 'video') {
+                $videosQuery = OldContent::where('type', 'flash')
+                    ->where('title', 'LIKE', '%' . $keyword . '%');
 
                 $videos = $videosQuery->paginate($perPage, ['*'], 'videos_page', $videosPage);
                 $results['videos'] = [
@@ -229,5 +229,32 @@ class SearchController extends Controller
         return response()->json([
             'success' => in_array($lesson->module->package->id, $userPackageIds),
         ]);
+    }
+
+    /**
+     * Get S3 Url base on direction
+     */
+    public function getS3Url(Request $request)
+    {
+        if (!$request->has('content')) {
+            return response()->json([
+                'success' => false
+            ]);
+        };
+
+        $direction = $request->content;
+        try {
+            $url = Storage::disk('s3_root')->url($direction);
+
+            return response()->json([
+                'success' => true,
+                'url' => $url
+            ]);
+        } catch (\Exception $error) {
+            Log::channel('api')->emergency($error, ['s3-url']);
+            return response()->json([
+                'success' => false
+            ]);
+        }
     }
 }

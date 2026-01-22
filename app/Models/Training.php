@@ -31,7 +31,7 @@ class Training extends Model
                 },
                 'packages.modules.lessons' => function ($query) {
                     $query->published()->orderBy('order_dsp');
-                },
+                }
             ])
                 ->active()
                 ->orderBy('order_dsp')
@@ -39,6 +39,28 @@ class Training extends Model
         }
 
         return Training::with(['packages', 'packages.modules', 'packages.modules.lessons'])
+            ->orderBy('order_dsp')
+            ->get();
+    }
+
+    public static function getAllByUser($userId)
+    {
+        return Training::with([
+            'packages' => function ($query) {
+                $query->active();
+            },
+            'packages.modules' => function ($query) {
+                $query->active()->orderBy('order_dsp');
+            },
+            'packages.modules.lessons' => function ($query) {
+                $query->published()->orderBy('order_dsp');
+            },
+            'packages.modules.lessons.users' => function ($query) use ($userId) {
+                $query->where('user_id', $userId)
+                    ->withPivot('completed_flg', 'metadata');
+            }
+        ])
+            ->active()
             ->orderBy('order_dsp')
             ->get();
     }

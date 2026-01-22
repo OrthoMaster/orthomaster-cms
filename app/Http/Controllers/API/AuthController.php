@@ -33,6 +33,13 @@ class AuthController extends Controller
             ], 422);
         }
 
+        // Check expire
+        if ($user->student_flg && $user->expires_at < now()) {
+            return response()->json([
+                'error' => "Votre compte est actuellement expiré. Merci de nous contacter et de transmettre un nouveau certificat de scolarité pour le débloquer."
+            ], 422);
+        }
+
         // Delete if has access token
         $deviceToken = DeviceToken::where('device_id', $request->device_id)
             ->where('user_id', $user->id)
@@ -430,12 +437,15 @@ class AuthController extends Controller
         }
     }
 
-    public function logout()
+    public function logout(Request $request)
     {
-        $user = Auth::user();
+        $user = $request->user();
+        $currentToken = $user?->currentAccessToken();
 
-        // Remove current token
-        $user->currentAccessToken()?->delete();
+        if ($currentToken) {
+            DeviceToken::where('access_token_id', $currentToken->id)->delete();
+            $currentToken->delete();
+        }
 
         return response()->json([
             'status'  => 'success',

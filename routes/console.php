@@ -12,3 +12,7 @@ Artisan::command('inspire', function () {
 Schedule::command('notifications:daily-question')
     ->dailyAt('08:00')
     ->timezone('Europe/Paris');
+
+Schedule::command('notifications:new-podcast')
+    ->dailyAt('08:00')
+    ->timezone('Europe/Paris');

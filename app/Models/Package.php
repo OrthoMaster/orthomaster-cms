@@ -34,10 +34,10 @@ class Package extends Model
         if (!$this->duration) {
             return '0m';
         }
-        
+
         $hours = floor($this->duration / 60);
         $minutes = $this->duration % 60;
-        
+
         if ($hours > 0 && $minutes > 0) {
             return "{$hours} h {$minutes} m";
         } elseif ($hours > 0) {
@@ -52,9 +52,10 @@ class Package extends Model
         return $query->where('active_flg', true);
     }
 
-    public static function findById($id) {
+    public static function findById($id)
+    {
         return Package::where('id', $id)->active()->first();
-    } 
+    }
 
     public static function getAll($onlyActive = false)
     {
@@ -76,5 +77,24 @@ class Package extends Model
         return Package::with(['modules', 'modules.lessons', 'training'])
             ->orderBy('order_dsp')
             ->get();
+    }
+
+    public static function getByUser($packageId, $userId)
+    {
+        return Package::with([
+            'modules' => function ($query) {
+                $query->active()->orderBy('order_dsp');
+            },
+            'modules.lessons' => function ($query) {
+                $query->published()->orderBy('order_dsp');
+            },
+            'modules.lessons.users' => function ($query) use ($userId) {
+                $query->where('user_id', $userId)
+                    ->withPivot('completed_flg', 'metadata');
+            }
+        ])
+            ->where('id', $packageId)
+            ->active()
+            ->first();
     }
 }

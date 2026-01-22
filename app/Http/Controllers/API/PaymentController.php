@@ -117,8 +117,10 @@ class PaymentController extends Controller
                 $cartController->complete($invoice->id);
 
                 // Sync and create document
-                $invController = new InvoiceController();
-                $invController->generateInvoiceDocument($invoice->id);
+                dispatch(function () use ($invoice) {
+                    $invController = new InvoiceController();
+                    $invController->generateInvoiceDocument($invoice->id);
+                })->afterResponse();
 
                 return response()->json([
                     'success' => true,

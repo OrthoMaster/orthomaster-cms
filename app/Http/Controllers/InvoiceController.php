@@ -41,5 +41,6 @@ class InvoiceController extends Controller
 
         $generatePdfController = new GeneratePdfController();
         $generatePdfController->paymentInvoice($invoice);
+        return;
     }
 }

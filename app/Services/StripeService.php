@@ -16,7 +16,7 @@ class StripeService
     }
 
     /**
-     * Tạo Payment Intent cho invoice
+     * Create Payment Intennt from invoice
      */
     public function createPaymentIntent(Invoice $invoice)
     {
@@ -33,7 +33,7 @@ class StripeService
                 ],
             ]);
 
-            // Lưu payment intent ID vào invoice
+            // Save payment intent ID
             $invoice->update([
                 'stripe_payment_intent_id' => $paymentIntent->id,
                 'status' => Invoice::STATUS_PROCESSING,
@@ -48,7 +48,6 @@ class StripeService
             Log::error('Stripe Payment Intent Error: ' . $e->getMessage());
             
             $invoice->markAsFailed($e->getMessage());
-
             return [
                 'success' => false,
                 'error' => $e->getMessage(),

@@ -7,15 +7,39 @@ use Illuminate\Database\Eloquent\Model;
 class Lesson extends Model
 {
     protected $guarded = ['id'];
+    protected $appends = ['duration_text'];
 
     protected $casts = [
         'published_flg' => 'boolean',
         'demo_flg' => 'boolean'
     ];
 
+    public function getDurationTextAttribute()
+    {
+        if (!$this->duration) {
+            return '0m';
+        }
+        
+        $hours = floor($this->duration / 60);
+        $minutes = $this->duration % 60;
+        
+        if ($hours > 0 && $minutes > 0) {
+            return "{$hours} h {$minutes} m";
+        } elseif ($hours > 0) {
+            return "{$hours} h";
+        } else {
+            return "{$minutes} m";
+        }
+    }
+
     public function module()
     {
         return $this->belongsTo(Module::class);
+    }
+
+    public function users()
+    {
+        return $this->belongsToMany(User::class, 'lesson_user');
     }
 
     public function blocks()

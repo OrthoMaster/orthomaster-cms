@@ -120,6 +120,13 @@ class User extends \TCG\Voyager\Models\User
             ->withTimestamps();
     }
 
+    public function lessons()
+    {
+        return $this->belongsToMany(Lesson::class)
+            ->withPivot('completed_flg', 'metadata')
+            ->withTimestamps();
+    }
+
     public function carts()
     {
         return $this->hasMany(Cart::class);

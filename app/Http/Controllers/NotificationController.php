@@ -33,7 +33,20 @@ class NotificationController extends Controller
     SendExpoNotificationJob::dispatch(
       userIds: $userIds,
       title: "Nouveau devis ! ✍️",
-      body: "Un document vous a été envoyé. 📄📄📄",
+      body: "📄 Un document vous a été envoyé.",
+      data: ['action' => 'document']
+    );
+  }
+
+  /**
+   * When receive new contract
+   */
+  public function receiveNewInvoice($userIds)
+  {
+    SendExpoNotificationJob::dispatch(
+      userIds: $userIds,
+      title: "nouvelle facture !",
+      body: "📄 Une facture vous a été envoyé.",
       data: ['action' => 'document']
     );
   }
@@ -127,27 +140,35 @@ class NotificationController extends Controller
   public function sendTest(Request $request)
   {
     $id = $request->id;
+    $type = $request->type;
 
-    $this->hasNewDailyQuestion(
-      [$id],
-      "Question du jour ! ❓📝",
-      "Si vous ressentez des douleurs à l'arrière de la nuque, quelles en sont les principales causes ?"
-    );
-    $this->activeNewPackage([$id]);
-    $this->receiveNewContract([$id]);
-    $this->receiveInviteToJoinCompany([$id]);
-    $this->receiveReponseAcceptJoinCompany([$id], 'OrthoMasterTester');
-    $this->receiveReponseRefuseJoinCompany([$id], 'OrthoMasterTester');
-    $this->hasNewPodcast(
-      [$id],
-      "Nouveau podcast! 🎧",
-      "Podcast de OrthoMaster"
-    );
-    $this->hasNewVideo(
-      [$id],
-      "Nouveau Vidéo! ▶️",
-      "Lion King"
-    );
+    if ($type == 'daily-question') {
+      $this->hasNewDailyQuestion(
+        [$id],
+        "Question du jour ! ❓📝",
+        "Si vous ressentez des douleurs à l'arrière de la nuque, quelles en sont les principales causes ?"
+      );
+    }
+
+    if ($type == 'podcast') {
+      $this->hasNewPodcast(
+        [$id],
+        "Nouveau podcast! 🎧",
+        "Podcast de OrthoMaster"
+      );
+    }
+
+    // $this->activeNewPackage([$id]);
+    // $this->receiveNewContract([$id]);
+    // $this->receiveInviteToJoinCompany([$id]);
+    // $this->receiveReponseAcceptJoinCompany([$id], 'OrthoMasterTester');
+    // $this->receiveReponseRefuseJoinCompany([$id], 'OrthoMasterTester');
+
+    // $this->hasNewVideo(
+    //   [$id],
+    //   "Nouveau Vidéo! ▶️",
+    //   "Lion King"
+    // );
 
     return response()->json(true);
   }
