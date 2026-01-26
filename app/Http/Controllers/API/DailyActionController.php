@@ -17,8 +17,9 @@ class DailyActionController extends Controller
         $user = $request->user();
 
         try {
-            // Daily question
-            $dailyQuestion = DailyQuestion::whereDate('published_at', today())
+            // Daily questions
+            $dailyQuestions = DailyQuestion::whereDate('published_at', '<=', today())
+                ->whereDate('expired_at', '>=', today())
                 ->with([
                     'topic',
                     'answers',
@@ -26,41 +27,52 @@ class DailyActionController extends Controller
                         $query->where('user_id', $user->id);
                     }
                 ])
-                ->first();
-            
-            $userAnswer = null;
-            $hasTopicWithQuestion = false;
-            if ($dailyQuestion) {
+                ->get();
+
+            // Process each question
+            $questionsData = $dailyQuestions->map(function ($question) use ($user) {
                 // Find answer if user selected
-                $userAnswer = $dailyQuestion->answers->first(function ($answer) {
+                $userAnswer = $question->answers->first(function ($answer) {
                     return $answer->users->isNotEmpty();
                 });
 
                 // Check user has topic
-                $hasTopicWithQuestion = $user->topics()->where('topic_id', $dailyQuestion->topic->id)->exists();
-            }
+                $hasTopicWithQuestion = $user->topics()
+                    ->where('topic_id', $question->topic->id)
+                    ->exists();
 
-            // Podcast
-            $podcast = Podcast::whereDate('published_at', today())
+                return [
+                    'question' => $question,
+                    'user_answer_id' => $userAnswer?->id,
+                    'has_answered' => !is_null($userAnswer),
+                    'has_topic' => $hasTopicWithQuestion,
+                ];
+            });
+
+            // Podcasts
+            $podcasts = Podcast::whereDate('published_at', '<=', today())
+                ->whereDate('expired_at', '>=', today())
                 ->with('topic')
-                ->first();
-            
-            $hasTopicWithPodcast = false;
-            if ($podcast) {
-                $hasTopicWithPodcast = $user->topics()->where('topic_id', $podcast->topic->id)->exists();
-            }
-                
+                ->get();
+
+            // Process each podcast
+            $podcastsData = $podcasts->map(function ($podcast) use ($user) {
+                // Check user has topic
+                $hasTopicWithPodcast = $user->topics()
+                    ->where('topic_id', $podcast->topic->id)
+                    ->exists();
+
+                return [
+                    'podcast' => $podcast,
+                    'has_topic' => $hasTopicWithPodcast,
+                ];
+            });
 
             return response()->json([
                 'success' => true,
                 'data' => [
-                    'question' => $dailyQuestion,
-                    'podcast' => $podcast,
-                    'user_answer_id' => $userAnswer?->id,
-                    'has_answered' => !is_null($userAnswer),
-                    'has_topic_question' => $hasTopicWithQuestion,
-                    'has_topic_podcast' => $hasTopicWithPodcast,
-
+                    'questions' => $questionsData,
+                    'podcasts' => $podcastsData,
                 ]
             ]);
         } catch (\Exception $e) {

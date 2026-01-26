@@ -171,7 +171,6 @@ class SystemNotificationController extends Controller
                 $result = $controller->accept($noti->entity_id);
             }
 
-
             $noti->action = Status::ACCEPTED->value;
             $noti->save();
 

@@ -92,7 +92,7 @@ class Company extends Model
 
     public static function findByJoinCode($code)
     {
-        return Company::where('join_code', $code)->first();
+        return Company::whereNotNull('join_code')->where('join_code', $code)->first();
     }
 
     public function getMemberOrganizationIds()

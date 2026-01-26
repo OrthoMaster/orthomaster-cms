@@ -39,7 +39,7 @@ class CompanyController extends Controller
     public function getCompany(Request $request)
     {
         $company = $request->user()->companiesUserIsManager()
-            ->with('establishment:id,name')
+            ->with('establishment:id,name,image')
             ->first();
 
         $managers = $company->managers();
@@ -337,7 +337,7 @@ class CompanyController extends Controller
 
             // Invite user
             $joinRequestController = new CompanyJoinRequestController();
-            $result = $joinRequestController->invite($company->join_code, $request->user()->id, $user->id);
+            $result = $joinRequestController->invite($company->id, $request->user()->id, $user->id);
 
             if ($result == 'success') {
                 dispatch(function () use ($user) {

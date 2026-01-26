@@ -46,19 +46,20 @@ class CompanyJoinRequestController extends Controller
         return 'success';
     }
 
-    public function invite($code, $createdId, $inviteId)
+    public function invite($companyId, $createdId, $inviteId)
     {
         try {
-            $company = Company::findByJoinCode($code);
-            if (!$company) {
-                Log::warning('Not found ' . $code, ['apply-join-company', $createdId]);
-                return 'not-found';
-            }
+            // $company = Company::findByJoinCode($code);
+            // if (!$company) {
+            //     Log::warning('Not found ' . $code, ['apply-join-company', $createdId]);
+            //     return 'not-found';
+            // }
+
 
             // Check invitation request exists
             $companyRequest = CompanyJoinRequest::where('invite_flg', true)
                 ->where('user_id', $inviteId)
-                ->where('company_id', $company->id)
+                ->where('company_id', $companyId)
                 ->where('status', Status::PENDING->value)
                 ->first();
             if ($companyRequest) {
@@ -68,7 +69,7 @@ class CompanyJoinRequestController extends Controller
             // Invite
             $companyRequest = CompanyJoinRequest::create([
                 'user_id' => $inviteId,
-                'company_id' => $company->id,
+                'company_id' => $companyId,
                 'invite_flg' => true,
                 'status' => Status::PENDING->value,
                 'created_by' => $createdId
@@ -87,7 +88,7 @@ class CompanyJoinRequestController extends Controller
 
             return 'success';
         } catch (\Exception $e) {
-            Log::channel('api')->error($e->getMessage(), ['invite-member', $code, $createdId]);
+            Log::channel('api')->error($e->getMessage(), ['invite-member', 'company-'.$companyId, $createdId]);
             return 'error';
         }
     }

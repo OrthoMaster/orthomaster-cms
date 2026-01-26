@@ -55,7 +55,7 @@ class SendDailyQuestionNotifications extends Command
             SendExpoNotificationJob::dispatch(
                 userIds: $users->pluck('id')->toArray(),
                 title: $dailyQuestion->notification_title ?? 'Question du jour',
-                body: $dailyQuestion->question,
+                body: $dailyQuestion->notification_body ?? $dailyQuestion->question,
                 data: ['action' => 'daily-question'],
                 options: ['badge' => 1]
             );

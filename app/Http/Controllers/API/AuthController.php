@@ -182,9 +182,9 @@ class AuthController extends Controller
      */
     public function more(Request $request)
     {
-        $companyIsMember = $request->user()->companiesUserIsMember()
+        $companiesIsMember = $request->user()->companiesUserIsMember()
             ->with('establishment:id,name')
-            ->first();
+            ->get();
         $companyIsManager = $request->user()->companiesUserIsManager()
             ->with('establishment:id,name')
             ->first();
@@ -195,7 +195,7 @@ class AuthController extends Controller
         return response()->json([
             'success' => true,
             'data' => [
-                'companyIsMember' => $companyIsMember,
+                'companiesIsMember' => $companiesIsMember,
                 'companyIsManager' => $companyIsManager,
                 'hasNotifications' => $hasNotifications,
                 'estabs' => $estabs

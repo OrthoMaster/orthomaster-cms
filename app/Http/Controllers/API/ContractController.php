@@ -181,7 +181,7 @@ class ContractController extends Controller
                         $company,
                         now()->format('d/m/Y') . ' - ' . now()->addMonth()->format('d/m/Y'),
                         $organization->name,
-                        $cart->users,
+                        $cart->members,
                         $group,
                         Organization::OPCO_UNIT_PRICE->value,
                         (float) setting('system.tva'),

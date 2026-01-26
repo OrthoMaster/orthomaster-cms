@@ -193,11 +193,11 @@ class CartController extends Controller
             if ($id == 1) { // OPCO-EP
                 array_push($methods, [
                     'id' => $id,
-                    'title' => 'Faire dossier OPCO',
+                    'title' => 'Faire dossier OPCO-EP',
                     'description' => 'Financement par OPCO-EP',
                     'terms' => [
-                        'Documents requis: devis, convention, programme de formation',
-                        'Minimum duration: 4 heures',
+                        'Documents requis : convention de formation (devis + programme signés)',
+                        'Durée minimum du programme : 4 heures',
                     ]
                 ]);
             }
@@ -206,10 +206,10 @@ class CartController extends Controller
                 array_push($methods, [
                     'id' => $id,
                     'title' => 'Faire dossier FIFPL',
-                    'description' => 'Financement par OPCO-EP',
+                    'description' => 'Financement par FIFPL',
                     'terms' => [
-                        'Documents requis: devis, convention, programme de formation',
-                        'Minimum duration: 4 heures',
+                        'Documents requis : convention de formation (devis signé + programme)',
+                        'Durée minimum du programme : 3 heures',
                     ]
                 ]);
             }

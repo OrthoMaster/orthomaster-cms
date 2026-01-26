@@ -185,7 +185,7 @@
                                             <th>Date de naissance</th>
                                             <th>Fonction</th>
                                             <th>Organisme</th>
-                                            <th>SECU</th>
+                                            <th>SECU / NIR</th>
                                             <th>Statut</th>
                                             <th class="actions text-right dt-not-orderable">Actions</th>
                                         </tr>

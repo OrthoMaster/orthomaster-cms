@@ -55,7 +55,7 @@ class SendNewPodcastNotifications extends Command
             SendExpoNotificationJob::dispatch(
                 userIds: $users->pluck('id')->toArray(),
                 title: $podcast->notification_title ?? 'Nouveau podcast 🎧',
-                body: $podcast->title,
+                body: $podcast->notification_body ?? $podcast->title,
                 data: ['action' => 'podcast'],
                 options: ['badge' => 1]
             );
