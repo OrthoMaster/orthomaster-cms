@@ -14,6 +14,7 @@ use App\Organization;
 use App\Status;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
@@ -98,7 +99,7 @@ class ContractController extends Controller
             if ($pdfUrl) {
                 Contract::updateOrCreate(
                     [
-                        'no' => 'Programme.pdf',
+                        'no' => 'Programme_' . $cart->id . '-' . now()->format('ymdHi') . '.pdf',
                         'cart_id' => $cart->id,
                     ],
                     [
@@ -127,6 +128,14 @@ class ContractController extends Controller
 
                 $notificationController->receiveNewContract([$cart->user_id]);
                 $notificationController->activeNewPackage($cart->member_ids);
+            })->afterResponse();
+
+            // Send email
+            $userId = $request->user()->id;
+            $userEmail = $request->user()->email;
+            dispatch(function () use ($userId, $userEmail, $cart) {
+                Mail::to($userEmail)
+                    ->send(new \App\Mail\SignedContractMail($userId, $cart->id));
             })->afterResponse();
 
             return response()->json([
@@ -180,7 +189,7 @@ class ContractController extends Controller
                         now()->addMonth()->format('d/m/Y'),
                         $company,
                         now()->format('d/m/Y') . ' - ' . now()->addMonth()->format('d/m/Y'),
-                        $organization->name,
+                        $organization->id,
                         $cart->members,
                         $group,
                         Organization::OPCO_UNIT_PRICE->value,
@@ -229,12 +238,12 @@ class ContractController extends Controller
                             now()->addMonth()->format('d/m/Y'),
                             $company,
                             now()->addMonth()->format('d/m/Y') . ' - ' . now()->addMonth(2)->format('d/m/Y'),
-                            $organization->name,
+                            $organization->id,
                             [$user],
                             $group,
                             Organization::FIFPL_UNIT_PRICE->value,
                             (float) setting('system.tva'),
-                            $cart->calculateGroupDuration($group),
+                            $cart->duration_total_days,
                             $signatureLink,
                             $signatory
                         );
@@ -281,7 +290,7 @@ class ContractController extends Controller
                             now()->addMonth()->format('d/m/Y'),
                             $company,
                             now()->format('d/m/Y') . '- ' . now()->addMonth()->format('d/m/Y'),
-                            $organization->name,
+                            $organization->id,
                             [$user],
                             $group,
                             (float) setting('system.unit_price'),
@@ -337,5 +346,15 @@ class ContractController extends Controller
                 'status' => $status
             ]
         );
+    }
+
+    public function test()
+    {
+        $userEmail = 'guillaume@orthomaster.fr';
+        $userId = 75;
+        $cartId = 48;
+
+        Mail::to($userEmail)
+            ->send(new \App\Mail\SignedContractMail($userId, $cartId));
     }
 }

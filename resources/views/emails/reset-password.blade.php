@@ -4,7 +4,7 @@
 
 @section('content')
     <div class="content">
-        <div class="greeting">Bonjour ,</div>
+        <div class="greeting">Bonjour,</div>
 
         <p>Nous avons reçu une demande de réinitialisation du mot de passe pour votre compte avec l'adresse e-mail :
             <strong>{{ $email }}</strong>

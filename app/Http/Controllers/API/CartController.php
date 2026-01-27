@@ -427,24 +427,4 @@ class CartController extends Controller
             ], 500);
         }
     }
-
-    // public function completeWithMembers($invoiceId)
-    // {
-    //     // Disable cart to sync and create invoice paper
-    //     $cart = Cart::where('invoice_id', $invoiceId)->first();
-
-    //     if (!$cart) {
-    //         return false;
-    //     }
-    //     $cart->status = Status::DELETED->value;
-    //     $cart->save();
-
-    //     foreach ($cart->items as $package) {
-    //         foreach ($cart->members as $user) {
-    //             $user->packages()->syncWithoutDetaching([$package->package_id]);
-    //         }
-    //     }
-
-    //     return true;
-    // }
 }

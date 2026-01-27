@@ -336,44 +336,87 @@
     <table class="items-table">
         <thead>
             <tr>
-                <th style="width: 45%;">DESCRIPTION</th>
-                <th class="text-right" style="width: 20%;">PRIX UNITAIRE</th>
-                <th class="text-right" style="width: 15%;">QUANTITÉ</th>
-                <th class="text-right" style="width: 20%;">MONTANT HT</th>
+                @if ($organizationId == '2')
+                    <th style="width: 50%;">DESCRIPTION</th>
+                    <th class="text-right" style="width: 20%;">QUANTITÉ</th>
+                    <th class="text-right" style="width: 30%;">HEURES</th>
+                @else
+                    <th style="width: 45%;">DESCRIPTION</th>
+                    <th class="text-right" style="width: 20%;">PRIX UNITAIRE</th>
+                    <th class="text-right" style="width: 15%;">QUANTITÉ</th>
+                    <th class="text-right" style="width: 20%;">MONTANT HT</th>
+                @endif
             </tr>
         </thead>
         <tbody>
             @foreach ($items as $item)
                 <tr>
                     <td>{{ $item->package->name }}</td>
-                    <td class="text-right">
-                        {{ number_format(($item->package->duration / 60) * $unitPrice, 2, ',', ' ') }} €
-                    </td>
-                    <td class="text-right">{{ number_format(sizeof($members), 2, ',', ' ') }}
-                        {{ sizeof($members) > 1 ? 'Unité(s)' : 'Unité' }}</td>
-                    <td class="text-right">
-                        {{ number_format(($item->package->duration / 60) * $unitPrice * sizeof($members), 2, ',', ' ') }}
-                        €</td>
+
+                    @if ($organizationId == '2')
+                        <td class="text-right">{{ number_format(sizeof($members), 2, ',', ' ') }}
+                            {{ sizeof($members) > 1 ? 'Unité(s)' : 'Unité' }}</td>
+                        <td class="text-right">{{ number_format($item->package->duration / 60, 1, ',', ' ') }} h</td>
+                    @else
+                        <td class="text-right">
+                            {{ number_format(($item->package->duration / 60) * $unitPrice, 2, ',', ' ') }} €
+                        </td>
+                        <td class="text-right">{{ number_format(sizeof($members), 2, ',', ' ') }}
+                            {{ sizeof($members) > 1 ? 'Unité(s)' : 'Unité' }}</td>
+                        <td class="text-right">
+                            {{ number_format(($item->package->duration / 60) * $unitPrice * sizeof($members), 2, ',', ' ') }}
+                            €</td>
+                    @endif
                 </tr>
             @endforeach
 
-            <!-- Subtotal Row -->
-            <tr class="total-row">
-                <td colspan="3" class="text-right">Montant hors taxes</td>
-                <td class="text-right">{{ number_format($amount_ht, 2, ',', ' ') }} €</td>
-            </tr>
+            <!-- FIFPL -->
+            @if ($organizationId == '2')
+                <tr class="total-row">
+                    <td colspan="2" class="text-right">Nombre de jours</td>
+                    <td class="text-right">{{ number_format($durationTotal, 1, ',', ' ') }} j</td>
+                </tr>
+                <tr class="total-row">
+                    <td colspan="2" class="text-right">Prix unitaire par jour</td>
+                    <td class="text-right">{{ number_format($unitPrice, 2, ',', ' ') }} €</td>
+                </tr>
 
-            <!-- TVA Row -->
-            <tr class="total-row">
-                <td colspan="3" class="text-right">TVA {{ $tva }}%</td>
-                <td class="text-right">{{ number_format($tva_amount, 2, ',', ' ') }} €</td>
-            </tr>
+                <!-- Subtotal Row -->
+                <tr class="total-row">
+                    <td colspan="2" class="text-right">Montant hors taxes</td>
+                    <td class="text-right">{{ number_format($amount_ht, 2, ',', ' ') }} €</td>
+                </tr>
 
-            <!-- Total Row -->
-            <tr class="grand-total">
-                <td colspan="3" class="text-right"><strong>Total</strong></td>
-                <td class="text-right"><strong>{{ number_format($amount, 2, ',', ' ') }} €</strong></td>
-            </tr>
+                <!-- TVA Row -->
+                <tr class="total-row">
+                    <td colspan="2" class="text-right">TVA {{ $tva }}%</td>
+                    <td class="text-right">{{ number_format($tva_amount, 2, ',', ' ') }} €</td>
+                </tr>
+
+                <!-- Total Row -->
+                <tr class="grand-total">
+                    <td colspan="2" class="text-right"><strong>Total</strong></td>
+                    <td class="text-right"><strong>{{ number_format($amount, 2, ',', ' ') }} €</strong></td>
+                </tr>
+            @else
+                <!-- Subtotal Row -->
+                <tr class="total-row">
+                    <td colspan="3" class="text-right">Montant hors taxes</td>
+                    <td class="text-right">{{ number_format($amount_ht, 2, ',', ' ') }} €</td>
+                </tr>
+
+                <!-- TVA Row -->
+                <tr class="total-row">
+                    <td colspan="3" class="text-right">TVA {{ $tva }}%</td>
+                    <td class="text-right">{{ number_format($tva_amount, 2, ',', ' ') }} €</td>
+                </tr>
+
+                <!-- Total Row -->
+                <tr class="grand-total">
+                    <td colspan="3" class="text-right"><strong>Total</strong></td>
+                    <td class="text-right"><strong>{{ number_format($amount, 2, ',', ' ') }} €</strong></td>
+                </tr>
+            @endif
         </tbody>
     </table>
 

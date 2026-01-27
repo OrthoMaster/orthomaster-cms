@@ -72,7 +72,7 @@ class GeneratePdfController extends Controller
         $qExpDate,
         $client,
         $qRangeDate,
-        $organizationName,
+        $organizationId,
         $members,
         $items,
         $unitPrice,
@@ -81,8 +81,14 @@ class GeneratePdfController extends Controller
         $signatureLink = null,
         $signatory = null,
     ) {
-        $amountHT = round($unitPrice * $durationTotal / 60, 2);
-        $tvaAmount = round(round($unitPrice * $durationTotal / 60, 2) * $tva / 100, 2);
+        if ($organizationId == '2') {
+            $amountHT = round($unitPrice * $durationTotal, 2);
+            $tvaAmount = round(round($unitPrice * $durationTotal, 2) * $tva / 100, 2);
+        } else {
+            $amountHT = round($unitPrice * $durationTotal / 60, 2);
+            $tvaAmount = round(round($unitPrice * $durationTotal / 60, 2) * $tva / 100, 2);
+        }
+        
 
         $data = [
             'company' => $this::COMPANY,
@@ -91,10 +97,11 @@ class GeneratePdfController extends Controller
             'exp_date' => $qExpDate,
             'client' => $client,
             'rangeDate' => $qRangeDate,
-            'organizationName' => $organizationName,
+            'organizationId' => $organizationId,
             'members' => $members,
             'items' => $items,
             'unitPrice' => $unitPrice,
+            'durationTotal' => $durationTotal,
             'amount_ht' => $amountHT,
             'tva' => $tva,
             'tva_amount' => $tvaAmount,
@@ -159,7 +166,7 @@ class GeneratePdfController extends Controller
                     $pdf->Write(0, $date);
 
                     // Signature
-                    $pdf->Image($signatureLink, 100, 240, 60);
+                    $pdf->Image($signatureLink, 100, 240, 45, 45);
                 }
             }
 

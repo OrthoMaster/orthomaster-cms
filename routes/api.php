@@ -26,20 +26,20 @@ Route::get('/user', function (Request $request) {
     return $request->user();
 })->middleware('auth:sanctum');
 
-Route::get('/quotation', [QuotationController::class, 'getContent']);
-Route::get('/quotation/sample', [QuotationController::class, 'generateSample']);
-Route::get('/quotation/sample/signed', [QuotationController::class, 'addSignature']);
+// Route::get('/quotation', [QuotationController::class, 'getContent']);
+// Route::get('/quotation/sample', [QuotationController::class, 'generateSample']);
+// Route::get('/quotation/sample/signed', [QuotationController::class, 'addSignature']);
+
+// Lesson
+// Route::get('/lessons/findContentId/{contentId}', [APILessonController::class, 'findByContentId']);
+// Route::get('/lessons/{id}/content', [APILessonController::class, 'getContent']);
+
+// Chatbot search temp
+// Route::get('/search/trainings', [ChatbotSearchController::class, 'searchTrainings']);
+// Route::get('/search/videos', [ChatbotSearchController::class, 'searchVideos']);
 
 // Stripe webhook
 Route::post('/webhooks/stripe', [StripeWebhookController::class, 'handleWebhook']);
-
-// Lesson
-Route::get('/lessons/findContentId/{contentId}', [APILessonController::class, 'findByContentId']);
-Route::get('/lessons/{id}/content', [APILessonController::class, 'getContent']);
-
-// Chatbot search temp
-Route::get('/search/trainings', [ChatbotSearchController::class, 'searchTrainings']);
-Route::get('/search/videos', [ChatbotSearchController::class, 'searchVideos']);
 
 // Auth
 Route::prefix('auth')->group(function () {
@@ -160,7 +160,6 @@ Route::middleware(['auth:sanctum'])->group(function () {
         
     });
 });
-
 
 Route::group(['prefix' => 'admin', 'middleware' => ['cmsAdmin']], function () {
     // Test send notification

@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Organization;
 use App\Status;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Log;
 
 class Cart extends Model
 {
@@ -12,6 +13,7 @@ class Cart extends Model
     protected $appends = ['duration_text', 'member_ids', 'members_grouped', 'contract_creatable'];
 
     protected $casts = [
+        'duration_total_days' => 'decimal:1',
         'price_total_ht' => 'decimal:2',
         'tva_total' => 'decimal:2',
         'price_total' => 'decimal:2',
@@ -86,14 +88,16 @@ class Cart extends Model
             return false;
         }
 
+        // OPCP-EP - duration can split
         if ($this->payment_type == '1') {
             return $this->duration_total % Organization::OPCO_MAX_DURATION->value == 0
                 || $this->duration_total % Organization::OPCO_MAX_DURATION->value >= Organization::OPCO_MIN_DURATION->value;
         }
 
+        // FIFPL - duration in range
         if ($this->payment_type == '2') {
-            return $this->duration_total % Organization::FIFPL_MAX_DURATION->value == 0
-                || $this->duration_total % Organization::FIFPL_MAX_DURATION->value >= Organization::FIFPL_MIN_DURATION->value;
+            return $this->duration_total <= Organization::FIFPL_MAX_DURATION->value
+                && $this->duration_total >= Organization::FIFPL_MIN_DURATION->value;
         }
 
         return true;
@@ -179,7 +183,8 @@ class Cart extends Model
                 return $items->package->duration ?? 0;
             });
 
-        $this->duration_total = $totalDuration;
+        $this->duration_total = $totalDuration; // mins
+        $this->duration_total_days = $this->fifplConvertDuration($totalDuration / 60);
         $this->save();
 
         return $totalDuration;
@@ -190,8 +195,15 @@ class Cart extends Model
         $unitPrice = (float) setting('system.unit_price');
         $tva = (float) setting('system.tva');
         $cntMembers = sizeof($this->members) > 0 ? sizeof($this->members) : 1;
+        $totalHT = 0;
 
-        $totalHT = round(($this->duration_total / 60) * $cntMembers * $unitPrice, 2);
+        // FIFPL
+        if ($this->payment_type == '2' && $this->duration_total_days) {
+            $unitPrice = round(Organization::FIFPL_UNIT_PRICE->value / 2, 2); // 1/2 day
+            $totalHT = round(($this->duration_total_days * Organization::FIFPL_UNIT_PRICE->value), 2);
+        } else {
+            $totalHT = round(($this->duration_total / 60) * $cntMembers * $unitPrice, 2);
+        }
 
         $this->unit_price = $unitPrice;
         $this->tva = $tva;
@@ -274,4 +286,35 @@ class Cart extends Model
             return $item->package->duration ?? 0;
         });
     }
+
+    public function fifplConvertDuration($hrs) {
+        if ($hrs < 3 || $hrs > 20) {
+            return null;
+        }
+
+        if ($hrs <= 5) {
+            return 0.5;
+        }
+
+        if ($hrs <= 8) {
+            return 1;
+        }
+
+        if ($hrs <= 11) {
+            return 1.5;
+        }
+
+        if ($hrs <= 14) {
+            return 2;
+        }
+
+        if ($hrs <= 17) {
+            return 2.5;
+        }
+
+        if ($hrs <= 20) {
+            return 3;
+        }
+    } 
+
 }
