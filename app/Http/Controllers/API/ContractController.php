@@ -97,46 +97,72 @@ class ContractController extends Controller
                 now()->format('d/m/Y')
             );
             if ($pdfUrl) {
+                $cartNo = str_pad($cart->id, 3, '0', STR_PAD_LEFT);
+
                 Contract::updateOrCreate(
                     [
-                        'no' => 'Programme_' . $cart->id . '-' . now()->format('ymdHi') . '.pdf',
+                        'no' => 'Programme_' . now()->format('ym') . '-' . $cartNo,
                         'cart_id' => $cart->id,
                     ],
                     [
                         'document' => $pdfUrl,
                         'company_id' => $company->id,
                         'created_by' => $request->user()->id,
+                        'beneficiary_id' => $request->user()->id,
                         'type' => 'programme',
                         'status' => Status::ACTIVE->value
                     ]
                 );
             }
 
-            // Active packages
-            $itemIds = $cart->items()->pluck('package_id')->toArray();
-            foreach ($cart->members as $member) {
-                $member->packages()->syncWithoutDetaching($itemIds);
+            // Active packages - only OPCO-EP and FIFPL
+            if ($cart->payment_type == '1' || $cart->payment_type == '2') {
+                $itemIds = $cart->items()->pluck('package_id')->toArray();
+                foreach ($cart->members as $member) {
+                    $member->packages()->syncWithoutDetaching($itemIds);
+                }
+
+                // Notification
+                dispatch(function () use ($cart) {
+                    $notificationController = new \App\Http\Controllers\NotificationController(
+                        app(\App\Services\ExpoNotificationService::class)
+                    );
+
+                    if ($cart->payment_type == '2') { // FIFPL - Send to leader and members
+                        $notificationController->receiveNewContract($cart->member_ids);
+                    } else {
+                        $notificationController->receiveNewContract([$cart->user_id]);
+                    }
+
+                    $notificationController->activeNewPackage($cart->member_ids);
+                })->afterResponse();
             }
-            $cart->status = Status::DELETED->value;
+            $cart->status = Status::DELETED->value; // block Cart
             $cart->save();
 
-            // Notification
-            dispatch(function () use ($cart) {
-                $notificationController = new \App\Http\Controllers\NotificationController(
-                    app(\App\Services\ExpoNotificationService::class)
-                );
-
-                $notificationController->receiveNewContract([$cart->user_id]);
-                $notificationController->activeNewPackage($cart->member_ids);
-            })->afterResponse();
 
             // Send email
-            $userId = $request->user()->id;
-            $userEmail = $request->user()->email;
-            dispatch(function () use ($userId, $userEmail, $cart) {
-                Mail::to($userEmail)
-                    ->send(new \App\Mail\SignedContractMail($userId, $cart->id));
-            })->afterResponse();
+            $leaderId = $request->user()->id;
+            $leaderEmail = $request->user()->email;
+
+
+            // FIFPL - Send to leader and members
+            if ($cart->payment_type == '2') {
+                foreach ($cart->members as $member) {
+                    $memberId = $member->id;
+                    $memberEmail = $member->email;
+
+                    dispatch(function () use ($memberId, $memberEmail, $cart) {
+                        Mail::to($memberEmail)
+                            ->send(new \App\Mail\SignedContractMail($memberId, $cart->id, $cart->payment_type));
+                    })->afterResponse();
+                }
+            } else {
+                dispatch(function () use ($leaderId, $leaderEmail, $cart) {
+                    Mail::to($leaderEmail)
+                        ->send(new \App\Mail\SignedContractMail($leaderId, $cart->id, $cart->payment_type));
+                })->afterResponse();
+            }
 
             return response()->json([
                 'success' => true,
@@ -161,7 +187,8 @@ class ContractController extends Controller
             $user = User::find($userId);
             $company = $user->companiesUserIsManager()->first();
 
-            $cartNo = 'T' . str_pad($cart->id, 4, '0', STR_PAD_LEFT);
+            $cartNo = str_pad($cart->id, 3, '0', STR_PAD_LEFT);
+            $companyNo = str_pad($company->id, 3, '0', STR_PAD_LEFT);
 
             $reponseData = [];
 
@@ -181,7 +208,7 @@ class ContractController extends Controller
                 $pdfLinks = [];
 
                 foreach ($itemGroups as $key => $group) {
-                    $qNo = $cartNo . '_' . $organization->code . ($contractTotal > 1 ? '_' . ($key + 1) : '');
+                    $qNo = 'D-' . now()->format('ym') . '-' . $organization->code . '-' . $companyNo . '-' . $cartNo . ($contractTotal > 1 ? '_' . ($key + 1) : '');
                     $pdf = $generatePdfController->quotationTemp(
                         $cart->id,
                         $qNo,
@@ -204,7 +231,7 @@ class ContractController extends Controller
 
                         // Signed
                         if ($signatory) {
-                            $this->storeSignedContract($qNo, $cart->id, $pdf, $company->id, $organization->name, $userId, 'signed', Status::ACTIVE->value);
+                            $this->storeSignedContract($qNo, $cart->id, $pdf, $company->id, $organization->name, $userId, $userId, 'signed', Status::ACTIVE->value);
                         }
                     }
                 }
@@ -228,9 +255,10 @@ class ContractController extends Controller
 
                 foreach ($cart->members as $user) {
                     $pdfLinks = [];
+                    $userNo = str_pad($user->id, 3, '0', STR_PAD_LEFT);
 
                     foreach ($itemGroups as $key => $group) {
-                        $qNo = $cartNo . '_' . $organization->code . '_' . $user->name . '-' . $user->id . ($contractTotal > 1 ? '_' . ($key + 1) : '');
+                        $qNo = 'D-' . now()->format('ym') . '-' . $organization->code . '-' . $userNo . '-' . $cartNo . ($contractTotal > 1 ? '_' . ($key + 1) : '');
                         $pdf = $generatePdfController->quotationTemp(
                             $cart->id,
                             $qNo,
@@ -253,7 +281,7 @@ class ContractController extends Controller
 
                             // Signed
                             if ($signatory) {
-                                $this->storeSignedContract($qNo, $cart->id, $pdf, $company->id, $organization->name, $userId, 'signed', Status::ACTIVE->value);
+                                $this->storeSignedContract($qNo, $cart->id, $pdf, $company->id, $organization->name, $userId, $user->id, 'signed', Status::ACTIVE->value);
                             }
                         }
                     }
@@ -272,16 +300,17 @@ class ContractController extends Controller
                 ));
             }
 
-
+            // Other organizations
             if ($cart->payment_type != '1' && $cart->payment_type != '2') {
                 $itemGroups = $cart->groupItemsByDurationBestFit();
                 $contractTotal = sizeof($itemGroups);
 
                 foreach ($cart->members as $user) {
                     $pdfLinks = [];
+                    $userNo = str_pad($user->id, 3, '0', STR_PAD_LEFT);
 
                     foreach ($itemGroups as $group) {
-                        $qNo = $cartNo . '_' . $user->name . '-' . $user->id;
+                        $qNo = 'D-' . now()->format('ym') . '-' . $organization->code . '-' . $userNo . '-' . $cartNo;
 
                         $pdf = $generatePdfController->quotationTemp(
                             $cart->id,
@@ -304,7 +333,7 @@ class ContractController extends Controller
                             array_push($pdfLinks, $pdf);
 
                             if ($signatory) {
-                                $this->storeSignedContract($qNo, $cart->id, $pdf, $company->id, $organization->name, $userId, 'signed', Status::ACTIVE->value);
+                                $this->storeSignedContract($qNo, $cart->id, $pdf, $company->id, $organization->name, $userId, $userId, 'signed', Status::ACTIVE->value);
                             }
                         }
                     }
@@ -330,7 +359,7 @@ class ContractController extends Controller
         }
     }
 
-    private function storeSignedContract($no, $cartId, $document, $companyId, $organizationName, $createdById, $type, $status)
+    private function storeSignedContract($no, $cartId, $document, $companyId, $organizationName, $createdById, $beneficiaryId, $type, $status)
     {
         return Contract::updateOrCreate(
             [
@@ -343,18 +372,9 @@ class ContractController extends Controller
                 'organization' => $organizationName,
                 'created_by' => $createdById,
                 'type' => $type,
-                'status' => $status
+                'status' => $status,
+                'beneficiary_id' => $beneficiaryId,
             ]
         );
-    }
-
-    public function test()
-    {
-        $userEmail = 'guillaume@orthomaster.fr';
-        $userId = 75;
-        $cartId = 48;
-
-        Mail::to($userEmail)
-            ->send(new \App\Mail\SignedContractMail($userId, $cartId));
     }
 }

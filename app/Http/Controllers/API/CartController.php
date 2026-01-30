@@ -109,7 +109,7 @@ class CartController extends Controller
     public function clear(Request $request)
     {
         try {
-            $cart = Cart::findByUser(Auth::user()->id, $request->cart_id);
+            $cart = Cart::findByUser(Auth::user()->id, $request->cartId);
             $cart->items()->delete();
             $cart->members()->delete();
 

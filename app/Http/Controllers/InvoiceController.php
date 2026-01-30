@@ -33,7 +33,7 @@ class InvoiceController extends Controller
             $yearlyInvoiceCount = Invoice::whereYear('created_at', $currentYear)->count() + 1;
             
             // Format: P + 2 no year + 4 no
-            $invoiceNo = strtoupper('P' . substr($currentYear, -2) . str_pad($yearlyInvoiceCount, 4, '0', STR_PAD_LEFT));
+            $invoiceNo = strtoupper('F-' . substr($currentYear, -2) .'-'. str_pad($yearlyInvoiceCount, 4, '0', STR_PAD_LEFT));
         } while (Invoice::where('no', $invoiceNo)->exists());
        
         $invoice->no = $invoiceNo;

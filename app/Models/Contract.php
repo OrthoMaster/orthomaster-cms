@@ -18,6 +18,11 @@ class Contract extends Model
         return $this->belongsTo(User::class, 'id', 'created_by');
     }
 
+    public function beneficiary()
+    {
+        return $this->belongsTo(User::class, 'id', 'beneficiary_id');
+    }
+
     public function company()
     {
         return $this->belongsTo(Company::class);
@@ -28,20 +33,11 @@ class Contract extends Model
         return $this->belongsTo(Cart::class);
     }
 
-    public static function getByUser($userId) {
-        $user = User::find($userId);
-        if (!$user) {
-            return null;
-        }
-
-        $company = $user->companiesUserIsManager()->first();
-        if (!$company) {
-            return null;
-        }
-
-        return Contract::where('company_id', $company->id)
-            ->where('status', Status::ACTIVE->value)
-            ->orderBy('updated_at')
+    public static function getByUser($userId)
+    {
+        return Contract::where('created_by', $userId)
+            ->orWhere('beneficiary_id', $userId)
+            ->orderBy('updated_at', 'desc')
             ->get();
     }
 }

@@ -40,6 +40,8 @@ class PaymentController extends Controller
             ], 403);
         }
 
+
+
         if (!$cart->invoice_id) {
             $invoice = Invoice::create([
                 'user_id' => $request->user()->id,
@@ -51,11 +53,15 @@ class PaymentController extends Controller
         } else {
             $invoice = Invoice::find($cart->invoice_id);
 
+            // Double check - recreate invoice
             if (!$invoice) {
-                return response()->json([
-                    'success' => false,
-                    'message' => "La facture n'existe pas.",
-                ], 403);
+                $invoice = Invoice::create([
+                    'user_id' => $request->user()->id,
+                    'amount' => $request->amount,
+                    'currency' => 'eur'
+                ]);
+                $cart->invoice_id = $invoice->id;
+                $cart->save();
             }
 
             $invoice->amount = $request->amount;

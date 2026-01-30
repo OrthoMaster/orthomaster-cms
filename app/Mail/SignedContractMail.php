@@ -18,14 +18,16 @@ class SignedContractMail extends Mailable
 
     public $userId;
     public $cartId;
+    public $paymentType;
 
     /**
      * Create a new message instance.
      */
-    public function __construct(string $userId, string $cartId)
+    public function __construct(string $userId, string $cartId, string $paymentType)
     {
         $this->userId = $userId;
         $this->cartId = $cartId;
+        $this->paymentType = $paymentType;
     }
 
     /**
@@ -33,8 +35,16 @@ class SignedContractMail extends Mailable
      */
     public function envelope(): Envelope
     {
+        $subject = "Votre convention de formation";
+        if ($this->paymentType == '1') {
+            $subject = "Votre convention OPCO-EP";
+        }
+        if ($this->paymentType == '2') {
+            $subject = "Votre convention de formation FIFPL";
+        }
+
         return new Envelope(
-            subject: 'Les devis',
+            subject: $subject,
         );
     }
 
@@ -44,9 +54,17 @@ class SignedContractMail extends Mailable
     public function content(): Content
     {
         $user = User::find($this->userId);
+        $view = 'signed-contract';
+
+        if ($this->paymentType == '1') {
+            $view = "signed-contract-opco";
+        }
+        if ($this->paymentType == '2') {
+            $view = "signed-contract-fifpl";
+        }
 
         return new Content(
-            view: 'emails.signed-contract',
+            view: 'emails.'.$view,
             with: [
                 'mailTo' => $user->email, // footer
                 'user' => $user,
@@ -62,12 +80,29 @@ class SignedContractMail extends Mailable
     public function attachments(): array
     {
         $attachments = [];
-        $contracts = Contract::where('cart_id', $this->cartId)->get();
+
+        // Contracts
+        $contracts = Contract::where('cart_id', $this->cartId)
+            // ->where(function ($query) {
+            //     $query->where('created_by', $this->userId)
+            //         ->orWhere('beneficiary_id', $this->userId);
+            // })
+            ->where('beneficiary_id', $this->userId)
+            ->where('type', 'signed')
+            ->get();
 
         foreach ($contracts as $contract) {
             if (!empty($contract->document)) {
                 $attachments[] = Attachment::fromPath($contract->document);
             }
+        }
+
+        // Programme Pdf
+        $progPdf = Contract::where('cart_id', $this->cartId)
+            ->where('type', 'programme')
+            ->first();
+        if ($progPdf) {
+            $attachments[] = Attachment::fromPath($progPdf->document);
         }
 
         return $attachments;
