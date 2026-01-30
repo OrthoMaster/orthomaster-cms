@@ -55,13 +55,13 @@ return [
     ],
 
     'stripe' => [
-        // 'key' => env('STRIPE_KEY'),
-        // 'secret' => env('STRIPE_SECRET'),
-        // 'webhook_secret' => env('STRIPE_WEBHOOK_SECRET'),
+        'key' => env('STRIPE_KEY'),
+        'secret' => env('STRIPE_SECRET'),
+        'webhook_secret' => env('STRIPE_WEBHOOK_SECRET'),
         
-        'key' => env('STRIPE_KEY_TEST'),
-        'secret' => env('STRIPE_SECRET_TEST'),
-        'webhook_secret' => env('STRIPE_WEBHOOK_SECRET_TEST'),
+        // 'key' => env('STRIPE_KEY_TEST'),
+        // 'secret' => env('STRIPE_SECRET_TEST'),
+        // 'webhook_secret' => env('STRIPE_WEBHOOK_SECRET_TEST'),
     ],
 
 ];

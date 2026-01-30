@@ -3,7 +3,6 @@ ps aux | grep apache2
 sudo chown -R ubuntu:ubuntu /var/www/laravel
 sudo chmod -R 775 /var/www/laravel
 
-
 # Rewrite .env
 cd /var/www/laravel
 sudo nano .env
