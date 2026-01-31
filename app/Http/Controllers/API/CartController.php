@@ -116,7 +116,7 @@ class CartController extends Controller
             if ($cart->invoice_id) {
                 $invoice = Invoice::find($cart->invoice_id);
                 if ($invoice) {
-                    $invoice->destroy();
+                    $invoice->delete();
                 }
             }
 

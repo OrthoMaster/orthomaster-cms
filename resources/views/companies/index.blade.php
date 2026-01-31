@@ -140,13 +140,6 @@
                                         @endif
                                     </td>
                                     <td class="text-right">
-                                        {{-- @if (!$company->student_flg)
-                                            <a href="{{ route('account.training-permissions', $company->id) }}"
-                                                class="btn btn-sm btn-primary">
-                                                <i class="voyager-book"></i>
-                                                <span class="hidden-xs hidden-sm">Formations</span>
-                                            </a>
-                                        @endif --}}
                                         <a href="{{ route('voyager.companies.show', $company->id) }}"
                                             class="btn btn-sm btn-warning">
                                             <i class="voyager-people"></i>

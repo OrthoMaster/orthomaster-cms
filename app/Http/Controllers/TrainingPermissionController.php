@@ -18,7 +18,7 @@ class TrainingPermissionController extends Controller
         }
         $trainings = Training::getAll();
 
-        return view('training-permissions.edit-with-user', compact('trainings', 'user'));
+        return view('package-permissions.edit-with-user', compact('trainings', 'user'));
     }
 
     public function updateWithUser($id, Request $request)
@@ -34,49 +34,5 @@ class TrainingPermissionController extends Controller
             'message'    => 'Mis à jour avec succès !',
             'alert-type' => 'success',
         ]);
-    }
-
-    public function storeWithCompany($id)
-    {
-        $company = Company::where('id', $id)->with('packages')->first();
-        if (!$company) {
-            return abort(404);
-        }
-        $trainings = Training::getAll();
-
-        return view('training-permissions.edit-with-company', compact('trainings', 'company'));
-    }
-
-    public function updateWithCompany($id, Request $request)
-    {
-        $company = Company::where('id', $id)->with(['packages', 'users'])->first();
-        if (!$company) {
-            return abort(404);
-        }
-
-        DB::beginTransaction();
-        try {
-            $company->packages()->sync($request->permissions);
-            
-            // Sync with all users of company
-            foreach ($company->users as $user) {
-                $user->packages()->sync($request->permissions);
-            }
-
-            DB::commit();
-            return back()->with([
-                'message'    => 'Mis à jour avec succès !',
-                'alert-type' => 'success',
-            ]);
-        } catch (\Exception $e) {
-            DB::rollBack();
-
-            return back()->with([
-                'message'    => $e->getMessage(),
-                'alert-type' => 'error',
-            ]);
-        }
-
-        
     }
 }

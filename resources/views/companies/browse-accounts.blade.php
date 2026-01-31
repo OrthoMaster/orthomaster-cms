@@ -36,11 +36,6 @@
             @endif
         @endif
 
-        {{-- <a href="{{ route('companies.training-permissions', $company->id) }}" class="btn btn-primary"
-            style="margin-right: 5px">
-            <i class="voyager-book"></i> <span>Gérer Formations</span>
-        </a> --}}
-
         @if (!$company->invite_code)
             <a href="{{ route('companies.invite-code.generate', $company->id) }}" class="btn btn-warning"
                 style="margin-right: 5px">

@@ -51,6 +51,7 @@ class AuthController extends Controller
         // Create new access token
         $deviceName = $request->device_id ? $request->device_id : 'mobile';
         $token = $user->createToken($deviceName);
+        $accessTokenId = $token->accessToken->id;
 
         if ($request->fcm_token) {
             $deviceToken = DeviceToken::updateOrCreate(
@@ -59,14 +60,13 @@ class AuthController extends Controller
                     'device_id' => $request->device_id,
                 ],
                 [
-                    'access_token_id' => $token->accessToken->id,
+                    'access_token_id' => $accessTokenId,
                     'fcm_token' => $request->fcm_token,
                     'device_type' => $request->device_type,
                     'last_used_at' => now(),
                 ]
             );
         }
-
 
         // Sync with old system
         if ($user->password_temp != null) {
@@ -81,10 +81,10 @@ class AuthController extends Controller
         }
 
         // Tracking app open
-        $agent = $request->agent;
-        dispatch(function () use ($token, $agent) {
+        $agent = $request->device_type;
+        dispatch(function () use ($accessTokenId, $agent) {
             app(\App\Http\Controllers\Tracking\TrkAppOpenController::class)
-                ->tracking($token, $agent);
+                ->tracking($accessTokenId, $agent);
         })->afterResponse();
 
         return response()->json([

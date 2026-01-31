@@ -144,19 +144,19 @@
                                             @endif
                                         </td>
                                         <td class="text-right">
-                                            {{-- @if (!$user->student_flg)
-                                            <a href="{{ route('account.training-permissions', $user->id) }}"
-                                                class="btn btn-sm btn-primary">
-                                                <i class="voyager-book"></i>
-                                                <span class="hidden-xs hidden-sm">Formations</span>
-                                            </a>
-                                        @endif --}}
                                             <a href="{{ route('account.edit', $user->id) }}"
                                                 class="btn btn-sm btn-warning">
                                                 <i class="voyager-edit"></i>
                                                 <span class="hidden-xs hidden-sm">Modifier</span>
                                             </a>
 
+                                            @if (!$user->student_flg && $user->status == 1)
+                                                <a href="{{ route('account.training-permissions', $user->id) }}"
+                                                    class="btn btn-sm btn-primary">
+                                                    <i class="voyager-book"></i>
+                                                    <span class="hidden-xs hidden-sm">Formations</span>
+                                                </a>
+                                            @endif
                                         </td>
                                     </tr>
                                 @endforeach

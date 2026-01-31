@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Mail\ConfirmedRegRequestMail;
 use App\Mail\CreatedAccountMail;
+use App\Mail\NotificationHasNewContractMail;
 use App\Mail\NotificationHasNewUserMail;
 use App\Models\User;
 use App\Status;
@@ -31,6 +32,21 @@ class MailController extends Controller
             }
 
             Log::channel('mail')->info('After registered: ' . $user->email, ['register']);
+        } catch (\Throwable $e) {
+            Log::channel('mail')->emergency($e->getMessage(), ['register']);
+        }
+    }
+
+    public static function hasNewSignedContract($cartId)
+    {
+        try {
+            // Notification admin
+            if (setting('mail.notification_email')) {
+                $notiEmails = array_map('trim', array_filter(explode(';', setting('mail.notification_email'))));
+                Mail::to($notiEmails)->send(new NotificationHasNewContractMail($cartId));
+            }
+
+            Log::channel('mail')->info('After signed contract - cartId : ' . $cartId, ['signed-contract']);
         } catch (\Throwable $e) {
             Log::channel('mail')->emergency($e->getMessage(), ['register']);
         }

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\API;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\GeneratePdfController;
+use App\Http\Controllers\MailController;
 use App\Http\Controllers\NotificationController;
 use App\Models\Cart;
 use App\Models\Contract;
@@ -140,11 +141,9 @@ class ContractController extends Controller
             $cart->status = Status::DELETED->value; // block Cart
             $cart->save();
 
-
             // Send email
             $leaderId = $request->user()->id;
             $leaderEmail = $request->user()->email;
-
 
             // FIFPL - Send to leader and members
             if ($cart->payment_type == '2') {
@@ -163,6 +162,11 @@ class ContractController extends Controller
                         ->send(new \App\Mail\SignedContractMail($leaderId, $cart->id, $cart->payment_type));
                 })->afterResponse();
             }
+
+            // Notification to admins
+            dispatch(function () use ($cart) {
+                MailController::hasNewSignedContract($cart->id);
+            })->afterResponse();
 
             return response()->json([
                 'success' => true,
