@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
+use App\Models\Event;
 use App\Models\Lesson;
 use App\Models\OldContent;
 use App\Models\SearchHistory;
@@ -132,10 +133,19 @@ class SearchController extends Controller
             }
 
             // Search Videos
-            // TODO: Change
             if (!$category || $category === 'all' || $category === 'video') {
+                $events = Event::where('name', 'LIKE', '%' . $keyword . '%')->get()->pluck('id')->toArray();
+
                 $videosQuery = OldContent::where('type', 'flash')
-                    ->where('title', 'LIKE', '%' . $keyword . '%');
+                    ->where(function ($query) use ($keyword, $events) {
+                        $query->where('title', 'LIKE', '%' . $keyword . '%')
+                            ->orWhere('author', 'LIKE', '%' . $keyword . '%')
+                            ->orWhere('tags', 'LIKE', '%' . $keyword . '%');
+
+                        if (!empty($events)) {
+                            $query->orWhereIn('event_id', $events);
+                        }
+                    });
 
                 $videos = $videosQuery->paginate($perPage, ['*'], 'videos_page', $videosPage);
                 $results['videos'] = [

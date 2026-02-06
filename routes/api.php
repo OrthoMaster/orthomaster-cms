@@ -9,6 +9,7 @@ use App\Http\Controllers\API\CompanyController;
 use App\Http\Controllers\API\ContractController;
 use App\Http\Controllers\API\DailyActionController;
 use App\Http\Controllers\API\DocumentController;
+use App\Http\Controllers\API\MediaController;
 use App\Http\Controllers\API\PaymentController;
 use App\Http\Controllers\API\PromotionController;
 use App\Http\Controllers\API\QuotationController;
@@ -153,11 +154,14 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::post('/s3-url', [SearchController::class, 'getS3Url']);
     });
 
-    
+    // Media
+    Route::prefix('media')->group(function () {
+        Route::get('/events', [MediaController::class, 'getEvents']);
+    });
+
     // Tracking
     Route::prefix('tracking')->group(function () {
         Route::post('/error', [ApplicationTrackingController::class, 'errorTracking']);
-        
     });
 });
 

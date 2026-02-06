@@ -13,6 +13,8 @@ class OldContent extends Model
     protected $guarded = ['id_content'];
     protected $appends = ['thumbnail'];
 
+    public $timestamps = false;
+
 
     public function getThumbnailAttribute()
     {
