@@ -157,6 +157,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     // Media
     Route::prefix('media')->group(function () {
         Route::get('/events', [MediaController::class, 'getEvents']);
+        Route::get('/content', [MediaController::class, 'getContent']);
     });
 
     // Tracking

@@ -240,7 +240,7 @@ class TrainingController extends Controller
     /**
      * Add more attribute for XML
      */
-    private function processXmlImages($xmlContent, $baseDirectory)
+    public function processXmlImages($xmlContent, $baseDirectory)
     {
         try {
             // Regex to find tag image
