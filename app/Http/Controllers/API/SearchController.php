@@ -106,7 +106,7 @@ class SearchController extends Controller
 
             $lessonsPage = (int) $request->input('lessons_page', 1);
             $videosPage = (int) $request->input('videos_page', 1);
-            $perPage = 5;
+            $perPage = 6;
 
             $results = [
                 'lessons' => null,

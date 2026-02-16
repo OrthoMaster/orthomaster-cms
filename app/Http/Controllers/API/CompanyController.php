@@ -127,9 +127,11 @@ class CompanyController extends Controller
 
         try {
             // Get company
+            // $company = Company::find($id);
             $company = $request->user()->companiesUserIsManager()->first();
+            Log::debug($company->id);
 
-            if (!$company || $company->id !== $id) {
+            if (!$company || $company->id != $id) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Aucune équipe trouvée'
