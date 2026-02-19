@@ -11,7 +11,8 @@ use Illuminate\Support\Facades\Storage;
 
 class MediaController extends Controller
 {
-    public function getEvents(Request $request) {
+    public function getEvents(Request $request)
+    {
         try {
             $events = Event::get();
 
@@ -44,14 +45,16 @@ class MediaController extends Controller
                 ->where('type', 'flash')
                 ->first();
 
-            $direction = $content->s3_path . "/" . $content->title . "/content.xml";
-            $xmlContent = Storage::disk('s3_root')->get($direction);
+            if ($content->s3_path) {
+                $direction = $content->s3_path . "/" . $content->title . "/content.xml";
+                $xmlContent = Storage::disk('s3_root')->get($direction);
 
-            $baseDirectory = $content->s3_path . "/" . $content->title;
-            $trainingController = new TrainingController;
-            $parsedContent = $trainingController->processXmlImages($xmlContent, $baseDirectory);
+                $baseDirectory = $content->s3_path . "/" . $content->title;
+                $trainingController = new TrainingController;
+                $parsedContent = $trainingController->processXmlImages($xmlContent, $baseDirectory);
 
-            $content->xml_content = $parsedContent;
+                $content->xml_content = $parsedContent;
+            }
 
             return response()->json([
                 'success' => true,
@@ -82,21 +85,23 @@ class MediaController extends Controller
                 ->where('type', 'tool')
                 ->first();
 
-            $direction = $content->s3_path . "/" . $content->title . "/content.xml";
-            $xmlContent = Storage::disk('s3_root')->get($direction);
+            if ($content->s3_path) {
+                $direction = $content->s3_path . "/" . $content->title . "/content.xml";
+                $xmlContent = Storage::disk('s3_root')->get($direction);
 
-            $baseDirectory = $content->s3_path . "/" . $content->title;
-            $trainingController = new TrainingController;
-            $parsedContent = $trainingController->processXmlImages($xmlContent, $baseDirectory);
+                $baseDirectory = $content->s3_path . "/" . $content->title;
+                $trainingController = new TrainingController;
+                $parsedContent = $trainingController->processXmlImages($xmlContent, $baseDirectory);
 
-            $content->xml_content = $parsedContent;
+                $content->xml_content = $parsedContent;
+            }
 
             return response()->json([
                 'success' => true,
                 'data' => $content ?? null
             ], 200);
         } catch (\Exception $e) {
-            Log::channel('api')->error($e->getMessage(), ['media-content']);
+            Log::channel('api')->error($e->getMessage(), ['tool-content']);
             return response()->json([
                 'success' => false,
             ]);

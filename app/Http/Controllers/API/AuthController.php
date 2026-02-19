@@ -15,11 +15,11 @@ use App\Status;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use TCG\Voyager\Models\Role;
+use Illuminate\Support\Str;
 
 class AuthController extends Controller
 {
@@ -27,6 +27,12 @@ class AuthController extends Controller
     {
         $user = User::where('email', $request->email)->first();
 
+        // Copy if email exists old version
+        if (!$user) {
+            $this->copyOldAccount($request->email);
+        }
+
+        // Check
         if (!$user || !Hash::check($request->password, $user->password)) {
             return response()->json([
                 'error' => 'Ces informations d\'identification ne correspondent pas à nos enregistrements.'
@@ -142,6 +148,9 @@ class AuthController extends Controller
             // Sync company
             User::syncOldVersionCompany($user->id, $oldVersionUser->id_user);
 
+            // Sync trainings
+            User::syncOldVersionTraining($user->id, $oldVersionUser->id_user);
+
             // Sync from Odoo
             dispatch(function () use ($oldVersionUser, $user) {
                 (new \App\Http\Controllers\Odoo\OdooAccountController(app(\App\Services\OdooService::class)))
@@ -160,6 +169,49 @@ class AuthController extends Controller
         } catch (\Exception $e) {
             Log::channel('api')->warning($e->getMessage(), ['sync', 'auth']);
             return response()->json([], 400);
+        }
+    }
+
+    /**
+     * Sync when use old account to log in into version 2.4+
+     */
+    public function copyOldAccount($email)
+    {
+        $oldVersionUser = OldVersionUser::where('email', $email)->first();
+        if (!$oldVersionUser) {
+            return false;
+        }
+
+        try {
+            $role = Role::where('name', 'user')->first();
+            $user = User::create([
+                'role_id' => $role->id,
+                'name' => $oldVersionUser->name,
+                'email' => $oldVersionUser->email,
+                'password' => Hash::make(Str::random(8)),
+
+                'student_flg' => $oldVersionUser->is_student,
+                'status' => Status::ACTIVE->value,
+                'created_from' => 'CLONE_2.4+', // Clone auto from old version by action login
+
+                // Sync with old version
+                'id_user' => $oldVersionUser->id_user,
+                'id_odoo_partner' => $oldVersionUser->id_odoo_partner,
+                'id_odoo_user' => $oldVersionUser->id_odoo_user,
+
+                'expires_at' => $oldVersionUser->is_student ? ($oldVersionUser->created_at ? Carbon::parse($oldVersionUser->created_at)->addMonths(12)->startOfDay() : now()->addMonths(12)->startOfDay()) : null,
+            ]);
+
+            // Sync company
+            User::syncOldVersionCompany($user->id, $oldVersionUser->id_user);
+
+            // Sync trainings
+            User::syncOldVersionTraining($user->id, $oldVersionUser->id_user);
+
+            return true;
+        } catch (\Exception $e) {
+            Log::channel('api')->warning($e->getMessage(), ['sync', 'login', '2.4+']);
+            return false;
         }
     }
 

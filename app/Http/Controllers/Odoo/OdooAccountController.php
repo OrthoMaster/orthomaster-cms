@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Models\Company;
 use App\Models\Establishment;
 use App\Models\OldVersionCompany;
-use App\Models\OldVersionUser;
 use App\Models\Profession;
 use App\Models\User;
 use App\Services\OdooService;

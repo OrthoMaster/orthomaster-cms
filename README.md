@@ -52,4 +52,3 @@ sudo supervisorctl stop laravel-worker:*
 
 # Start workers
 sudo supervisorctl start laravel-worker:*
-

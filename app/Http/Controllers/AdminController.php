@@ -15,7 +15,19 @@ class AdminController extends Controller
         }
 
         $admins = User::getAdmins();
-
         return view('admin.browse', compact('admins'));
+    }
+
+    public function syncNewUserWitthOldTrainings() {
+        if (!Auth::user()->hasPermission('edit_admins')) {
+            return abort(403); 
+        }
+
+        $users = User::get();
+        foreach ($users as $user) {
+            if ($user->id_user) {
+                User::syncOldVersionTraining($user->id, $user->id_user);
+            }
+        }
     }
 }

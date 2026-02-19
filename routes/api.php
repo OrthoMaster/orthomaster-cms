@@ -20,6 +20,7 @@ use App\Http\Controllers\GeneratePdfController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\SystemNotificationController;
 use App\Http\Controllers\Tracking\TrkAppOpenController;
+use App\Http\Controllers\VideoController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -172,3 +173,7 @@ Route::group(['prefix' => 'admin', 'middleware' => ['cmsAdmin']], function () {
     Route::get('/notifications/test', [NotificationController::class, 'sendTest']);
     Route::get('/notifications/receipt', [NotificationController::class, 'checkReceipt']);
 });
+
+// Videos
+Route::middleware(['auth:sanctum', 'throttle:30,1'])
+    ->post('/video/{videoId}/signed-cookies', [VideoController::class, 'getSignedCookies']);

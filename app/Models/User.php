@@ -360,4 +360,50 @@ class User extends \TCG\Voyager\Models\User
             return false;
         }
     }
+
+    public static function syncOldVersionTraining($userId, $oldVersionUserId)
+    {
+        $regFormations = DB::table('user_registered_formations')
+            ->where('id_user', $oldVersionUserId)
+            ->get();
+        if ($regFormations->isEmpty()) {
+            return false;
+        }
+
+        $user = User::with('packages')->find($userId);
+        if (!$user || $user->packages->isNotEmpty()) {
+            return false;
+        }
+
+        try {
+            $trainingIds = [];
+            foreach ($regFormations as $formation) {
+                switch ($formation->id_formation) {
+                    case 1:
+                        array_push($trainingIds, 1, 3, 4, 5);
+                        break;
+                    case 2:
+                        array_push($trainingIds, 13);
+                        break;
+                    case 3:
+                        array_push($trainingIds, 2);
+                        break;
+                    case 4:
+                        array_push($trainingIds, 14);
+                        break;
+                    case 6:
+                        array_push($trainingIds, 5);
+                        break;
+                    default:
+                        break;
+                }
+            }
+
+            $user->packages()->sync($trainingIds);
+            return true;
+        } catch (\Exception $e) {
+            Log::error($e->getMessage(), ['sync-company', 'odoo']);
+            return false;
+        }
+    }
 }

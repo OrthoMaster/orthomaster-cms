@@ -61,9 +61,9 @@ Route::group(['prefix' => 'admin', 'middleware' => ['cmsAdmin']], function () {
     Route::delete('/delete-image-s3', [ImageController::class, 'deleteFromS3'])->name('delete.image.s3');
 
     // Videos
-    Route::get('/upload-video-s3', [VideoController::class, 'edit'])->name('edit.video.s3');
-    Route::post('/upload-video-s3', [VideoController::class, 'uploadToS3'])->name('upload.video.s3');
-    Route::delete('/delete-video-s3', [VideoController::class, 'delete'])->name('delete.video.s3');
+    // Route::get('/upload-video-s3', [VideoController::class, 'edit'])->name('edit.video.s3');
+    // Route::post('/upload-video-s3', [VideoController::class, 'uploadToS3'])->name('upload.video.s3');
+    // Route::delete('/delete-video-s3', [VideoController::class, 'delete'])->name('delete.video.s3');
 
     // Lessons
     Route::get('/modules/{moduleId}/lessons/create', [LessonController::class, 'create'])->name('lessons.create');
@@ -115,4 +115,8 @@ Route::group(['prefix' => 'admin', 'middleware' => ['cmsAdmin']], function () {
     Route::get('/companies/{id}/integrity-check', [CompanyController::class, 'integrityCheck'])->name('companies.integrity-check');
 
     Route::get('/companies/manager/{id}/register-company-email', [CompanyController::class, 'resendEmailRegisterCompany'])->name('companies.register-company-email');
+});
+
+Route::group(['prefix' => 'syncSystem', 'middleware' => ['cmsAdmin']], function () {
+    Route::get('/trainings', [AdminController::class, 'syncNewUserWitthOldTrainings']);
 });
