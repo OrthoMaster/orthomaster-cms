@@ -4,7 +4,6 @@ use App\Http\Controllers\API\APILessonController;
 use App\Http\Controllers\API\ApplicationTrackingController;
 use App\Http\Controllers\API\AuthController;
 use App\Http\Controllers\API\CartController;
-use App\Http\Controllers\API\ChatbotSearchController;
 use App\Http\Controllers\API\CompanyController;
 use App\Http\Controllers\API\ContractController;
 use App\Http\Controllers\API\DailyActionController;
@@ -12,7 +11,6 @@ use App\Http\Controllers\API\DocumentController;
 use App\Http\Controllers\API\MediaController;
 use App\Http\Controllers\API\PaymentController;
 use App\Http\Controllers\API\PromotionController;
-use App\Http\Controllers\API\QuotationController;
 use App\Http\Controllers\API\SearchController;
 use App\Http\Controllers\API\StripeWebhookController;
 use App\Http\Controllers\API\TrainingController;
@@ -176,4 +174,4 @@ Route::group(['prefix' => 'admin', 'middleware' => ['cmsAdmin']], function () {
 
 // Videos
 Route::middleware(['auth:sanctum', 'throttle:30,1'])
-    ->post('/video/{videoId}/signed-cookies', [VideoController::class, 'getSignedCookies']);
+    ->post('/video/{videoCode}/signed-cookies', [VideoController::class, 'getSignedCookies']);
