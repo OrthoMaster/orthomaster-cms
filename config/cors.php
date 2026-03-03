@@ -6,6 +6,7 @@ return [
     'allowed_origins' => [
         'http://localhost:8081',
         'http://localhost:19006',
+        'https://cdn.orthomaster.fr',
         'https://web.d2ogbd7sjbl5au.amplifyapp.com', // Version test
     ],
     'allowed_origins_patterns' => [

@@ -543,7 +543,7 @@ class AuthController extends Controller
                 'has_company' => sizeof($user->companiesUserIsManager) > 0,
                 'belongs_to_company' => sizeof($user->companiesUserIsMember) > 0,
 
-                'closable_ads' => Auth::user()->hasPermission('edit_videos'),
+                'closable_ads' => Auth::check() ? Auth::user()->hasPermission('edit_videos') : false,
 
                 // Settings
                 'settings' => [

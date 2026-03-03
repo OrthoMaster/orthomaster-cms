@@ -173,5 +173,12 @@ Route::group(['prefix' => 'admin', 'middleware' => ['cmsAdmin']], function () {
 });
 
 // Videos
-Route::middleware(['auth:sanctum', 'throttle:30,1'])
-    ->post('/video/{videoCode}/signed-cookies', [VideoController::class, 'getSignedCookies']);
+Route::middleware(['auth:sanctum', 'throttle:30,1'])->group(function () {
+    // Web endpoint (signed cookies)
+    Route::post('/video/{videoCode}/signed-cookies', [VideoController::class, 'getSignedCookies']);
+    
+    // Mobile endpoint (proxy URL)
+    Route::post('/video/{videoCode}/proxy-url', [VideoController::class, 'getProxyUrl']);
+});
+Route::get('/video/{videoCode}/mobile/master.m3u8', [VideoController::class, 'getMobileManifest'])
+        ->name('video.mobile-manifest');
