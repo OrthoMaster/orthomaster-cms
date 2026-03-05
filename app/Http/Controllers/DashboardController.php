@@ -2,14 +2,12 @@
 
 namespace App\Http\Controllers;
 
-use App\Http\Controllers\Odoo\OdooAccountController;
 use App\Models\RptDailyAppOpens;
+use App\Models\RptSystemControls;
 use App\Models\User;
-use App\Services\OdooService;
 use App\Status;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 
 class DashboardController extends Controller
 {
@@ -25,25 +23,21 @@ class DashboardController extends Controller
 
         // Users
         $totalActiveUsers = 0;
-        $report = RptDailyAppOpens::firstOrCreate(
-            ['date' => Carbon::now()->toDateString()],
-            ['count' => 0]
-        );
-        if ($report->wasRecentlyCreated) {
-            $odooAccountController = new OdooAccountController(app(OdooService::class));
-            $report->total_users = $odooAccountController->countTotalActiveUser();
-            $report->save();
-        }
+        $report = RptDailyAppOpens::latest()->first();
 
         $totalActiveUsers = $report->total_users;
         $dbActiveUsers = User::where('status', Status::ACTIVE->value)->count();
+
+        // User Agents
+        $userAgents = $this->getUserAgentsChartData();
 
         return view('dashboard.index', [
             'dailyAppOpens' => $dailyAppOpens,
             'totalUsers' => [
                 'label' => ['Odoo', 'CMS'],
                 'data' => [$totalActiveUsers - $dbActiveUsers, $dbActiveUsers],
-            ]
+            ],
+            'userAgents' => $userAgents
         ]);
     }
 
@@ -71,5 +65,18 @@ class DashboardController extends Controller
                 $item->formatted_date = Carbon::parse($item->date)->format('d/m');
                 return $item;
             });
+    }
+
+    public function getUserAgentsChartData()
+    {
+        $userAgents = RptSystemControls::where('type', 'user-agents')->get();
+        if ($userAgents->isEmpty()) {
+            return null;
+        }
+
+        return [
+            'label' => $userAgents->pluck('label')->map(fn($l) => ucfirst($l)),
+            'data' => $userAgents->pluck('data_int')
+        ];
     }
 }

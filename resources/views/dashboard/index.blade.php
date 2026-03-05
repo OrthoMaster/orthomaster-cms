@@ -4,12 +4,14 @@
     <div class="page-content">
         <div class="analytics-container">
             <div class="row">
-                <div class="col-md-8">
+                <div class="col-md-12 col-lg-6">
                     <div class="panel panel-bordered">
-                        <div class="panel-heading" style="display: flex; justify-content: space-between; align-items: center;">
+                        <div class="panel-heading"
+                            style="display: flex; justify-content: space-between; align-items: center;">
                             <h3 class="panel-title">Nombre de connexions des utilisateurs</h3>
                             <div class="btn-group" style="margin-right: 15px">
-                                <button type="button" class="btn btn-sm btn-info dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                                <button type="button" class="btn btn-sm btn-info dropdown-toggle" data-toggle="dropdown"
+                                    aria-haspopup="true" aria-expanded="false">
                                     <span id="selectedPeriod">7 jours</span> <span class="caret"></span>
                                 </button>
                                 <ul class="dropdown-menu dropdown-menu-right">
@@ -25,13 +27,24 @@
                     </div>
                 </div>
 
-                <div class="col-md-4">
+                <div class="col-md-3 col-lg-3">
                     <div class="panel panel-bordered">
                         <div class="panel-heading">
                             <h3 class="panel-title">Analyse de la conversion des comptes</h3>
                         </div>
                         <div class="panel-body">
                             <canvas id="chart2"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-3 col-lg-3">
+                    <div class="panel panel-bordered">
+                        <div class="panel-heading">
+                            <h3 class="panel-title">Analyse comparative des plateformes</h3>
+                        </div>
+                        <div class="panel-body">
+                            <canvas id="chart3"></canvas>
                         </div>
                     </div>
                 </div>
@@ -46,7 +59,6 @@
         let dailyAppOpenChartInstance;
         const dailyAppOpenCanvas = document.getElementById('dailyAppOpenChart');
 
-        // Fonction pour créer/mettre à jour le graphique
         function updateChart(labels, data) {
             if (dailyAppOpenChartInstance) {
                 dailyAppOpenChartInstance.destroy();
@@ -82,19 +94,16 @@
             });
         }
 
-        // Charger les données initiales
         updateChart(@json($dailyAppOpens->pluck('formatted_date')), @json($dailyAppOpens->pluck('count')));
 
-        // Gestion du dropdown
         document.querySelectorAll('.dropdown-menu a').forEach(item => {
             item.addEventListener('click', function(e) {
                 e.preventDefault();
                 const days = this.getAttribute('data-days');
                 const text = this.textContent;
-                
+
                 document.getElementById('selectedPeriod').textContent = text;
-                
-                // Appel AJAX pour récupérer les nouvelles données
+
                 fetch(`{{ route('dashboard.app-opens-chart-data') }}?days=${days}`)
                     .then(response => response.json())
                     .then(data => {
@@ -107,7 +116,7 @@
             });
         });
 
-        // Chart 2 (inchangé)
+        // Chart 2 - User Active
         const chart2 = document.getElementById('chart2');
         new Chart(chart2, {
             type: 'doughnut',
@@ -115,6 +124,24 @@
                 labels: @json($totalUsers['label']),
                 datasets: [{
                     data: @json($totalUsers['data']),
+                    backgroundColor: [
+                        'rgb(255, 99, 132)',
+                        'rgb(54, 162, 235)',
+                        'rgb(255, 205, 86)'
+                    ],
+                    hoverOffset: 4
+                }]
+            },
+        });
+
+        // Chart 3 - User Agents
+        const chart3 = document.getElementById('chart3');
+        new Chart(chart3, {
+            type: 'doughnut',
+            data: {
+                labels: @json($userAgents['label']),
+                datasets: [{
+                    data: @json($userAgents['data']),
                     backgroundColor: [
                         'rgb(255, 99, 132)',
                         'rgb(54, 162, 235)',

@@ -11,7 +11,6 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CompanyController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\TrainingPermissionController;
-use App\Http\Controllers\VideoController;
 use App\Http\Controllers\WebController;
 use Illuminate\Support\Facades\Route;
 use TCG\Voyager\Facades\Voyager;

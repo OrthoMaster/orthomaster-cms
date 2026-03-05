@@ -53,7 +53,7 @@ Route::prefix('auth')->group(function () {
     Route::post('/device', [AuthController::class, 'storeDevice'])->middleware('auth:sanctum');
 });
 
-// Tracking
+// Tracking - Dont use anymore - TODO: delete
 Route::prefix('tracking')->group(function () {
     Route::post('/app/open', [TrkAppOpenController::class, 'store']);
 });

@@ -166,11 +166,6 @@ class VideoController extends Controller
                             }
 
                             $isFirstSubtitle = false;
-
-                            Log::channel('api')->debug('Set first subtitle as default', [
-                                'videoCode' => $videoCode,
-                                'line' => $line
-                            ]);
                         } else if (strpos($line, 'TYPE=SUBTITLES') !== false) {
                             // Set other subtitles as DEFAULT=NO and AUTOSELECT=NO
                             $line = preg_replace('/DEFAULT=(YES|NO)/', 'DEFAULT=NO', $line);
@@ -186,12 +181,6 @@ class VideoController extends Controller
                                 $line = str_replace('TYPE=SUBTITLES', 'TYPE=SUBTITLES,AUTOSELECT=NO', $line);
                             }
                         }
-
-                        Log::channel('api')->debug('Converted subtitle URI', [
-                            'videoCode' => $videoCode,
-                            'from' => $relativePath,
-                            'to' => $absoluteUrl
-                        ]);
                     }
                 }
 
@@ -200,12 +189,6 @@ class VideoController extends Controller
                     if (!preg_match('/^https?:\/\//', $trimmed)) {
                         $absolutePath = $baseUrl . '/' . ltrim($trimmed, '/');
                         $line = $absolutePath;
-
-                        Log::channel('api')->debug('Converted stream path', [
-                            'videoCode' => $videoCode,
-                            'from' => $trimmed,
-                            'to' => $absolutePath
-                        ]);
                     }
                 }
 
@@ -213,12 +196,6 @@ class VideoController extends Controller
             }
 
             $modifiedContent = implode("\n", $modified);
-
-            Log::channel('api')->info('Generated mobile manifest', [
-                'videoCode' => $videoCode,
-                'originalLines' => count($lines),
-                'modifiedLines' => count($modified),
-            ]);
 
             return response($modifiedContent, 200)
                 ->header('Content-Type', 'application/vnd.apple.mpegurl')

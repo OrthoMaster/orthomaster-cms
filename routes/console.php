@@ -8,7 +8,24 @@ Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
 
+// Reports
+Schedule::command('reports:daily-app-opens')
+    ->dailyAt('07:00')
+    ->timezone('Europe/Paris');
 
+Schedule::command('reports:daily-app-opens')
+    ->dailyAt('12:00')
+    ->timezone('Europe/Paris');
+
+Schedule::command('reports:daily-app-opens')
+    ->dailyAt('18:00')
+    ->timezone('Europe/Paris');
+
+Schedule::command('reports:user-agents')
+    ->dailyAt('02:00')
+    ->timezone('Europe/Paris');
+
+// Notifications
 Schedule::command('notifications:daily-question')
     ->dailyAt('08:00')
     ->timezone('Europe/Paris');
@@ -16,3 +33,5 @@ Schedule::command('notifications:daily-question')
 Schedule::command('notifications:new-podcast')
     ->dailyAt('08:00')
     ->timezone('Europe/Paris');
+
+

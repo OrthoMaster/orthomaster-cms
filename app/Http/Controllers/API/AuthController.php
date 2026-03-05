@@ -59,6 +59,7 @@ class AuthController extends Controller
         $token = $user->createToken($deviceName);
         $accessTokenId = $token->accessToken->id;
 
+        // Save device token
         if ($request->fcm_token) {
             $deviceToken = DeviceToken::updateOrCreate(
                 [
@@ -223,10 +224,31 @@ class AuthController extends Controller
         $user = Auth::user();
         $token = $request->user()->currentAccessToken()->token;
 
+        // Tracking
+        $agent = $this->detectClientType($request);
+        $accessTokenId = $request->bearerToken();
+        dispatch(function () use ($accessTokenId, $agent) {
+            app(\App\Http\Controllers\Tracking\TrkAppOpenController::class)
+                ->tracking($accessTokenId, $agent);
+        })->afterResponse();
+
         return response()->json([
             'status' => 'success',
             'data'   => $this->customizeUserArray($user, $token),
         ]);
+    }
+
+    /**
+     * detect client type from request
+     */
+    private function detectClientType(Request $request)
+    {
+        $userAgent = $request->userAgent() ?? '';
+
+        if (preg_match('/Android/i', $userAgent)) return 'android';
+        if (preg_match('/iPhone|iPad|iPod/i', $userAgent)) return 'ios';
+
+        return 'web';
     }
 
     /**
