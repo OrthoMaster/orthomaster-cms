@@ -244,8 +244,12 @@ class VideoController extends Controller
         return $result;
     }
 
-    function parseLangs(string $text): array
+    function parseLangs($text)
     {
+        if (!$text) {
+            return [];
+        }
+
         // Split by ; or ,
         $langs = preg_split('/[;,]/', $text);
 

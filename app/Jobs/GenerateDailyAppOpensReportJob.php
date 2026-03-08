@@ -30,7 +30,7 @@ class GenerateDailyAppOpensReportJob implements ShouldQueue
 
         // Yesterday
         $yesterdayReport = RptDailyAppOpens::firstOrNew(['date' => $yesterday]);
-        if (!$yesterdayReport->total_users > 0) {
+        if (!($yesterdayReport->total_users > 0)) {
             $odooAccountController = new OdooAccountController(app(OdooService::class));
             $yesterdayReport->total_users = $odooAccountController->countTotalActiveUser();
         }
@@ -39,8 +39,9 @@ class GenerateDailyAppOpensReportJob implements ShouldQueue
 
         // Today
         $todayReport = RptDailyAppOpens::firstOrNew(['date' => $today]);
-        if (!$todayReport->total_users > 0) {
-            $odooAccountController = $odooAccountController ?? new OdooAccountController(app(OdooService::class));
+        if (!($todayReport->total_users > 0)) {
+            app()->forgetInstance(OdooService::class);
+            $odooAccountController = new OdooAccountController(app(OdooService::class));
             $todayReport->total_users = $odooAccountController->countTotalActiveUser();
         }
         $todayReport->count = TrkAppOpens::whereDate('created_at', $today)->count();
