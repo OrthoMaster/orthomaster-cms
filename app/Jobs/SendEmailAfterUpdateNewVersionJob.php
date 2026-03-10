@@ -21,7 +21,7 @@ class SendEmailAfterUpdateNewVersionJob implements ShouldQueue
     public int $timeout = 60;
 
     public function __construct(
-        public User $user,
+        public $user,
     ) {}
 
     public function handle(): void

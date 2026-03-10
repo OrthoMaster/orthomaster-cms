@@ -32,10 +32,13 @@ class SendEmailsAfterUpdateNewVersion extends Command
     public function handle()
     {
         Log::channel('tracking')->info('Sending emails after update new version.', []);
-        $query = User::where('status', Status::ACTIVE);
-        $query->chunk(100, function ($users) {
+        $query = User::where('status', Status::ACTIVE)->where('id', '>', 20);
+        $globalIndex = 0;
+        $query->chunk(100, function ($users) use (&$globalIndex) {
             foreach ($users as $user) {
-                SendEmailAfterUpdateNewVersionJob::dispatch($user);
+                SendEmailAfterUpdateNewVersionJob::dispatch($user)
+                    ->delay(now()->addSeconds($globalIndex * 2));
+                $globalIndex++;
             }
         });
 

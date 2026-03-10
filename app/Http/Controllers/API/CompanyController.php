@@ -368,7 +368,7 @@ class CompanyController extends Controller
 
                 return response()->json([
                     'success' => true,
-                    'message' => 'Inviter de membre avec succès'
+                    'message' => 'La personne recevra une notification de participation à votre groupe.'
                 ], 200);
             }
 

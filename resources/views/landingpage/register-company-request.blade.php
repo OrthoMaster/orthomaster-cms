@@ -8,7 +8,7 @@
             <!-- Header -->
             <div class="text-center mb-10">
                 <h1 class="text-3xl font-semibold text-gray-800 mb-0 font-heading">Inscription OrthoMaster</h1>
-                <p class="text-gray-400">Veuillez compléter les informations de votre établissement et vos équipe</p>
+                <p class="text-gray-400">Veuillez compléter les informations de votre établissement et votre équipe</p>
             </div>
 
             <form id="group-reg-form" method="post" action="{{ route('register.company.draft', $company->invite_code) }}"
@@ -458,11 +458,11 @@
                                 </path>
                             </svg>
                         </div>
-                        <h3 class="text-xl font-semibold text-gray-800 mb-2 font-heading">Soumettre avec succès !</h3>
-                        <p class="text-gray-600 mb-6">Votre inscription a été enregistrée avec succès.</p>
+                        <h3 class="text-xl font-semibold text-gray-800 mb-2 font-heading">Inscription terminée !</h3>
+                        <p class="text-gray-600 mb-6">Vos informations sont enregistrées.</p>
                         <button onclick="closeSuccessModal()"
                             class="w-full px-6 py-3 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 transition-colors">
-                            Fermer
+                            Terminer
                         </button>
                     </div>
                 </div>
