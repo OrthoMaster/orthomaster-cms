@@ -47,6 +47,8 @@ Route::post('/group/create-by-user', [AuthCompanyRequestController::class, 'stor
 Route::get('/group/register/{code}', [AuthCompanyRequestController::class, 'view'])->name('register.company.view');
 Route::post('/group/register/{code}/draft', [AuthCompanyRequestController::class, 'submit'])->name('register.company.draft');
 
+Route::get('/group/members', [AuthCompanyRequestController::class, 'redirectRegisterView'])->name('register.company.redirect');
+
 Route::get('/legal-notice', [WebController::class, 'legalNotice'])->name('web.legal-notice');
 
 Route::group(['prefix' => 'admin', 'middleware' => ['cmsAdmin']], function () {
@@ -100,7 +102,6 @@ Route::group(['prefix' => 'admin', 'middleware' => ['cmsAdmin']], function () {
     // Companies
     Route::get('/companies', [CompanyController::class, 'index'])->name('voyager.companies.index');
     Route::get('/companies/{id}', [CompanyController::class, 'show'])->name('voyager.companies.show');
-    Route::get('/companies/{id}/invite-code', [CompanyController::class, 'generateInviteCode'])->name('companies.invite-code.generate');
 
     Route::get('/companies/{id}/odoo', [CompanyController::class, 'connectOdoo'])->name('companies.odoo.connect');
     Route::get('/companies/{id}/send-emails', [CompanyController::class, 'sendAuthEmails'])->name('companies.emails.send');

@@ -14,6 +14,7 @@
             <form id="register-form" method="post" action="{{ route('register.submit') }}" enctype="multipart/form-data">
                 @csrf
                 <input type="hidden" name="inapp" value="{{ request('inapp') ? 'APP' : 'WEB' }}" />
+                <input type="hidden" name="join_code" value="{{ request('join_code') }}" />
 
                 <!-- Progress Steps -->
                 <div class="mb-8">

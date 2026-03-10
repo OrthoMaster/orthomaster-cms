@@ -134,4 +134,36 @@ class AuthCompanyRequestController extends Controller
             ], 500);
         }
     }
+
+    public function redirectRegisterView(Request $request)
+    {
+        if (!$request->filled('x_id') || !$request->filled('y_id')) {
+            return abort(404);
+        }
+
+        $userId = $request->query('x_id');
+        $companyId = $request->query('y_id');
+        $company = Company::find($companyId);
+        $user = User::find($userId);
+        $userInCompany = $company->users()->where('email', $user->email)->first();
+        if (!$userInCompany) {
+            return abort(404);
+        }
+
+        try {
+            if (!$company->invite_code) {
+                do {
+                    $code = strtoupper(Str::random(8));
+                } while (Company::where('invite_code', $code)->exists());
+
+                $company->invite_code = $code;
+                $company->save();
+            }
+
+            return redirect()->route('register.company.view', $company->invite_code);
+        } catch (\Exception $e) {
+            Log::error($e->getMessage(), ['redirect-add-mebers-from-app']);
+            return abort(500);
+        }
+    }
 }

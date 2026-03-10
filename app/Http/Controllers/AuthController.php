@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Odoo\OdooAccountController;
+use App\Models\Company;
 use App\Models\Establishment;
 use App\Models\HealthcareProfessional;
 use App\Models\InviteCode;
@@ -166,7 +167,7 @@ class AuthController extends Controller
                 $countries = json_decode($json, true);
                 $countryName = $countries[$request->country] ?? null;
             }
-            
+
 
             // Create new user
             $user = User::create([
@@ -199,6 +200,14 @@ class AuthController extends Controller
                 'created_from' => $request->inapp && $request->inapp == 'WEB' ? 'WEB' : 'APP',
                 'status' => ($isActive ? Status::ACTIVE->value : Status::PENDING->value)
             ]);
+
+            // Assign company if has invitation
+            if ($request->filled('join_code')) {
+                $company = Company::findByJoinCode($request->join_code);
+                if ($company) {
+                    $company->users()->attach($user->id);
+                }
+            }
 
             // Upload certificate
             if ($request->hasFile('enrollment_certificate')) {
@@ -372,10 +381,10 @@ class AuthController extends Controller
                 $user->save();
 
                 // Sync with old system
-                dispatch(function () use ($user, $password) {
-                    (new \App\Http\Controllers\Odoo\OdooAccountController(app(\App\Services\OdooService::class)))
-                        ->syncPassword($user->id_odoo_user, $password);
-                })->afterResponse();
+                // dispatch(function () use ($user, $password) {
+                //     (new \App\Http\Controllers\Odoo\OdooAccountController(app(\App\Services\OdooService::class)))
+                //         ->syncPassword($user->id_odoo_user, $password);
+                // })->afterResponse();
             }
         );
 

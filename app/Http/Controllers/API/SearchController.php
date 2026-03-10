@@ -145,7 +145,8 @@ class SearchController extends Controller
                         if (!empty($events)) {
                             $query->orWhereIn('event_id', $events);
                         }
-                    });
+                    })
+                    ->orderBy('id_content', 'desc');
 
                 $videos = $videosQuery->paginate($perPage, ['*'], 'videos_page', $videosPage);
                 $results['videos'] = [

@@ -2,9 +2,11 @@
 
 namespace App\Http\Controllers\API;
 
+use App\Http\Controllers\CompanyController as ControllersCompanyController;
 use App\Http\Controllers\CompanyJoinRequestController;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\NotificationController;
+use App\Mail\SendCompanyInvitationMail;
 use App\Models\Company;
 use App\Models\Establishment;
 use App\Models\Training;
@@ -12,6 +14,7 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 
 class CompanyController extends Controller
 {
@@ -324,8 +327,25 @@ class CompanyController extends Controller
             }
 
             $user = User::where('email', $validated['email'])->first();
+            // New user
             if (!$user) {
-                // TODO: Envoyer email to register and join
+                $compController = new ControllersCompanyController();
+                $hasJoinCode = $compController->generateJoinCode($company->id);
+                if (!$hasJoinCode) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Erreur lors de la suppression',
+                    ], 500);
+                }
+                $company->refresh();
+                Mail::to($validated['email'])->send(
+                    new SendCompanyInvitationMail($validated['email'], $request->user(), $company->join_code)
+                );
+
+                return response()->json([
+                    'success' => true,
+                    'message' => "Cette adresse mail n'est liée à aucun compte existant. Nous envoyons un lien d'inscription à ce membre. Dès qu'il sera inscrit sur ORTHOMASTER, il fera partie de votre groupe ."
+                ], 200);
             }
 
             // User is member of other company
@@ -357,7 +377,7 @@ class CompanyController extends Controller
                 'message' => "L'invitation du membre a échoué",
             ], 404);
         } catch (\Exception $e) {
-            Log::channel('api')->error($e->getMessage(), ['remove-member', $request->user()->id]);
+            Log::channel('api')->error($e->getMessage(), ['invite-member', $request->user()->id]);
             return response()->json([
                 'success' => false,
                 'message' => 'Erreur lors de la suppression',
