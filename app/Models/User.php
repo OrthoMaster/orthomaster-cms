@@ -402,7 +402,42 @@ class User extends \TCG\Voyager\Models\User
             $user->packages()->sync($trainingIds);
             return true;
         } catch (\Exception $e) {
-            Log::error($e->getMessage(), ['sync-company', 'odoo']);
+            Log::error($e->getMessage(), ['sync-training']);
+            return false;
+        }
+    }
+
+    public static function syncOldVersionLesson($userId, $oldVersionUserId)
+    {
+        $oldLessons = DB::table('user_progress')
+            ->where('user_id', $oldVersionUserId)
+            ->get();
+        if ($oldLessons->isEmpty()) {
+            return false;
+        }
+
+        $user = User::with('lessons')->find($userId);
+        if (!$user) {
+            return false;
+        }
+
+        try {
+            $lessonIds = [];
+            foreach ($oldLessons as $oldLesson) {
+                if (!$oldLesson->completed_date) {
+                    continue;
+                }
+
+                $newLesson = Lesson::where('content_id', $oldLesson->content_id)->first();
+                if ($newLesson) {
+                    $lessonIds[$newLesson->id] = ['completed_flg' => true];
+                }
+            }
+
+            $user->lessons()->sync($lessonIds);
+            return true;
+        } catch (\Exception $e) {
+            Log::error($e->getMessage(), ['sync-lessons']);
             return false;
         }
     }

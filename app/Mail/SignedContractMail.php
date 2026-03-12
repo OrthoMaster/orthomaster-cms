@@ -105,6 +105,11 @@ class SignedContractMail extends Mailable
             $attachments[] = Attachment::fromPath($progPdf->document);
         }
 
+        // FIFPL Tutorial
+        if ($this->paymentType == '2') {
+            $attachments[] = Attachment::fromPath(storage_path('app/fifpl/Tutoriel_2026.pdf'));
+        }
+
         return $attachments;
     }
 }

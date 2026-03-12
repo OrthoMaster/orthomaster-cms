@@ -118,5 +118,6 @@ Route::group(['prefix' => 'admin', 'middleware' => ['cmsAdmin']], function () {
 });
 
 Route::group(['prefix' => 'syncSystem', 'middleware' => ['cmsAdmin']], function () {
-    Route::get('/trainings', [AdminController::class, 'syncNewUserWitthOldTrainings']);
+    Route::get('/trainings', [AdminController::class, 'syncNewUserWithOldTrainings']);
+    Route::get('/lessons', [AdminController::class, 'syncNewUserWithOldLessons']);
 });

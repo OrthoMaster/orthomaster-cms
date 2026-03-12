@@ -14,6 +14,7 @@
             <form id="group-reg-form" method="post" action="{{ route('register.company.draft', $company->invite_code) }}"
                 enctype="multipart/form-data">
                 @csrf
+                <input type="hidden" name="inapp" value="{{ request('inapp') ? 'APP' : 'WEB' }}" />
                 <input type="hidden" name="invite_code" value="{{ $company->invite_code }}" />
                 <input type="hidden" id="members" name="members" />
 
@@ -219,7 +220,7 @@
                         <!-- Button Add -->
                         @if (!$company->status == App\Status::PENDING->value)
                             <button onclick="openAddMemberModal()" type="button"
-                                class="w-full px-4 py-2 border border-2 border-gray-100 text-gray-400 rounded-lg hover:bg-gray-100 transition-colors flex items-center justify-center gap-2">
+                                class="w-full px-4 py-2 bg-primary text-white font-medium rounded-lg hover:bg-orange-600 transition-colors focus:ring-4 focus:ring-orange-200 transition-colors flex items-center justify-center gap-2">
                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none"
                                     viewBox="0 0 24 24" stroke="currentColor">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -240,9 +241,7 @@
                                 </svg>
                             </button>
                             @if (!$company->status == App\Status::PENDING->value)
-                                <button id="submit-button"
-                                    onclick="submitForm()"
-                                    type="button"
+                                <button id="submit-button" onclick="submitForm()" type="button"
                                     class="px-6 py-3 bg-primary text-white font-medium rounded-lg hover:bg-orange-600 transition-colors focus:ring-4 focus:ring-orange-200">
                                     Soumettre
                                 </button>
@@ -1150,15 +1149,15 @@
                             </div>
                         </div>
                         ${member.hasError ? `
-                            <div class="space-y-1 text-xs text-yellow-500 mt-2">
-                                <div class="flex gap-1">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-yellow-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                                    </svg>
-                                    <span class="text-xs"><small> Manquant: ${member.errorMessage}</small></span>
+                                <div class="space-y-1 text-xs text-yellow-500 mt-2">
+                                    <div class="flex gap-1">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-yellow-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                        </svg>
+                                        <span class="text-xs"><small> Manquant: ${member.errorMessage}</small></span>
+                                    </div>
                                 </div>
-                            </div>
-                        ` : ''}
+                            ` : ''}
                     </div>
                 `;
             }).join('');
@@ -1207,6 +1206,23 @@
 
                     document.getElementById('error-modal').classList.remove('hidden');
                 });
+        }
+
+        // Handle show in app
+        const urlParams = new URLSearchParams(window.location.search);
+        const isInApp = urlParams.get('inapp') === 'true';
+        if (isInApp) {
+            document.body.classList.add('in-app-view');
+
+            // Hide elements
+            const header = document.querySelector('header');
+            const footer = document.querySelector('footer');
+
+            if (header) header.style.display = 'none';
+            if (footer) footer.style.display = 'none';
+
+            // Step 2
+            nextStep(1);
         }
 
         function submitForm() {
@@ -1312,7 +1328,15 @@
         }
 
         function closeSuccessModal() {
-            window.location.href = "https://orthomaster.fr";
+            if (isInApp) {
+                if (window.ReactNativeWebView) {
+                    window.ReactNativeWebView.postMessage(JSON.stringify({
+                        type: 'CLOSE'
+                    }));
+                }
+            } else {
+                window.location.href = "https://orthomaster.fr";
+            }
         }
 
         function closeErrorModal() {
