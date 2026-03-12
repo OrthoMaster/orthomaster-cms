@@ -454,6 +454,7 @@ class AccountController extends Controller
         $user = User::find($id);
         if ($user && $user->password_temp) {
             Mail::to($user->email)->send(new CreatedAccountMail($user->email, $user));
+            Log::channel('mail')->info('Resend reg info: ' . $user->email, ['register']);
         }
 
         return back()->with([

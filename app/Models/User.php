@@ -399,7 +399,7 @@ class User extends \TCG\Voyager\Models\User
                 }
             }
 
-            $user->packages()->sync($trainingIds);
+            $user->packages()->syncWithoutDetaching($trainingIds);
             return true;
         } catch (\Exception $e) {
             Log::error($e->getMessage(), ['sync-training']);
@@ -434,7 +434,7 @@ class User extends \TCG\Voyager\Models\User
                 }
             }
 
-            $user->lessons()->sync($lessonIds);
+            $user->lessons()->syncWithoutDetaching($lessonIds);
             return true;
         } catch (\Exception $e) {
             Log::error($e->getMessage(), ['sync-lessons']);

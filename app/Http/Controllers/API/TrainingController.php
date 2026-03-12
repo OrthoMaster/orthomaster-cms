@@ -164,13 +164,15 @@ class TrainingController extends Controller
                 ->where('type', 'lesson')
                 ->first();
 
-            $direction = $content->s3_path . "/" . $content->title . "/content.xml";
-            $xmlContent = Storage::disk('s3_root')->get($direction);
+            if ($content->s3_path) {
+                $direction = $content->s3_path . "/" . $content->title . "/content.xml";
+                $xmlContent = Storage::disk('s3_root')->get($direction);
 
-            $baseDirectory = $content->s3_path . "/" . $content->title;
-            $parsedContent = $this->processXmlImages($xmlContent, $baseDirectory);
+                $baseDirectory = $content->s3_path . "/" . $content->title;
+                $parsedContent = $this->processXmlImages($xmlContent, $baseDirectory);
 
-            $content->xml_content = $parsedContent;
+                $content->xml_content = $parsedContent;
+            }
 
             return response()->json([
                 'success' => true,

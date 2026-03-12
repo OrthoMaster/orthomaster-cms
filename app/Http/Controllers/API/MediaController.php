@@ -44,6 +44,12 @@ class MediaController extends Controller
                 ->where('id_content', $request->contentId)
                 ->where('type', 'flash')
                 ->first();
+            
+            if ($content) {
+                DB::table('content')
+                    ->where('id_content', $request->contentId)
+                    ->increment('views');
+            }
 
             if ($content->s3_path) {
                 $direction = $content->s3_path . "/" . $content->title . "/content.xml";

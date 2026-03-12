@@ -35,11 +35,11 @@ class SendEmailsAfterUpdateNewVersionWithOldUser extends Command
                 ->whereColumn('users.id_user', 'user.id_user');
         });
 
-        $globalIndex = 0;
+        $globalIndex = 1;
         $query->chunk(100, function ($users) use (&$globalIndex) {
             foreach ($users as $user) {
                 SendEmailAfterUpdateNewVersionJob::dispatch($user)
-                    ->delay(now()->addSeconds($globalIndex * 2));
+                    ->delay(now()->addSeconds($globalIndex * 5));
                 $globalIndex++;
             }
         });

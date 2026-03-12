@@ -160,9 +160,7 @@ class AuthCompanyRequestController extends Controller
                 $company->save();
             }
 
-            return redirect()
-                ->route('register.company.view', $company->invite_code)
-                ->withQuery(['inapp' => 'true']);
+            return redirect()->to(route('register.company.view', $company->invite_code) . '?inapp=true');
         } catch (\Exception $e) {
             Log::error($e->getMessage(), ['redirect-add-mebers-from-app']);
             return abort(500);
