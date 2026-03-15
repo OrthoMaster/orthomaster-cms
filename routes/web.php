@@ -10,6 +10,7 @@ use App\Http\Controllers\LessonController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CompanyController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\MediaController;
 use App\Http\Controllers\TrainingPermissionController;
 use App\Http\Controllers\WebController;
 use Illuminate\Support\Facades\Route;
@@ -62,6 +63,8 @@ Route::group(['prefix' => 'admin', 'middleware' => ['cmsAdmin']], function () {
     Route::delete('/delete-image-s3', [ImageController::class, 'deleteFromS3'])->name('delete.image.s3');
 
     // Videos
+    Route::get('/medias', [MediaController::class, 'index'])->name('medias.index');
+
     // Route::get('/upload-video-s3', [VideoController::class, 'edit'])->name('edit.video.s3');
     // Route::post('/upload-video-s3', [VideoController::class, 'uploadToS3'])->name('upload.video.s3');
     // Route::delete('/delete-video-s3', [VideoController::class, 'delete'])->name('delete.video.s3');
@@ -111,9 +114,7 @@ Route::group(['prefix' => 'admin', 'middleware' => ['cmsAdmin']], function () {
     Route::post('/companies/{id}/user/{userId}/update-manager', [CompanyController::class, 'updateManager'])->name('companies.manager.update');
 
     Route::get('/companies/{id}/invite-code', [CompanyController::class, 'generateInviteCode'])->name('companies.invite-code.generate');
-
     Route::get('/companies/{id}/integrity-check', [CompanyController::class, 'integrityCheck'])->name('companies.integrity-check');
-
     Route::get('/companies/manager/{id}/register-company-email', [CompanyController::class, 'resendEmailRegisterCompany'])->name('companies.register-company-email');
 });
 

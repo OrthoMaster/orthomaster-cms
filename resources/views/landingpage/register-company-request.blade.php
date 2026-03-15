@@ -1227,9 +1227,10 @@
 
         function submitForm() {
             let hasDBManager = @json($company->hasManager());
+            let hadMembers = @json($company->users->isNotEmpty());
 
             // No member
-            if (members.length === 0) {
+            if (members.length === 0 && !hadMembers) {
                 showError('members-error', "Veuillez ajouter au moins un membre !");
                 return;
             }
