@@ -3,13 +3,11 @@
 namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
-use App\Http\Controllers\NotificationController;
 use App\Models\Cart;
 use App\Models\FundingOrganization;
 use App\Models\Invoice;
 use App\Models\Package;
 use App\Models\Training;
-use App\Models\User;
 use App\Status;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;

@@ -103,6 +103,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::patch('/company/remove-member', [CompanyController::class, 'removeMember']);
     Route::patch('/company/invite-member', [CompanyController::class, 'inviteMember']);
     Route::patch('/company/quit', [CompanyController::class, 'quitCompany']);
+    Route::patch('/company/remove', [CompanyController::class, 'removeCompany']);
 
     // Cart
     Route::get('/cart', [CartController::class, 'getDetails']);

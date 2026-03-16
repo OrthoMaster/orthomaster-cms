@@ -386,11 +386,21 @@ class CompanyController extends Controller
         }
     }
 
+    /**
+     * Quit company as member
+     */
     public function quitCompany(Request $request)
     {
         try {
             // Get company
-            $company = $request->user()->companiesUserIsMember()->first();
+            if ($request->company_id) {
+                $company = $request->user()->companiesUserIsMember()
+                    ->where('companies.id', $request->company_id)
+                    ->first();
+            } else {
+                $company = $request->user()->companiesUserIsMember()->first();
+            }
+
 
             if (!$company) {
                 return response()->json([
@@ -401,6 +411,45 @@ class CompanyController extends Controller
 
             // Remove user
             $company->users()->detach($request->user()->id);
+
+            return response()->json([
+                'success' => true,
+                'message' => "Quitter l'équipe avec succès"
+            ], 200);
+        } catch (\Exception $e) {
+            Log::channel('api')->error($e->getMessage(), ['quit-company', $request->user()->id]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la suppression',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Remove company as manager
+     */
+    public function removeCompany(Request $request)
+    {
+        try {
+            // Get company
+            $company = $request->user()->companiesUserIsManager()->first();
+
+            if (!$company) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Aucune équipe trouvée'
+                ], 404);
+            }
+
+            // Remove user
+            $company->users()->detach($request->user()->id);
+
+            // If no manager left, detach all members
+            if (!$company->hasManager()) {
+                $memberIds = $company->members()->pluck('users.id');
+                $company->users()->detach($memberIds);
+            }
 
             return response()->json([
                 'success' => true,

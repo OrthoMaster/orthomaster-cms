@@ -2,7 +2,6 @@
 
 namespace App\Console\Commands;
 
-use App\Jobs\GenerateDailyAppOpensReportJob;
 use App\Jobs\GenerateUserAgentsReportJob;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;

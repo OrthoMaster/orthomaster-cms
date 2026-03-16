@@ -9,6 +9,7 @@ use App\Http\Controllers\ImageController;
 use App\Http\Controllers\LessonController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CompanyController;
+use App\Http\Controllers\ContentViewReportController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\MediaController;
 use App\Http\Controllers\TrainingPermissionController;
@@ -54,8 +55,11 @@ Route::get('/legal-notice', [WebController::class, 'legalNotice'])->name('web.le
 
 Route::group(['prefix' => 'admin', 'middleware' => ['cmsAdmin']], function () {
     Route::get('/', [DashboardController::class, 'index'])->name('voyager.dashboard');
-    Route::get('/chatbot', [DashboardController::class, 'chatbot'])->name('voyager.chatbot');
     Route::get('/dashboard/charts/app-opens', [DashboardController::class, 'getAppOpensChartData'])->name('dashboard.app-opens-chart-data');
+    Route::get('/dashboard/charts/media-views', [DashboardController::class, 'getMediaViewsByHourChartData'])->name('dashboard.media-views-chart-data');
+
+    // Reports
+    Route::get('reports/content/profession', [ContentViewReportController::class, 'viewsByProfession'])->name('reports.content.profession');
 
     // Images
     Route::post('/upload-image-s3/lesson', [ImageController::class, 'uploadLessonImageToS3'])->name('upload.image.s3.lesson');

@@ -49,6 +49,34 @@
                     </div>
                 </div>
             </div>
+
+            <div class="row">
+                {{-- Media Views --}}
+                <div class="col-md-12 col-lg-6">
+                    <div class="panel panel-bordered">
+                        <div class="panel-heading"
+                            style="display: flex; justify-content: space-between; align-items: center;">
+                            <h3 class="panel-title">Nombre de vues du média - 7 derniers jours</h3>
+                        </div>
+                        <div class="panel-body">
+                            <canvas id="mediaViewsChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                {{-- Lesson Views --}}
+                <div class="col-md-12 col-lg-6">
+                    <div class="panel panel-bordered">
+                        <div class="panel-heading"
+                            style="display: flex; justify-content: space-between; align-items: center;">
+                            <h3 class="panel-title">Nombre de vues du leçon - 7 derniers jours</h3>
+                        </div>
+                        <div class="panel-body">
+                            <canvas id="lessonViewsChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 @stop
@@ -150,6 +178,74 @@
                     hoverOffset: 4
                 }]
             },
+        });
+
+        // Media Views
+        const chartMediaViews = document.getElementById('mediaViewsChart');
+        new Chart(chartMediaViews, {
+            type: 'bar',
+            data: {
+                labels: @json($mediaViews['labels']),
+                datasets: [{
+                    label: 'Nombre de vues',
+                    data: @json($mediaViews['data']),
+                    backgroundColor: 'rgba(255, 0, 0, 0.6)',
+                    borderColor: 'rgba(255, 0, 0, 1)',
+                    borderWidth: 1,
+                    borderRadius: 4,
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    x: {
+                        ticks: {
+                            maxRotation: 45,
+                            minRotation: 0
+                        }
+                    },
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            precision: 0
+                        }
+                    }
+                }
+            }
+        });
+
+        // Lesson Views
+        const chartLessonViews = document.getElementById('lessonViewsChart');
+        new Chart(chartLessonViews, {
+            type: 'bar',
+            data: {
+                labels: @json($lessonViews['labels']),
+                datasets: [{
+                    label: 'Nombre de vues',
+                    data: @json($lessonViews['data']),
+                    backgroundColor: 'rgba(40, 167, 69, 0.6)',
+                    borderColor: 'rgba(40, 167, 69, 1)',
+                    borderWidth: 1,
+                    borderRadius: 4,
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    x: {
+                        ticks: {
+                            maxRotation: 45,
+                            minRotation: 0
+                        }
+                    },
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            precision: 0
+                        }
+                    }
+                }
+            }
         });
     </script>
 @stop
