@@ -7,6 +7,7 @@ use App\Models\Lesson;
 use App\Models\OldContent;
 use App\Models\Package;
 use App\Models\Training;
+use App\Models\TrkContentViews;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -163,6 +164,12 @@ class TrainingController extends Controller
                 ->where('id_content', $lesson->content_id)
                 ->where('type', 'lesson')
                 ->first();
+
+            TrkContentViews::create([
+                'user_id' => $request->user()->id,
+                'content_id' => $lesson->id,
+                'type' => 'lesson'
+            ]);
 
             if ($content->s3_path) {
                 $direction = $content->s3_path . "/" . $content->title . "/content.xml";
