@@ -33,7 +33,7 @@
                                     <label for="type">Type</label>
                                     <select class="form-control select2" name="type">
                                         <option value="flash" @selected(request('type') === 'flash')>Médias</option>
-                                        <option value="lesson" @selected(request('type') === 'me')>Leçon</option>
+                                        <option value="lesson" @selected(request('type') === 'lesson')>Leçon</option>
                                     </select>
                                 </div>
                                 <div class="col-md-6">

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\DailyQuestion;
 use App\Models\DailyQuestionAnswer;
 use App\Models\Podcast;
+use App\Models\TrkContentViews;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -101,6 +102,12 @@ class DailyActionController extends Controller
 
             DailyQuestion::where('id', $request->questionId)->increment('count');
             DailyQuestionAnswer::where('id', $request->answerId)->increment('count');
+            TrkContentViews::create([
+                'user_id' => $request->user()->id,
+                'content_id' => $request->questionId,
+                'type' => 'question'
+            ]);
+            
 
             return response()->json([
                 'success' => true,
@@ -123,6 +130,11 @@ class DailyActionController extends Controller
 
         try {
             Podcast::where('id', $request->podcastId)->increment('count');
+            TrkContentViews::create([
+                'user_id' => $request->user()->id,
+                'content_id' => $request->podcastId,
+                'type' => 'podcast'
+            ]);
 
             return response()->json([
                 'success' => true,

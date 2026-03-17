@@ -35,6 +35,10 @@ Route::get('/', function () {
     return view('welcome');
 });
 
+Route::get('/login', function () {
+    return redirect()->route('voyager.login');
+})->name('login');
+
 Route::get('/register', [AuthController::class, 'register'])->name('register.index');
 Route::post('/register', [AuthController::class, 'submit'])->name('register.submit');
 Route::post('/register/check-email', [AuthController::class, 'checkEmail'])->name('register.email.check');

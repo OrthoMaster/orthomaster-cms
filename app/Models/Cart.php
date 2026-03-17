@@ -90,8 +90,7 @@ class Cart extends Model
 
         // OPCP-EP - duration can split
         if ($this->payment_type == '1') {
-            return $this->duration_total % Organization::OPCO_MAX_DURATION->value == 0
-                || $this->duration_total % Organization::OPCO_MAX_DURATION->value >= Organization::OPCO_MIN_DURATION->value;
+            return $this->duration_total >= Organization::OPCO_MIN_DURATION->value;
         }
 
         // FIFPL - duration in range
