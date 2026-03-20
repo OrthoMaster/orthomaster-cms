@@ -4,6 +4,7 @@ use App\Http\Controllers\API\APILessonController;
 use App\Http\Controllers\API\ApplicationTrackingController;
 use App\Http\Controllers\API\AuthController;
 use App\Http\Controllers\API\CartController;
+use App\Http\Controllers\API\ChatbotController;
 use App\Http\Controllers\API\CompanyController;
 use App\Http\Controllers\API\ContractController;
 use App\Http\Controllers\API\DailyActionController;
@@ -25,18 +26,6 @@ use Illuminate\Support\Facades\Route;
 Route::get('/user', function (Request $request) {
     return $request->user();
 })->middleware('auth:sanctum');
-
-// Route::get('/quotation', [QuotationController::class, 'getContent']);
-// Route::get('/quotation/sample', [QuotationController::class, 'generateSample']);
-// Route::get('/quotation/sample/signed', [QuotationController::class, 'addSignature']);
-
-// Lesson
-// Route::get('/lessons/findContentId/{contentId}', [APILessonController::class, 'findByContentId']);
-// Route::get('/lessons/{id}/content', [APILessonController::class, 'getContent']);
-
-// Chatbot search temp
-// Route::get('/search/trainings', [ChatbotSearchController::class, 'searchTrainings']);
-// Route::get('/search/videos', [ChatbotSearchController::class, 'searchVideos']);
 
 // Stripe webhook
 Route::post('/webhooks/stripe', [StripeWebhookController::class, 'handleWebhook']);
@@ -164,6 +153,13 @@ Route::middleware(['auth:sanctum'])->group(function () {
     // Tracking
     Route::prefix('tracking')->group(function () {
         Route::post('/error', [ApplicationTrackingController::class, 'errorTracking']);
+    });
+
+    // Chatbot
+    Route::prefix('chatbot')->group(function () {
+        Route::post('/ask', [ChatbotController::class, 'ask']);
+        Route::get('/history/{conversationId}', [ChatbotController::class, 'history']);
+        Route::get('/conversations', [ChatbotController::class, 'conversations']);
     });
 });
 

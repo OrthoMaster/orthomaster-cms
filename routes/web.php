@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AccountController;
 use App\Http\Controllers\AdminController;
+use App\Http\Controllers\API\ChatbotController;
 use App\Http\Controllers\AuthCompanyRequestController;
 use App\Http\Controllers\ContentController;
 use App\Http\Controllers\HealthcareProfessionalController;
@@ -12,6 +13,7 @@ use App\Http\Controllers\CompanyController;
 use App\Http\Controllers\ContentViewReportController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\MediaController;
+use App\Http\Controllers\TestingController;
 use App\Http\Controllers\TrainingPermissionController;
 use App\Http\Controllers\WebController;
 use Illuminate\Support\Facades\Route;
@@ -129,4 +131,5 @@ Route::group(['prefix' => 'admin', 'middleware' => ['cmsAdmin']], function () {
 Route::group(['prefix' => 'syncSystem', 'middleware' => ['cmsAdmin']], function () {
     Route::get('/trainings', [AdminController::class, 'syncNewUserWithOldTrainings']);
     Route::get('/lessons', [AdminController::class, 'syncNewUserWithOldLessons']);
+    Route::get('/testing/send-notification', [TestingController::class, 'testSendNotification']);
 });

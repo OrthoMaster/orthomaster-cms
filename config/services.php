@@ -58,10 +58,16 @@ return [
         'key' => env('STRIPE_KEY'),
         'secret' => env('STRIPE_SECRET'),
         'webhook_secret' => env('STRIPE_WEBHOOK_SECRET'),
-        
+
         // 'key' => env('STRIPE_KEY_TEST'),
         // 'secret' => env('STRIPE_SECRET_TEST'),
         // 'webhook_secret' => env('STRIPE_WEBHOOK_SECRET_TEST'),
     ],
+
+    'google' => [
+        'project_id' => env('GOOGLE_PROJECT_ID'),
+        'agent_id'   => env('GOOGLE_AGENT_ID'),
+        'location'   => 'global'
+    ]
 
 ];

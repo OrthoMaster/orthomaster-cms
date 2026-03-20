@@ -9,26 +9,29 @@ sudo nano .env
 
 # After deploy
 cd /var/www/laravel
-sudo chown -R www-data:www-data /var/www/laravel
-sudo find /var/www/laravel -type d -exec chmod 755 {} \;
-sudo find /var/www/laravel -type f -exec chmod 644 {} \;
+sudo -u www-data php artisan cache:clear
+sudo -u www-data php artisan config:clear
+sudo -u www-data php artisan route:clear
+sudo -u www-data php artisan view:clear
+
+sudo -u www-data php artisan config:cache
+sudo -u www-data php artisan route:cache
+sudo -u www-data php artisan view:cache
+
+sudo chown -R www-data:www-data /var/www/laravel/storage
+sudo chown -R www-data:www-data /var/www/laravel/bootstrap/cache
 sudo chmod -R 775 /var/www/laravel/storage
 sudo chmod -R 775 /var/www/laravel/bootstrap/cache
-sudo chmod 640 /var/www/laravel/.env
 
-sudo php artisan cache:clear
-sudo php artisan config:clear
-sudo php artisan route:clear
-sudo php artisan view:clear
-
-sudo php artisan queue:restart
-sleep 5
+sudo -u www-data php artisan queue:restart
+sleep 3
+sudo supervisorctl restart laravel-worker:*
 
 sudo systemctl restart apache2
-
 sudo supervisorctl status laravel-worker:*
 
-sudo php artisan schedule:list
+sudo -u www-data php artisan schedule:list
+
 
 ## Crontab
 sudo crontab -u www-data -e
