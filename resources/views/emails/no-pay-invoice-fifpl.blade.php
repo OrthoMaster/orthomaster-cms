@@ -1,16 +1,15 @@
 @extends('emails.template.user-side')
 
-@section('title', 'Votre convention de formation FIFPL')
+@section('title', 'FIFPL OrthoMaster : Étape 2/3')
 
 @section('content')
     <div class="content">
         <div class="greeting">Bonjour {{ $user->name }},</div>
-        <p>Veuillez trouver ci-joint votre facture <b>{{ $invoice->no }}</b> d'un montant de <b>{{ number_format($invoice->amount, 2, ',', ' ') }}</b> € de
-            ORTHOMASTER. Veuillez procéder au paiement dans les meilleurs délais.</p>
+        <p>Il y a un mois vous avez validé votre formation ORTHOMASTER.</p>
 
-        <p>Veuillez utiliser la communication suivante pour votre paiement : <b>{{ $invoice->no }}</b>.</p>
+        <p>Voici donc la facture à régler pour recevoir la <b>facture acquittée</b> et <b>le certificat de formation</b> à mettre sur votre espace FIFPL et bénéficier du <b>remboursement</b> par votre organisme.</p>
 
-        <p>Vous pouvez procéder à un règlement immédiat via ce lien
+        <p>Procédez très simplement via ce lien de paiement immédiat 
             :<br>
             <strong><a href="{{ 'https://app.orthomaster.fr/open/invoice/' . $invoice->id }}">{{ 'https://app.orthomaster.fr/open/invoice/' . $invoice->id }}</a>
         </p>

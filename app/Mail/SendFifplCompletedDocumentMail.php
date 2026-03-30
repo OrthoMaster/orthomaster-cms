@@ -32,7 +32,7 @@ class SendFifplCompletedDocumentMail extends Mailable
      */
     public function envelope(): Envelope
     {
-        $subject = "Votre facture et certification de formation FIFPL";
+        $subject = "FIFPL OrthoMaster : Étape finale";
 
         return new Envelope(
             subject: $subject,

@@ -1,22 +1,13 @@
 @extends('emails.template.user-side')
 
-@section('title', 'Votre convention de formation FIFPL')
+@section('title', 'FIFPL OrthoMaster : Étape finale')
 
 @section('content')
     <div class="content">
         <div class="greeting">Bonjour {{ $user->name }},</div>
-        <p>Merci pour votre inscription à la formation ORTHOMASTER.</p>
-        <p>Voici les prochaines étapes pour obtenir votre prise en charge auprès du FIFPL :</p>
-
-        <p>3. Dans 2 mois vous recevrez une <b>Facture</b> (correspondant au devis) avec un lien de paiement intégré. Une fois
-        acquittée, vous recevrez deux documents à déposer sur votre espace FIFPL (cf. Tutoriel) afin de finaliser votre
-        prise en charge :</p>
-        <p style="padding-left: 40px;">
-            • Facture acquittée<br/>
-            • Certificat de formation
-        </p>
-
-        <p>4. Vous serez remboursé sous 15 jours environ (délai moyen communiqué par le FIFPL)</p>
+        <p>Suite au règlement de votre formation, veuillez trouver ci-joint la <b>facture acquittée</b> et <b>le certificat de formation</b> à mettre sur votre espace FIFPL pour bénéficier du <b>remboursement</b> par votre organisme.</p>
+        <p>Dès que c’est fait, tout est bon.</p>
+        <p>Et bien sûr, on est là pour vous accompagner dans de nouvelles formations à venir !</p>
 
         <div class="divider"></div>
         <p>Une question, un problème ? <a href="https://www.orthomaster.fr/contact">Contactez-nous</a><p>
