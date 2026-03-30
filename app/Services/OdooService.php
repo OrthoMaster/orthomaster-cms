@@ -153,4 +153,22 @@ class OdooService
         $result = $this->call('/xmlrpc/2/object', 'execute_kw', $params);
         return (int) $this->encoder->decode($result);
     }
+
+    public function callMethod(string $model, string $method, array $args = [], array $kwargs = [])
+    {
+        if (!$this->uid) $this->authenticate();
+
+        $params = [
+            new Value($this->db, 'string'),
+            new Value($this->uid, 'int'),
+            new Value($this->password, 'string'),
+            new Value($model, 'string'),
+            new Value($method, 'string'),
+            $this->encoder->encode($args),
+            $this->encoder->encode($kwargs),
+        ];
+
+        $result = $this->call('/xmlrpc/2/object', 'execute_kw', $params);
+        return $this->encoder->decode($result);
+    }
 }

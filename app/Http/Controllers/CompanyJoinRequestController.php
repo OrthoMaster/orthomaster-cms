@@ -88,7 +88,7 @@ class CompanyJoinRequestController extends Controller
 
             return 'success';
         } catch (\Exception $e) {
-            Log::channel('api')->error($e->getMessage(), ['invite-member', 'company-'.$companyId, $createdId]);
+            Log::channel('api')->error($e->getMessage(), ['invite-member', 'company-' . $companyId, $createdId]);
             return 'error';
         }
     }
@@ -122,8 +122,9 @@ class CompanyJoinRequestController extends Controller
         ]);
 
         // Connect Odoo
-        dispatch(function () use ($company) {
-            (new \App\Http\Controllers\CompanyController())->connectOdoo($company->id);
+        $companyId = $company->id;
+        dispatch(function () use ($companyId) {
+            (new \App\Http\Controllers\CompanyController())->connectOdoo($companyId);
         })->afterResponse();
 
         return true;

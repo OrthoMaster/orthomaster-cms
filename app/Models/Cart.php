@@ -95,7 +95,8 @@ class Cart extends Model
 
         // FIFPL - duration in range
         if ($this->payment_type == '2') {
-            return $this->duration_total >= Organization::FIFPL_MIN_DURATION->value;
+            return $this->duration_total >= Organization::FIFPL_MIN_DURATION->value
+                && $this->duration_total <= Organization::FIFPL_MAX_DURATION->value;
         }
 
         return true;

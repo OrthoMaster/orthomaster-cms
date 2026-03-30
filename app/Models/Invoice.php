@@ -16,6 +16,7 @@ class Invoice extends Model
     ];
 
     const STATUS_PENDING = 'pending';
+    const STATUS_SENT = 'sent';
     const STATUS_PROCESSING = 'processing';
     const STATUS_PAID = 'paid';
     const STATUS_FAILED = 'failed';
@@ -24,6 +25,14 @@ class Invoice extends Model
     public function user()
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function markAsSent()
+    {
+        $this->update([
+            'status' => self::STATUS_SENT,
+            'paid_at' => now(),
+        ]);
     }
 
     public function markAsPaid()

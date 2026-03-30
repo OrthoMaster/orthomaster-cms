@@ -24,6 +24,7 @@ class StripeService
             $paymentIntent = PaymentIntent::create([
                 'amount' => $invoice->amount * 100, // Stripe paid by cents
                 'currency' => $invoice->currency ?? 'eur',
+                'description' => $invoice->no,
                 'metadata' => [
                     'invoice_id' => $invoice->id,
                     'user_id' => $invoice->user_id,

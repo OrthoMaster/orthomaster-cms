@@ -44,6 +44,8 @@ class StripeWebhookController extends Controller
                 $this->handlePaymentIntentCanceled($event->data->object);
                 break;
 
+            case 'payment_intent.created':
+                break;
             default:
                 Log::info('Unhandled webhook event: ' . $event->type);
         }

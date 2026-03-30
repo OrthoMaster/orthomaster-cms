@@ -91,7 +91,9 @@ class ExpoNotificationService
         array $options = []
     ) {
         $devices = \App\Models\DeviceToken::whereIn('user_id', $userIds)
-            ->pluck('fcm_token')
+            ->orderBy('updated_at')
+            ->pluck('fcm_token', 'user_id')
+            ->values()
             ->toArray();
 
         if (empty($devices)) {

@@ -77,7 +77,9 @@ class AuthController extends Controller
 
         // Sync with old system
         if ($user->password_temp != null) {
-            dispatch(function () use ($user) {
+            $userId = $user->id;
+            dispatch(function () use ($userId) {
+                $user = \App\Models\User::find($userId);
                 (new \App\Http\Controllers\Odoo\OdooAccountController(app(\App\Services\OdooService::class)))
                     ->active($user);
             })->afterResponse();
@@ -153,9 +155,11 @@ class AuthController extends Controller
             User::syncOldVersionTraining($user->id, $oldVersionUser->id_user);
 
             // Sync from Odoo
-            dispatch(function () use ($oldVersionUser, $user) {
+            $idOdooPartner = $oldVersionUser->id_odoo_partner;
+            $userId = $user->id;
+            dispatch(function () use ($idOdooPartner, $userId) {
                 (new \App\Http\Controllers\Odoo\OdooAccountController(app(\App\Services\OdooService::class)))
-                    ->syncFromOdooToNewUser($oldVersionUser->id_odoo_partner, $user->id);
+                    ->syncFromOdooToNewUser($idOdooPartner, $userId);
             })->afterResponse();
 
             // Tracking app open
@@ -297,10 +301,12 @@ class AuthController extends Controller
         $user->save();
 
         // Sync with old system 
-        dispatch(function () use ($user, $request) {
-            (new \App\Http\Controllers\Odoo\OdooAccountController(app(\App\Services\OdooService::class)))
-                ->syncPassword($user->id_odoo_user, $request->new_password);
-        })->afterResponse();
+        // $idOdooUser = $user->id_odoo_user;
+        // $newPassword = $request->new_password;
+        // dispatch(function () use ($idOdooUser, $newPassword) {
+        //     (new \App\Http\Controllers\Odoo\OdooAccountController(app(\App\Services\OdooService::class)))
+        //         ->syncPassword($idOdooUser, $newPassword);
+        // })->afterResponse();
 
         return response()->json([
             'status' => 'success',
@@ -492,10 +498,12 @@ class AuthController extends Controller
             $user->save();
 
             // Sync with old system
-            dispatch(function () use ($user, $request) {
-                (new \app\Http\Controllers\Odoo\OdooAccountController(app(\App\Services\OdooService::class)))
-                    ->syncPassword($user->id_odoo_user, $request->new_password);
-            })->afterResponse();
+            // $idOdooUser = $user->id_odoo_user;
+            // $newPassword = $request->new_password;
+            // dispatch(function () use ($idOdooUser, $newPassword) {
+            //     (new \App\Http\Controllers\Odoo\OdooAccountController(app(\App\Services\OdooService::class)))
+            //         ->syncPassword($idOdooUser, $newPassword);
+            // })->afterResponse();
 
             return response()->json([
                 'success' => true,

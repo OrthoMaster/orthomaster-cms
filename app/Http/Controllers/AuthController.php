@@ -379,12 +379,6 @@ class AuthController extends Controller
                 $user->password = Hash::make($password);
                 $user->password_temp = null; // Clear password temp
                 $user->save();
-
-                // Sync with old system
-                // dispatch(function () use ($user, $password) {
-                //     (new \App\Http\Controllers\Odoo\OdooAccountController(app(\App\Services\OdooService::class)))
-                //         ->syncPassword($user->id_odoo_user, $password);
-                // })->afterResponse();
             }
         );
 

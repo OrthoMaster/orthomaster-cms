@@ -32,6 +32,7 @@ return [
 
         'sync' => [
             'driver' => 'sync',
+            'visibility_timeout' => 180,
         ],
 
         'database' => [

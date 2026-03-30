@@ -25,7 +25,7 @@ class VideoController extends Controller
                 'region'  => 'us-east-1',
             ]);
 
-            $resourceKey = env('CLOUDFRONT_URL') . "/{$videoCode}/*";
+            $resourceKey = 'https://cdn.orthomaster.fr' . "/{$videoCode}/*";
             $expires = time() + 900;
 
             $customPolicy = json_encode([
@@ -43,11 +43,12 @@ class VideoController extends Controller
 
             $cookies = $cloudFront->getSignedCookie([
                 'policy' => $customPolicy,
-                'private_key' => file_get_contents(storage_path('app/cloudfront-private-key.pem')),
-                'key_pair_id' => env('CLOUDFRONT_KEY_PAIR_ID'),
+                //'private_key' => file_get_contents(storage_path('app/cloudfront-private-key.pem')),
+                'private_key' => file_get_contents(base_path('storage/app/cloudfront-private-key.pem')),
+                'key_pair_id' => 'K1CH5L67ZC2T0W',
             ]);
 
-            $videoUrl = env('CLOUDFRONT_URL') . "/{$videoCode}/master.m3u8";
+            $videoUrl = 'https://cdn.orthomaster.fr' . "/{$videoCode}/master.m3u8";
 
             return response()->json([
                 'success' => true,

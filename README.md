@@ -7,6 +7,12 @@ sudo chmod -R 775 /var/www/laravel
 cd /var/www/laravel
 sudo nano .env
 
+cd /var/www/laravel
+sudo  php artisan cache:clear
+sudo  php artisan config:clear
+sudo  php artisan route:clear
+sudo  php artisan view:clear
+
 # After deploy
 cd /var/www/laravel
 sudo -u www-data php artisan cache:clear
@@ -31,7 +37,6 @@ sudo systemctl restart apache2
 sudo supervisorctl status laravel-worker:*
 
 sudo -u www-data php artisan schedule:list
-
 
 ## Crontab
 sudo crontab -u www-data -e

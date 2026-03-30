@@ -79,6 +79,7 @@ class SystemNotificationController extends Controller
     {
         try {
             $deleted = SystemNotification::where('user_id', $request->user()->id)
+                ->whereNot('entity_type', 'FifplInvoice')
                 ->delete();
 
             return response()->json([

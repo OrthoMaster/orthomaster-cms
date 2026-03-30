@@ -144,7 +144,7 @@ class CartController extends Controller
         $cart->status = Status::DELETED->value;
         $cart->save();
 
-        
+
         $itemIds = $cart->items()->pluck('package_id')->toArray();
         if (sizeof($cart->members) <= 0) {
             $user = $cart->user;
@@ -159,9 +159,10 @@ class CartController extends Controller
         }
 
         // Notification
-        dispatch(function () use ($cart) {
+        $cartMemberIds = $cart->member_ids;
+        dispatch(function () use ($cartMemberIds) {
             (new \App\Http\Controllers\NotificationController(app(\App\Services\ExpoNotificationService::class)))
-                ->activeNewPackage($cart->member_ids);
+                ->activeNewPackage($cartMemberIds);
         })->afterResponse();
 
         return true;
@@ -195,7 +196,7 @@ class CartController extends Controller
                     'description' => 'Financement par OPCO-EP',
                     'terms' => [
                         'Documents requis : convention de formation (devis + programme signés)',
-                        'Durée minimum du programme : 4 heures',
+                        'Durée minimale du programme : 4 heures',
                     ]
                 ]);
             }
@@ -207,7 +208,8 @@ class CartController extends Controller
                     'description' => 'Financement par FIFPL',
                     'terms' => [
                         'Documents requis : convention de formation (devis signé + programme)',
-                        'Durée minimum du programme : 3 heures',
+                        'Durée minimale du programme : 3 heures',
+                        'Durée maximale du programme : 20 heures',
                     ]
                 ]);
             }
@@ -282,7 +284,8 @@ class CartController extends Controller
         }
     }
 
-    public function previewProCart(Request $request) {
+    public function previewProCart(Request $request)
+    {
         try {
             $cart = Cart::findByUser($request->user()->id, null, true);
             if (!$cart) {

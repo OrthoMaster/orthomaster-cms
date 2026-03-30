@@ -124,18 +124,19 @@ class ContractController extends Controller
                 }
 
                 // Notification
-                dispatch(function () use ($cart) {
+                $cartPaymentType = $cart->payment_type;
+                $cartMemberIds = $cart->member_ids;
+                $cartUserId = $cart->user_id;
+                dispatch(function () use ($cartPaymentType, $cartMemberIds, $cartUserId) {
                     $notificationController = new \App\Http\Controllers\NotificationController(
                         app(\App\Services\ExpoNotificationService::class)
                     );
-
-                    if ($cart->payment_type == '2') { // FIFPL - Send to leader and members
-                        $notificationController->receiveNewContract($cart->member_ids);
+                    if ($cartPaymentType == '2') { // FIFPL
+                        $notificationController->receiveNewContract($cartMemberIds);
                     } else {
-                        $notificationController->receiveNewContract([$cart->user_id]);
+                        $notificationController->receiveNewContract([$cartUserId]);
                     }
-
-                    $notificationController->activeNewPackage($cart->member_ids);
+                    $notificationController->activeNewPackage($cartMemberIds);
                 })->afterResponse();
             }
             $cart->status = Status::DELETED->value; // block Cart
@@ -151,21 +152,26 @@ class ContractController extends Controller
                     $memberId = $member->id;
                     $memberEmail = $member->email;
 
-                    dispatch(function () use ($memberId, $memberEmail, $cart) {
+                    $cartId = $cart->id;
+                    $cartPaymentType = $cart->payment_type;
+                    dispatch(function () use ($memberId, $memberEmail, $cartId, $cartPaymentType) {
                         Mail::to($memberEmail)
-                            ->send(new \App\Mail\SignedContractMail($memberId, $cart->id, $cart->payment_type));
+                            ->send(new \App\Mail\SignedContractMail($memberId, $cartId, $cartPaymentType));
                     })->afterResponse();
                 }
             } else {
-                dispatch(function () use ($leaderId, $leaderEmail, $cart) {
+                $cartId = $cart->id;
+                $cartPaymentType = $cart->payment_type;
+                dispatch(function () use ($leaderId, $leaderEmail, $cartId, $cartPaymentType) {
                     Mail::to($leaderEmail)
-                        ->send(new \App\Mail\SignedContractMail($leaderId, $cart->id, $cart->payment_type));
+                        ->send(new \App\Mail\SignedContractMail($leaderId, $cartId, $cartPaymentType));
                 })->afterResponse();
             }
 
             // Notification to admins
-            dispatch(function () use ($cart) {
-                MailController::hasNewSignedContract($cart->id);
+            $cartId = $cart->id;
+            dispatch(function () use ($cartId) {
+                MailController::hasNewSignedContract($cartId);
             })->afterResponse();
 
             return response()->json([
