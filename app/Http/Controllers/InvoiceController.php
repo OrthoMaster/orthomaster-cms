@@ -57,7 +57,7 @@ class InvoiceController extends Controller
     public function generateFiflplInvoiceNotPayByCart($cartId)
     {
         $controller = new OdooInvoiceController(app(OdooService::class));
-        $generatePdfController = new generatePdfController();
+        $generatePdfController = new GeneratePdfController();
 
         $cart = Cart::find($cartId);
         if (!$cart) {
@@ -161,7 +161,7 @@ class InvoiceController extends Controller
     public function generateFifplInvoiceDocument($invoiceId)
     {
         $controller = new OdooInvoiceController(app(OdooService::class));
-        $generatePdfController = new generatePdfController();
+        $generatePdfController = new GeneratePdfController();
 
         $invoice = Invoice::find($invoiceId);
         $memberContract = Contract::where('invoice_id', $invoiceId)
