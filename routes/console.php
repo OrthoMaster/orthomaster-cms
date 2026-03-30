@@ -27,11 +27,17 @@ Schedule::command('reports:user-agents')
 
 // Notifications
 Schedule::command('notifications:daily-question')
-    ->dailyAt('08:00')
+    ->dailyAt('08:10')
     ->timezone('Europe/Paris');
 
 Schedule::command('notifications:new-podcast')
     ->dailyAt('08:00')
     ->timezone('Europe/Paris');
 
-
+// FIFPL
+Schedule::command('fifpl:pre-invoices')
+    ->dailyAt('17:00')
+    ->timezone('Europe/Paris');
+Schedule::command('fifpl:send-invoices')
+    ->dailyAt('08:15')
+    ->timezone('Europe/Paris');

@@ -7,6 +7,7 @@ use Illuminate\Support\ServiceProvider;
 use TCG\Voyager\Database\Schema\SchemaManager;
 
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Config;
 
 class AppServiceProvider extends ServiceProvider
@@ -22,5 +23,12 @@ class AppServiceProvider extends ServiceProvider
     /**
      * Bootstrap any application services.
      */
-    public function boot(): void {}
+    public function boot(): void
+    {
+        if (app()->bound('VoyagerAuth')) {
+            Cache::remember('voyager_settings', 600, function () {
+                return \TCG\Voyager\Models\Setting::orderBy('order')->get();
+            });
+        }
+    }
 }

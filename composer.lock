@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "3b3778a8f6973f9f0f9780b8d3e22949",
+    "content-hash": "38c247332280ae9bf2c7a333eb7f93ef",
     "packages": [
         {
             "name": "arrilot/laravel-widgets",
@@ -1659,6 +1659,56 @@
                 "source": "https://github.com/googleapis/google-auth-library-php/tree/v1.50.0"
             },
             "time": "2026-01-08T21:33:57+00:00"
+        },
+        {
+            "name": "google/cloud-ai-platform",
+            "version": "v1.55.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/googleapis/google-cloud-php-ai-platform.git",
+                "reference": "e431882b3b5d04851b4e9ac8a60ee78fc4420dae"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/googleapis/google-cloud-php-ai-platform/zipball/e431882b3b5d04851b4e9ac8a60ee78fc4420dae",
+                "reference": "e431882b3b5d04851b4e9ac8a60ee78fc4420dae",
+                "shasum": ""
+            },
+            "require": {
+                "google/gax": "^1.38.0",
+                "php": "^8.1"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "^9.0"
+            },
+            "suggest": {
+                "ext-grpc": "Enables use of gRPC, a universal high-performance RPC framework created by Google.",
+                "ext-protobuf": "Provides a significant increase in throughput over the pure PHP protobuf implementation. See https://cloud.google.com/php/grpc for installation instructions."
+            },
+            "type": "library",
+            "extra": {
+                "component": {
+                    "id": "cloud-ai-platform",
+                    "path": "AiPlatform",
+                    "entry": null,
+                    "target": "googleapis/google-cloud-php-ai-platform.git"
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Google\\Cloud\\AIPlatform\\": "src",
+                    "GPBMetadata\\Google\\Cloud\\Aiplatform\\": "metadata"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "Apache-2.0"
+            ],
+            "description": "Google Cloud Ai Platform Client for PHP",
+            "support": {
+                "source": "https://github.com/googleapis/google-cloud-php-ai-platform/tree/v1.55.0"
+            },
+            "time": "2026-03-23T23:35:56+00:00"
         },
         {
             "name": "google/cloud-core",
@@ -6096,6 +6146,49 @@
             "time": "2025-08-05T09:57:14+00:00"
         },
         {
+            "name": "setasign/fpdi-tcpdf",
+            "version": "v2.3.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/Setasign/FPDI-TCPDF.git",
+                "reference": "f6711a95cba64db16e1a63e1b6195827a2150c93"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/Setasign/FPDI-TCPDF/zipball/f6711a95cba64db16e1a63e1b6195827a2150c93",
+                "reference": "f6711a95cba64db16e1a63e1b6195827a2150c93",
+                "shasum": ""
+            },
+            "require": {
+                "setasign/fpdi": "^2.3",
+                "tecnickcom/tcpdf": "^6.3.5"
+            },
+            "type": "library",
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Jan Slabon",
+                    "email": "jan.slabon@setasign.com",
+                    "homepage": "https://www.setasign.com"
+                }
+            ],
+            "description": "Kind of metadata package for dependencies of the latest versions of FPDI and TCPDF.",
+            "homepage": "https://www.setasign.com/fpdi",
+            "keywords": [
+                "TCPDF",
+                "fpdi",
+                "pdf"
+            ],
+            "support": {
+                "source": "https://github.com/Setasign/FPDI-TCPDF/tree/v2.3.0"
+            },
+            "abandoned": true,
+            "time": "2020-02-19T11:40:30+00:00"
+        },
+        {
             "name": "stripe/stripe-php",
             "version": "v19.1.0",
             "source": {
@@ -8731,6 +8824,77 @@
             ],
             "abandoned": true,
             "time": "2024-09-24T16:51:41+00:00"
+        },
+        {
+            "name": "tecnickcom/tcpdf",
+            "version": "6.11.2",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/tecnickcom/TCPDF.git",
+                "reference": "e1e2ade18e574e963473f53271591edd8c0033ec"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/tecnickcom/TCPDF/zipball/e1e2ade18e574e963473f53271591edd8c0033ec",
+                "reference": "e1e2ade18e574e963473f53271591edd8c0033ec",
+                "shasum": ""
+            },
+            "require": {
+                "ext-curl": "*",
+                "php": ">=7.1.0"
+            },
+            "type": "library",
+            "autoload": {
+                "classmap": [
+                    "config",
+                    "include",
+                    "tcpdf.php",
+                    "tcpdf_barcodes_1d.php",
+                    "tcpdf_barcodes_2d.php",
+                    "include/tcpdf_colors.php",
+                    "include/tcpdf_filters.php",
+                    "include/tcpdf_font_data.php",
+                    "include/tcpdf_fonts.php",
+                    "include/tcpdf_images.php",
+                    "include/tcpdf_static.php",
+                    "include/barcodes/datamatrix.php",
+                    "include/barcodes/pdf417.php",
+                    "include/barcodes/qrcode.php"
+                ]
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "LGPL-3.0-or-later"
+            ],
+            "authors": [
+                {
+                    "name": "Nicola Asuni",
+                    "email": "info@tecnick.com",
+                    "role": "lead"
+                }
+            ],
+            "description": "TCPDF is a PHP class for generating PDF documents and barcodes.",
+            "homepage": "http://www.tcpdf.org/",
+            "keywords": [
+                "PDFD32000-2008",
+                "TCPDF",
+                "barcodes",
+                "datamatrix",
+                "pdf",
+                "pdf417",
+                "qrcode"
+            ],
+            "support": {
+                "issues": "https://github.com/tecnickcom/TCPDF/issues",
+                "source": "https://github.com/tecnickcom/TCPDF/tree/6.11.2"
+            },
+            "funding": [
+                {
+                    "url": "https://www.paypal.com/donate/?hosted_button_id=NZUEC5XS8MFBJ",
+                    "type": "custom"
+                }
+            ],
+            "time": "2026-03-03T08:58:10+00:00"
         },
         {
             "name": "tijsverkoyen/css-to-inline-styles",

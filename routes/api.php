@@ -116,6 +116,9 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::post('/invoices/create-intent', [PaymentController::class, 'createPaymentIntent']);
         Route::put('/invoices/{invoice}/confirm', [PaymentController::class, 'confirmPayment']);
         Route::put('/invoices/{invoice}/cancel', [PaymentController::class, 'cancelPayment']);
+
+        Route::get('/invoices/fifpl/{invoiceId}', [PaymentController::class, 'getFifplInvoice']);
+        Route::post('/invoices/fifpl/create-intent', [PaymentController::class, 'createFifplPaymentIntent']);
     });
 
     // Documents

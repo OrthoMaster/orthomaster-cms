@@ -13,6 +13,7 @@
         "barryvdh/laravel-dompdf": "^3.1",
         "codedge/laravel-fpdf": "^1.12",
         "google/apiclient": "^2.19",
+        "google/cloud-ai-platform": "^1.55",
         "guzzlehttp/guzzle": "^7.9",
         "kreait/laravel-firebase": "^6.2",
         "laravel/framework": "^11.31",
@@ -22,8 +23,10 @@
         "phpxmlrpc/phpxmlrpc": "^4.11",
         "setasign/fpdf": "^1.8",
         "setasign/fpdi": "^2.6",
+        "setasign/fpdi-tcpdf": "^2.3",
         "stripe/stripe-php": "^19.1",
-        "tcg/voyager": "^1.8"
+        "tcg/voyager": "^1.8",
+        "tecnickcom/tcpdf": "^6.11"
     },
     "require-dev": {
         "barryvdh/laravel-debugbar": "^3.15",

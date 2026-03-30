@@ -2,7 +2,7 @@
 
 use App\Http\Controllers\AccountController;
 use App\Http\Controllers\AdminController;
-use App\Http\Controllers\API\ChatbotController;
+use App\Http\Controllers\API\AiController;
 use App\Http\Controllers\AuthCompanyRequestController;
 use App\Http\Controllers\ContentController;
 use App\Http\Controllers\HealthcareProfessionalController;
@@ -131,5 +131,13 @@ Route::group(['prefix' => 'admin', 'middleware' => ['cmsAdmin']], function () {
 Route::group(['prefix' => 'syncSystem', 'middleware' => ['cmsAdmin']], function () {
     Route::get('/trainings', [AdminController::class, 'syncNewUserWithOldTrainings']);
     Route::get('/lessons', [AdminController::class, 'syncNewUserWithOldLessons']);
-    Route::get('/testing/send-notification', [TestingController::class, 'testSendNotification']);
+    
+    //Route::get('/testing/send-notification', [TestingController::class, 'testSendNotification']);
+    //Route::get('/testing/create-invoice', [TestingController::class, 'testCreateInvoiceFromContract']);
+    //Route::get('/testing/create-invoice', [TestingController::class, 'testChangeStatusToPaid']);
+    //Route::get('/testing/create-invoice', [TestingController::class, 'testGenerateInvoice']);
 });
+
+
+Route::get('/00e7eb2a475/chat', [AiController::class, 'view']);
+Route::post('/api/ask-notebook', [AiController::class, 'ask']);
