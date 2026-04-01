@@ -10,10 +10,16 @@ use Google\Client;
 
 class AiController extends Controller
 {
-    // Cấu hình các thông số hệ thống
-    private $projectId = 'orthomaster-b5a0e'; // THAY ĐỔI THEO DỰ ÁN CỦA BẠN
+    private $projectId = 'orthomaster-b5a0e';
     private $engineId = 'orthomaster-notebook_1774515838224';
     private $location = 'global';
+    private $bucketName = 'your-bucket-name';
+    private $keyFile;
+
+    public function __construct()
+    {
+        $this->keyFile = base_path('storage/app/chatbot/orthomaster-b5a0e-0e4f2ac0c577.json');
+    }
 
     public function view()
     {
@@ -40,30 +46,41 @@ class AiController extends Controller
                 ? "projects/{$this->projectId}/locations/{$this->location}/collections/default_collection/engines/{$this->engineId}/sessions/{$sessionId}"
                 : null;
 
-
             // Gửi Request tới Google
             $response = Http::withToken($accessToken)
                 ->withHeaders(['Content-Type' => 'application/json'])
                 ->post($url, [
                     "query" => ["text" => $question],
                     "session" => $sessionPath,
+                    "safetySpec" => [
+                        "enable" => true
+                    ],
                     "answerGenerationSpec" => [
                         "modelSpec" => [
-                            "modelVersion" => "gemini-2.0-flash-001/answer_gen/v1"
+                            "modelVersion" => "gemini-3-flash-preview/answer_gen/v1"
                         ],
                         "promptSpec" => [
-                            "preamble" => "You are the 'Orthomaster AI Tutor,' a senior pedagogical expert. Your mission is to help students master the curriculum using ONLY the provided materials. 
-ADAPT YOUR OUTPUT BASED ON USER INTENT:
-1. STANDARD Q&A: Provide clear, concise answers with [1], [2] citations.
-2. QCM/QUIZ MODE: If the user asks for a quiz, generate 3-5 Multiple Choice Questions. Format: Question -> 4 Options -> Correct Answer -> Explanation with citations.
-3. SUMMARY MODE: Provide an 'Executive Summary' using bullet points.
-4. ANALOGY MODE: Explain complex concepts using simple real-world analogies.
+                            "preamble" => "You are the 'Orthomaster AI Tutor, a senior pedagogical expert. Your mission is to help students master the curriculum using ONLY the provided materials.
+DYNAMIC INTENT INFERENCE & EXECUTION:
+Analyze the user's request to determine their underlying goal. Before generating any content, you must verify if the specific topic (e.g., 'Topic A') exists within the provided materials.
+
+1. CONTENT VERIFICATION (Crucial Step):
+   - When a user asks for a specific action (Quiz, Summary, Q&A) regarding a topic:
+     * FIRST: Extract the core topic from the request (e.g., for 'Create a quiz about X', the topic is 'X').
+     * SECOND: Search the curriculum using ONLY that core topic.
+   - If the topic is found: Proceed to Step 2.
+   - If the topic is NOT found: Politely inform the user that this specific material is missing from the curriculum.
+
+2. ACTION SELECTION (Based on User Intent):
+   - If the user seeks a general answer: Provide a concise response with [1], [2] citations.
+   - If the user asks for a 'Quiz' or 'QCM' or 'Test': generate 3-5 Multiple Choice Questions. Format: Question -> 4 Options -> Correct Answer -> Explanation with citations. Format: Question -> 4 Options -> Correct Answer -> Explanation with citations.
+   - If the user asks for a 'Q&A': Generate a list of frequently asked questions and detailed answers regarding that specific topic.
+   - If the user asks for a 'Summary': Provide an 'Executive Summary' using structured bullet points.
 
 STRICT RULES:
 - ONLY use the provided curriculum.
-- If info is missing for a QCM, inform the user.
 - Always maintain a professional tone.
-- Output MUST be in the user's preferred language (French or English).
+- Output MUST be in the 2 languages: French or English.
 
 FORMATTING RULES:
 1. For normal chat: Use Markdown with citations like [1], [2].
@@ -75,16 +92,13 @@ http://googleusercontent.com/immersive_entry_chip/0
                         "ignoreAdversarialQuery" => true,
                         "ignoreNonAnswerSeekingQuery" => false,
                         "ignoreLowRelevantContent" => false,
-                        "multimodalSpec" => [
-                            "imageSource" => "FIGURE_GENERATION_ONLY"
-                        ],
                         "includeCitations" => true,
                     ]
                 ]);
 
             if ($response->failed()) {
                 Log::error("Google API Error: " . $response->body());
-                return response()->json(['error' => 'Không thể kết nối với AI Core.'], 500);
+                return response()->json(['error' => "Impossible de se connecter au noyau d'IA."], 500);
             }
 
             $data = $response->json();
@@ -111,7 +125,7 @@ http://googleusercontent.com/immersive_entry_chip/0
             ]);
         } catch (\Exception $e) {
             Log::error("Notebook Controller Error: " . $e->getMessage());
-            return response()->json(['error' => 'Lỗi hệ thống nội bộ.'], 500);
+            return response()->json(['error' => 'Erreur système interne.'], 500);
         }
     }
 
@@ -120,13 +134,12 @@ http://googleusercontent.com/immersive_entry_chip/0
      */
     private function getAccessToken()
     {
-        $keyFile = base_path('storage/app/chatbot/orthomaster-b5a0e-0e4f2ac0c577.json');
-        if (!file_exists($keyFile)) {
+        if (!file_exists($this->keyFile)) {
             Log::channel('api')->error('Keyfile: {$keyFile}');
         }
 
         $client = new Client();
-        $client->setAuthConfig($keyFile);
+        $client->setAuthConfig($this->keyFile);
         $client->addScope('https://www.googleapis.com/auth/cloud-platform');
 
         $token = $client->fetchAccessTokenWithAssertion();

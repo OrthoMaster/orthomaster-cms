@@ -41,3 +41,8 @@ Schedule::command('fifpl:pre-invoices')
 Schedule::command('fifpl:send-invoices')
     ->dailyAt('08:15')
     ->timezone('Europe/Paris');
+
+// Sales
+Schedule::command('sales:update-assignments')
+    ->dailyAt('01:00')
+    ->timezone('Europe/Paris');

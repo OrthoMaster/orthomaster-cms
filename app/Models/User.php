@@ -137,6 +137,27 @@ class User extends \TCG\Voyager\Models\User
         return $this->hasMany(DeviceToken::class);
     }
 
+    public function roles()
+    {
+        return $this->belongsToMany(
+            \TCG\Voyager\Models\Role::class,
+            'user_roles',
+            'user_id',
+            'role_id'
+        );
+    }
+
+    // For sale
+    public function customers()
+    {
+        return $this->belongsToMany(
+            User::class,
+            'sale_assignments',
+            'sale_id',
+            'customer_id'
+        )->withTimestamps();
+    }
+
     protected function missingFieldsMessage(): Attribute
     {
         return Attribute::make(

@@ -13,6 +13,7 @@ use App\Http\Controllers\CompanyController;
 use App\Http\Controllers\ContentViewReportController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\MediaController;
+use App\Http\Controllers\SaleAssignmentController;
 use App\Http\Controllers\TestingController;
 use App\Http\Controllers\TrainingPermissionController;
 use App\Http\Controllers\WebController;
@@ -126,11 +127,18 @@ Route::group(['prefix' => 'admin', 'middleware' => ['cmsAdmin']], function () {
     Route::get('/companies/{id}/invite-code', [CompanyController::class, 'generateInviteCode'])->name('companies.invite-code.generate');
     Route::get('/companies/{id}/integrity-check', [CompanyController::class, 'integrityCheck'])->name('companies.integrity-check');
     Route::get('/companies/manager/{id}/register-company-email', [CompanyController::class, 'resendEmailRegisterCompany'])->name('companies.register-company-email');
+
+    Route::get('/sale-assignments', [SaleAssignmentController::class, 'index'])->name('sales.index');
+    Route::post('/sale-assignments/{saleId}/user/{userId}', [SaleAssignmentController::class, 'remove'])->name('sales.remove');
 });
 
 Route::group(['prefix' => 'syncSystem', 'middleware' => ['cmsAdmin']], function () {
-    Route::get('/trainings', [AdminController::class, 'syncNewUserWithOldTrainings']);
-    Route::get('/lessons', [AdminController::class, 'syncNewUserWithOldLessons']);
+    // Route::get('/trainings', [AdminController::class, 'syncNewUserWithOldTrainings']);
+    // Route::get('/lessons', [AdminController::class, 'syncNewUserWithOldLessons']);
+
+    // Assign Clients for Sales
+    Route::get('/sale-assignments/first-assign', [SaleAssignmentController::class, 'firstAssign'])->name('sales.first-assign');
+    Route::get('/sale-assignments/assign', [SaleAssignmentController::class, 'assign'])->name('sales.assign');
     
     //Route::get('/testing/send-notification', [TestingController::class, 'testSendNotification']);
     //Route::get('/testing/create-invoice', [TestingController::class, 'testCreateInvoiceFromContract']);

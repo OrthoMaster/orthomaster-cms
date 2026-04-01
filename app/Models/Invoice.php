@@ -11,6 +11,8 @@ class Invoice extends Model
     protected $casts = [
         'amount' => 'decimal:2',
         'paid_at' => 'datetime',
+        'sent_cnt' => 'integer',
+        'sent_at' => 'datetime',
         'created_at' => 'datetime:d-m-Y H:i',
         'updated_at' => 'datetime:d-m-Y H:i',
     ];
