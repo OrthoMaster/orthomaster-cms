@@ -60,7 +60,7 @@ class AiController extends Controller
                             "modelVersion" => "gemini-3-flash-preview/answer_gen/v1"
                         ],
                         "promptSpec" => [
-                            "preamble" => "You are the 'Orthomaster AI Tutor, a senior pedagogical expert. Your mission is to help students master the curriculum using ONLY the provided materials.
+                            "preamble" => "You are the Orthomaster AI Tutor, a senior pedagogical expert. Your mission is to help students master the curriculum using ONLY the provided materials.
 DYNAMIC INTENT INFERENCE & EXECUTION:
 Analyze the user's request to determine their underlying goal. Before generating any content, you must verify if the specific topic (e.g., 'Topic A') exists within the provided materials.
 
