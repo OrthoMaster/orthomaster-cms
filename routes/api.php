@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\API\AiController;
 use App\Http\Controllers\API\APILessonController;
 use App\Http\Controllers\API\ApplicationTrackingController;
 use App\Http\Controllers\API\AuthController;
@@ -11,6 +12,7 @@ use App\Http\Controllers\API\DailyActionController;
 use App\Http\Controllers\API\DocumentController;
 use App\Http\Controllers\API\MediaController;
 use App\Http\Controllers\API\PaymentController;
+use App\Http\Controllers\API\PlanController;
 use App\Http\Controllers\API\PromotionController;
 use App\Http\Controllers\API\SearchController;
 use App\Http\Controllers\API\StripeWebhookController;
@@ -29,6 +31,9 @@ Route::get('/user', function (Request $request) {
 
 // Stripe webhook
 Route::post('/webhooks/stripe', [StripeWebhookController::class, 'handleWebhook']);
+
+// Plans
+Route::get('/plans', [PlanController::class, 'getPlans']);
 
 // Auth
 Route::prefix('auth')->group(function () {
@@ -153,6 +158,11 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/tool/content', [MediaController::class, 'getToolContent']);
     });
 
+    // Subscription
+    Route::get('/subscription', [PlanController::class, 'currentSubscription']);
+    Route::get('/subscription/usage', [PlanController::class, 'currentUsage']);
+    Route::get('/subscription/check-feature/{featureKey}', [PlanController::class, 'checkFeature']);
+
     // Tracking
     Route::prefix('tracking')->group(function () {
         Route::post('/error', [ApplicationTrackingController::class, 'errorTracking']);
@@ -160,6 +170,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
     // Chatbot
     Route::prefix('chatbot')->group(function () {
+        Route::post('/ask-notebook', [AiController::class, 'ask']);
+
         Route::post('/ask', [ChatbotController::class, 'ask']);
         Route::get('/history/{conversationId}', [ChatbotController::class, 'history']);
         Route::get('/conversations', [ChatbotController::class, 'conversations']);

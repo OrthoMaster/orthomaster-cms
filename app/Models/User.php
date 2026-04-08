@@ -147,6 +147,23 @@ class User extends \TCG\Voyager\Models\User
         );
     }
 
+    public function subscriptions()
+    {
+        return $this->hasMany(Subscription::class);
+    }
+
+    public function activeSubscription()
+    {
+        return $this->hasOne(Subscription::class)
+            ->whereIn('status', ['active', 'trialing'])
+            ->latestOfMany('starts_at');
+    }
+
+    public function hasSubscription()
+    {
+        return $this->activeSubscription()->exists();
+    }
+
     // For sale
     public function customers()
     {

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -13,7 +14,6 @@ class AiController extends Controller
     private $projectId = 'orthomaster-b5a0e';
     private $engineId = 'orthomaster-notebook_1774515838224';
     private $location = 'global';
-    private $bucketName = 'your-bucket-name';
     private $keyFile;
 
     public function __construct()
@@ -44,7 +44,7 @@ class AiController extends Controller
             $url = "https://discoveryengine.googleapis.com/v1alpha/projects/{$this->projectId}/locations/{$this->location}/collections/default_collection/engines/{$this->engineId}/servingConfigs/default_search:answer";
             $sessionPath = $sessionId
                 ? "projects/{$this->projectId}/locations/{$this->location}/collections/default_collection/engines/{$this->engineId}/sessions/{$sessionId}"
-                : null;
+                : "projects/{$this->projectId}/locations/{$this->location}/collections/default_collection/engines/{$this->engineId}/sessions/-";
 
             // Gửi Request tới Google
             $response = Http::withToken($accessToken)
@@ -85,14 +85,24 @@ STRICT RULES:
 FORMATTING RULES:
 1. For normal chat: Use Markdown with citations like [1], [2].
 2. For QUIZ requests: 
-   - You MUST output a valid JSON object wrapped in triple backticks like this: 
-http://googleusercontent.com/immersive_entry_chip/0
+   - You MUST output a valid JSON object wrapped in triple backticks. 
+   - Strict JSON structure:
+   {
+     'questions': [
+       {
+         'question': 'String - question',
+         'options': ['String', 'String', 'String', 'String'],
+         'correct_index': Number - Index of correct answer (0-3),
+         'explanation': 'String - Explanation'
+       }
+     ]
+   }
                             "
                         ],
-                        "ignoreAdversarialQuery" => true,
+                        "ignoreAdversarialQuery" => false,
                         "ignoreNonAnswerSeekingQuery" => false,
                         "ignoreLowRelevantContent" => false,
-                        "includeCitations" => true,
+                        "includeCitations" => false,
                     ]
                 ]);
 
@@ -102,23 +112,32 @@ http://googleusercontent.com/immersive_entry_chip/0
             }
 
             $data = $response->json();
+            $sessionId = null;
+            $answerName = $data['answer']['name'] ?? '';
+
+            if ($answerName) {
+                $parts = explode('/', $answerName);
+                $sessionIndex = array_search('sessions', $parts);
+
+                if ($sessionIndex !== false && isset($parts[$sessionIndex + 1])) {
+                    $sessionId = $parts[$sessionIndex + 1];
+                }
+            }
 
             // Kiểm tra xem AI có "né" câu hỏi không (Lỗi OUT_OF_DOMAIN bạn vừa gặp)
             if (isset($data['answer']['answerSkippedReasons'])) {
                 return response()->json([
                     'status' => 'skipped',
+                    'session_id' => $sessionId,
                     'message' => 'Aucune réponse trouvée dans les archives de documents !',
                     'reasons' => $data['answer']['answerSkippedReasons']
                 ]);
             }
 
-            $fullSessionName = $data['session'] ?? null;
-            $justId = $fullSessionName ? basename($fullSessionName) : null;
-
             // Trả về kết quả sạch cho Frontend
             return response()->json([
                 'status' => 'success',
-                'session_id' => $justId,
+                'session_id' => $sessionId,
                 'answer' => $data['answer']['answerText'] ?? '',
                 'citations' => $data['answer']['citations'] ?? [],
                 'references' => $data['answer']['references'] ?? []

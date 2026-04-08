@@ -575,6 +575,9 @@ class AuthController extends Controller
 
                 'closable_ads' => Auth::check() ? Auth::user()->hasPermission('edit_videos') : false,
 
+                // Subscription
+                'has_subscription' => $user->hasSubscription(),
+
                 // Settings
                 'settings' => [
                     'notifications' => $user->notification_flg,
