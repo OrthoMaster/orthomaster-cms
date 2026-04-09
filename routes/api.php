@@ -16,6 +16,7 @@ use App\Http\Controllers\API\PlanController;
 use App\Http\Controllers\API\PromotionController;
 use App\Http\Controllers\API\SearchController;
 use App\Http\Controllers\API\StripeWebhookController;
+use App\Http\Controllers\API\ToolController;
 use App\Http\Controllers\API\TrainingController;
 use App\Http\Controllers\GeneratePdfController;
 use App\Http\Controllers\NotificationController;
@@ -167,6 +168,10 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::prefix('tracking')->group(function () {
         Route::post('/error', [ApplicationTrackingController::class, 'errorTracking']);
     });
+
+    // Tool
+    Route::get('/tools/user/brands', [ToolController::class, 'getSelectedProductBrands']);
+    Route::post('/tools/user/brands', [ToolController::class, 'updateSelectedProductBrands']);
 
     // Chatbot
     Route::prefix('chatbot')->group(function () {
