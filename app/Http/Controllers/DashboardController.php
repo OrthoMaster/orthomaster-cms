@@ -116,6 +116,7 @@ class DashboardController extends Controller
             ->where('contracts.type', 'signed')
             ->whereIn('carts.user_id', $customerIds)
             ->whereBetween('carts.updated_at', [$from, $to])
+            ->distinct()
             ->count('cart_user.user_id');
 
         $totalFifplContracts = Contract::whereHas(

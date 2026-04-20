@@ -49,6 +49,13 @@
                                     value="{{ request()->get('customer') }}"
                                     placeholder="Laisser vide pour afficher tous les clients">
                             </div>
+                            <div class="col-md-12">
+                                <label for="display_name">Société</label>
+                                <input type="text" class="form-control" name="company"
+                                    value="{{ request()->get('company') }}"
+                                    placeholder="Laisser vide pour afficher tous les sociétés">
+                            </div>
+
                             <div class="col-md-12" style="margin-bottom: 0">
                                 <button type="submit" class="btn btn-primary pull-right">
                                     Voir clients
@@ -84,9 +91,9 @@
                                 <table class="table table-striped database-tables">
                                     <thead>
                                         <tr>
-                                            <th>ID</th>
+                                            <th class="text-center">ID</th>
                                             <th>Nom complet</th>
-                                            <th>Email</th>
+                                            <th>Société</th>
                                             <th class="text-right">Actions</th>
                                         </tr>
                                     </thead>
@@ -95,9 +102,22 @@
                                             <tr>
                                                 <th class="text-center">{{ $user->id }}</th>
                                                 <td>
-                                                    <p><strong>{{ $user->name . ' ' . $user->first_name }}</strong></p>
+                                                    <div><span><b>{{ $user->name . ' ' . $user->first_name }}</b></span>
+                                                    </div>
+                                                    <span>{{ $user->email }}</span>
                                                 </td>
-                                                <td>{{ $user->email }}</td>
+                                                <td>
+                                                    @foreach ($user->companiesUserIsManager as $company)
+                                                        <div><b>{{ $company->name }}</b></div>
+                                                    @endforeach
+
+                                                    @foreach ($user->companiesUserIsMember as $company)
+                                                        @if ($loop->first && sizeof($user->companiesUserIsManager) > 0)
+                                                        <p> </p>
+                                                        @endif
+                                                        <div>{{ $company->name }}</div>
+                                                    @endforeach
+                                                </td>
                                                 <td class="text-right">
                                                     <button class="btn btn-sm btn-danger"
                                                         onclick="removeClient('{{ $user->id }}')">

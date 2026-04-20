@@ -263,7 +263,7 @@
                         <h5>OPCO</h5>
                         <div><small>CA: </small> <b>{{ $totalOpcoContractIncome }}</b> €</div>
                         <div><small>Nv devis signés: </small> <b>{{ $totalOpcoContracts }}</b> </div>
-                        <div><small>Nv persons signés: </small> <b>{{ $totalOpcoContractUser }}</b> </div>
+                        <div><small>Nv personnes signées: </small> <b>{{ $totalOpcoContractUser }}</b> </div>
                         <div><small>Finalisations: </small> <b>{{ $sumFinalDoss }}</b></div>
                     </div>
                     <div class="col-md-3">
@@ -279,9 +279,9 @@
                         <h5>Aperçu</h5>
                         <div>
                             <small>Performance: </small>
-                            @if ($totalOpcoContractIncome + $totalFifplContractIncome >= ($currentKpi->attended_target * $cntLogs ?? 0) * 0.8)
+                            @if (($totalOpcoContractIncome + $totalFifplContractIncome) >= ($currentKpi->attended_target * $cntLogs ?? 0) * 0.8)
                                 <b class="text-success float-right">
-                            @elseif ($totalOpcoContractIncome + $totalFifplContractIncome >= ($currentKpi->attended_target * $cntLogs ?? 0) * 0.5)
+                            @elseif (($totalOpcoContractIncome + $totalFifplContractIncome) >= ($currentKpi->attended_target * $cntLogs ?? 0) * 0.5)
                                 <b class="text-warning float-right">
                             @else
                                 <b class="text-danger float-right">

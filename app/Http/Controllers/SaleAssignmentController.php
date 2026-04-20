@@ -29,10 +29,26 @@ class SaleAssignmentController extends Controller
 
             // Clients
             $customers = $sale->customers()
+                ->with(['companiesUserIsManager', 'companiesUserIsMember'])
                 ->when(
                     $request->filled('customer'),
-                    fn($q) => $q->where('name', 'like', '%' . $request->customer . '%')
-                        ->orWhere('first_name', 'like', '%' . $request->customer . '%')
+                    fn($q) => $q->where(function ($q) use ($request) {
+                        $q->where('name', 'like', '%' . $request->customer . '%')
+                            ->orWhere('first_name', 'like', '%' . $request->customer . '%');
+                    })
+                )
+                ->when(
+                    $request->filled('company'),
+                    fn($q) => $q->where(function ($q) use ($request) {
+                        $q->whereHas(
+                            'companiesUserIsManager',
+                            fn($q) => $q->where('companies.name', 'like', '%' . $request->company . '%')
+                        )
+                            ->orWhereHas(
+                                'companiesUserIsMember',
+                                fn($q) => $q->where('companies.name', 'like', '%' . $request->company . '%')
+                            );
+                    })
                 )
                 ->paginate(20)
                 ->withQueryString();
