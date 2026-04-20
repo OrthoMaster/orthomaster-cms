@@ -1,11 +1,11 @@
 @extends('voyager::master')
 
-@section('page_title', ' Ventes')
+@section('page_title', 'Portefeuille clients')
 
 @section('page_header')
     <div class="container-fluid">
         <h1 class="page-title">
-            <i class="voyager-people"></i> Rapport des ventes
+            <i class="voyager-people"></i> Portefeuille clients
         </h1>
     </div>
 @stop
@@ -49,19 +49,9 @@
                                     value="{{ request()->get('customer') }}"
                                     placeholder="Laisser vide pour afficher tous les clients">
                             </div>
-                            <div class="col-md-6">
-                                <label for="display_name">De</label>
-                                <input type="date" class="form-control" name="from" placeholder="dd/mm/yyyy"
-                                    value="{{ request('from') }}">
-                            </div>
-                            <div class="col-md-6">
-                                <label for="display_name">À</label>
-                                <input type="date" class="form-control" name="to" placeholder="dd/mm/yyyy"
-                                    value="{{ request('to') }}">
-                            </div>
                             <div class="col-md-12" style="margin-bottom: 0">
                                 <button type="submit" class="btn btn-primary pull-right">
-                                    Exporter
+                                    Voir clients
                                 </button>
                             </div>
                         </form>
@@ -70,31 +60,6 @@
             </div>
 
             <div class="col-md-8">
-                <div class="panel panel-bordered">
-                    <div class="panel-heading">
-                        <h3 class="panel-title">Résumé</h3>
-                    </div>
-                    <div class="panel-body row">
-                        <div class="col-md-2">
-                            <span>Clients</span>
-                            <h1>{{ $totalCustomers }}</h1>
-                        </div>
-                        <div class="col-md-5">
-                            <span>Devis OPCO</span>
-                            <h1>{{ $totalContracts }} | {{ number_format($totalContractIncome, 2, ',', ' ') }} €</h1>
-                        </div>
-                        <div class="col-md-5">
-                            <span>Factures & Chiffre d'affaires</span>
-                            <h1>{{ sizeof($invoices) }} | {{ number_format($totalIncome, 2, ',', ' ') }} €</h1>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="row">
-            {{-- Clients --}}
-            <div class="col-md-6">
                 @if (isset($customers) && $customers->count() > 0)
                     <div class="panel panel-bordered">
                         <div class="panel-heading">
@@ -140,58 +105,6 @@
                                                         <span class="hidden-xs hidden-sm">Retirer</span>
                                                     </button>
                                                 </td>
-                                            </tr>
-                                        @endforeach
-                                    </tbody>
-                                </table>
-                                <div class="table-navigation" style="margin-bottom: 2em">
-                                    {{ $customers->links() }}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                @endif
-            </div>
-
-            {{-- Invoices --}}
-            <div class="col-md-6">
-                @if (isset($invoices) && $invoices->count() > 0)
-                    <div class="panel panel-bordered">
-                        <div class="panel-heading">
-                            <h3 class="panel-title">Factures</h3>
-                        </div>
-                        <div class="panel-body">
-                            <div class="table-responsive">
-                                <div class="row">
-                                    <div class="col-md-6">
-                                        <div>Total <b>{{ $invoices->total() }}</b>
-                                            {{ $invoices->total() > 1 ? 'factures' : 'facture' }}
-                                        </div>
-                                        <span>Page
-                                            <b>{{ $invoices->currentPage() }}/{{ $invoices->lastPage() }}</b></span>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="table-navigation">
-                                            {{ $invoices->links() }}
-                                        </div>
-                                    </div>
-                                </div>
-                                <table class="table table-striped database-tables">
-                                    <thead>
-                                        <tr>
-                                            <th class="text-center">No</th>
-                                            <th class="text-right">Total</th>
-                                            <th class="text-center">Payé à</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        @foreach ($invoices as $inv)
-                                            <tr>
-                                                <th class="text-center">{{ $inv->no }}</th>
-                                                <td class="text-right">{{ number_format($inv->amount, 2, ',', ' ') }} €
-                                                </td>
-                                                <td class="text-center">
-                                                    {{ $inv->paid_at ? $inv->paid_at->format('d/m/Y H:i') : '' }}</td>
                                             </tr>
                                         @endforeach
                                     </tbody>

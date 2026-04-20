@@ -6,6 +6,7 @@ use App\Http\Controllers\Odoo\OdooInvoiceController;
 use App\Jobs\SendExpoNotificationJob;
 use App\Models\Cart;
 use App\Models\Contract;
+use App\Models\FundingOrganization;
 use App\Models\Invoice;
 use App\Models\User;
 use App\Organization;
@@ -16,6 +17,58 @@ use Illuminate\Support\Facades\Log;
 
 class TestingController extends Controller
 {
+    public function backupCreateContract(Request $request)
+    {
+        if (!$request->filled('contract_id') || !$request->filled('signature_link') || !$request->filled('signatory')) {
+            return 'False';
+        }
+
+        $generatePdfController = new GeneratePdfController();
+
+        
+        $contract = Contract::find($request->contract_id);
+        if (!$contract) {
+            return 'False x';
+        }
+
+        $cart = Cart::find($contract->cart_id);
+        $cart->load(['members', 'items', 'items.package']);
+        $organization = FundingOrganization::find($cart->payment_type);
+
+        $user = User::find($contract->created_by);
+        $company = $user->companiesUserIsManager()->first();
+
+        $pdfLinks = [];
+        if ($cart->payment_type == '1') {
+            $itemGroups = $cart->groupItemsByDurationBestFit(Organization::OPCO_MAX_DURATION->value);
+            
+            foreach ($itemGroups as $key => $group) {
+                $pdf = $generatePdfController->quotationTemp(
+                    $cart->id,
+                    $contract->no,
+                    now()->format('d/m/Y'),
+                    now()->addMonth()->format('d/m/Y'),
+                    $company,
+                    now()->format('d/m/Y') . ' - ' . now()->addMonth()->format('d/m/Y'),
+                    $organization->id,
+                    $cart->members,
+                    $group,
+                    Organization::OPCO_UNIT_PRICE->value,
+                    (float) setting('system.tva'),
+                    $cart->calculateGroupDuration($group),
+                    $request->signature_link,
+                    $request->signatory
+                );
+            }
+
+            if ($pdf) {
+                array_push($pdfLinks, $pdf);
+            }
+        }
+
+        return $pdfLinks;
+    }
+
     public function testSendNotification(Request $request)
     {
         SendExpoNotificationJob::dispatch(
@@ -168,12 +221,14 @@ class TestingController extends Controller
         $controller->markInvoiceAsPaid($invoice->id_odoo, 315.00, '2026-03-25');
     }
 
-    public function testFifplCert() {
+    public function testFifplCert()
+    {
         $generatePdfController = new generatePdfController();
         return $generatePdfController->fifplCertificate2();
     }
 
-    public function testGenerateInvoice() {
+    public function testGenerateInvoice()
+    {
         $invoiceId = 107;
         $invoiceController = new InvoiceController();
         $invoiceController->generateFifplInvoiceDocument($invoiceId);

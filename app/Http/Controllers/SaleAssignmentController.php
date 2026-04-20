@@ -20,11 +20,7 @@ class SaleAssignmentController extends Controller
         $sales = User::whereHas('roles', fn($q) => $q->where('name', 'csr'))->orderBy('name')->get();
 
         $customers = collect();
-        $invoices = collect();
-        $totalContracts = 0;
-        $totalContractIncome = 0;
         $totalCustomers = 0;
-        $totalIncome = 0;
 
         if ($saleId) {
             $sale = User::findOrFail($saleId);
@@ -40,56 +36,12 @@ class SaleAssignmentController extends Controller
                 )
                 ->paginate(20)
                 ->withQueryString();
-
-            // Invoices
-            $invoiceQuery = Invoice::whereIn('user_id', $customerIds)
-                ->where('status', 'paid')
-                ->when(
-                    $request->filled('customer'),
-                    fn($q) => $q->whereHas(
-                        'user',
-                        fn($u) =>
-                        $u->where('name', 'like', '%' . $request->customer . '%')
-                            ->orWhere('first_name', 'like', '%' . $request->customer . '%')
-                    )
-                )
-                ->when(
-                    $request->filled('from'),
-                    fn($q) => $q->whereDate('paid_at', '>=', $request->from)
-                )
-                ->when(
-                    $request->filled('to'),
-                    fn($q) => $q->whereDate('paid_at', '<=', $request->to)
-                )
-                ->with('user')
-                ->latest();
-
-            $totalIncome = $invoiceQuery->sum('amount');
-            $invoices = $invoiceQuery->paginate(20)->withQueryString();
-
-            // Contracts
-            $totalContracts = Contract::whereHas(
-                'cart',
-                fn($q) => $q->whereIn('user_id', $customerIds)
-            )->where('organization', 'OPCO-EP')
-                ->where('type', 'signed')
-                ->count();
-
-            $totalContractIncome = Contract::join('carts', 'contracts.cart_id', '=', 'carts.id')
-                ->where('contracts.organization', 'OPCO-EP')
-                ->where('contracts.type', 'signed')
-                ->whereIn('carts.user_id', $customerIds)
-                ->sum('carts.price_total');
         }
 
         return view('sales.index', compact(
             'sales',
             'customers',
-            'invoices',
             'totalCustomers',
-            'totalIncome',
-            'totalContracts',
-            'totalContractIncome',
             'isSale',
             'saleId'
         ));

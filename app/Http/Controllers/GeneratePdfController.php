@@ -90,10 +90,9 @@ class GeneratePdfController extends Controller
             $amountHT = round($unitPrice * $durationTotal, 2);
             $tvaAmount = round(round($unitPrice * $durationTotal, 2) * $tva / 100, 2);
         } else {
-            $amountHT = round($unitPrice * $durationTotal / 60, 2);
-            $tvaAmount = round(round($unitPrice * $durationTotal / 60, 2) * $tva / 100, 2);
+            $amountHT = round($unitPrice * $durationTotal / 60 * sizeof($members), 2);
+            $tvaAmount = round(round($unitPrice * $durationTotal / 60 * sizeof($members), 2) * $tva / 100, 2);
         }
-
 
         $data = [
             'company' => $this::COMPANY,

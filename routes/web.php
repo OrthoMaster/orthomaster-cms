@@ -62,6 +62,16 @@ Route::get('/legal-notice', [WebController::class, 'legalNotice'])->name('web.le
 
 Route::group(['prefix' => 'admin', 'middleware' => ['cmsAdmin']], function () {
     Route::get('/', [DashboardController::class, 'index'])->name('voyager.dashboard');
+    Route::get('/dashboard/staff', [DashboardController::class, 'staffIndex'])->name('voyager.dashboard.staff');
+    Route::post('/dashboard/staff', [DashboardController::class, 'syncStaff']);
+    Route::post('/dashboard/staff/log/{id}', [DashboardController::class, 'confirmStaffLog'])->name('kpi.log.confirm');
+    Route::get('/dashboard/staff/calendar', [DashboardController::class, 'staffCalendarIndex'])->name('voyager.dashboard.staff.calendar');
+    Route::post('/dashboard/staff/calendar', [DashboardController::class, 'syncStaffCalendar']);
+
+    Route::get('/kpi-daily-logs/{id}/edit', [DashboardController::class, 'editStaffDailyLog']);
+    Route::post('/kpi-daily-logs/{id}/edit', [DashboardController::class, 'updateStaffDailyLog'])->name('kpi.log.update');
+
+
     Route::get('/dashboard/charts/app-opens', [DashboardController::class, 'getAppOpensChartData'])->name('dashboard.app-opens-chart-data');
     Route::get('/dashboard/charts/media-views', [DashboardController::class, 'getMediaViewsByHourChartData'])->name('dashboard.media-views-chart-data');
 
@@ -143,7 +153,7 @@ Route::group(['prefix' => 'syncSystem', 'middleware' => ['cmsAdmin']], function 
     //Route::get('/testing/send-notification', [TestingController::class, 'testSendNotification']);
     //Route::get('/testing/create-invoice', [TestingController::class, 'testCreateInvoiceFromContract']);
     //Route::get('/testing/create-invoice', [TestingController::class, 'testChangeStatusToPaid']);
-    //Route::get('/testing/create-invoice', [TestingController::class, 'testGenerateInvoice']);
+    Route::get('/backup/create-contract', [TestingController::class, 'backupCreateContract']);
 });
 
 
