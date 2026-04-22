@@ -657,21 +657,21 @@ class AuthController extends Controller
         $response = Http::post('https://api.orthomaster.fr/ads/interest', [
             'destination' => $request->destEmail,
             'user' => [
-                'name'         => 'Test',
-                'email'        => 'test@gmail.com',
-                'job_function' => 'A',
+                'name'         => $request->user()->name .' '.$request->user()->first_name,
+                'email'        => $request->user()->email,
+                'job_function' => $request->user()->profession ? $request->user()->profession->name : '',
             ],
-            'ad_title' => !$request->adTitle,
+            'ad_title' => $request->adTitle,
         ]);
 
-        // Kiểm tra kết quả
         if ($response->successful()) {
-            $data = $response->json();
-            // xử lý $data...
+            return response()->json([
+                'success' => false,
+            ]);
         } else {
-            // Xử lý lỗi
-            $statusCode = $response->status();
-            $errorBody  = $response->body();
+            return response()->json([
+                'success' => false,
+            ]);
         }
     }
 }
