@@ -13,6 +13,7 @@ use App\Http\Controllers\API\DocumentController;
 use App\Http\Controllers\API\MediaController;
 use App\Http\Controllers\API\PaymentController;
 use App\Http\Controllers\API\PlanController;
+use App\Http\Controllers\API\PreRegDiplomaRequestController;
 use App\Http\Controllers\API\PromotionController;
 use App\Http\Controllers\API\SearchController;
 use App\Http\Controllers\API\StripeWebhookController;
@@ -172,6 +173,9 @@ Route::middleware(['auth:sanctum'])->group(function () {
     // Tool
     Route::get('/tools/user/brands', [ToolController::class, 'getSelectedProductBrands']);
     Route::post('/tools/user/brands', [ToolController::class, 'updateSelectedProductBrands']);
+
+    // 
+    Route::post('/pre-reg/diploma', [PreRegDiplomaRequestController::class, 'preReg']);
 
     // Chatbot
     Route::prefix('chatbot')->group(function () {
