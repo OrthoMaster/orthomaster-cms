@@ -47,6 +47,9 @@ Route::prefix('auth')->group(function () {
 
     // Device
     Route::post('/device', [AuthController::class, 'storeDevice'])->middleware('auth:sanctum');
+
+    // Ads
+    Route::post('/ads/interest', [AuthController::class, 'sendAdsInterest'])->middleware('auth:sanctum');
 });
 
 // Tracking - Dont use anymore - TODO: delete
@@ -174,7 +177,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/tools/user/brands', [ToolController::class, 'getSelectedProductBrands']);
     Route::post('/tools/user/brands', [ToolController::class, 'updateSelectedProductBrands']);
 
-    // 
+    // Pre-Reg
     Route::post('/pre-reg/diploma', [PreRegDiplomaRequestController::class, 'preReg']);
 
     // Chatbot

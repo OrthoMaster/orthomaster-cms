@@ -20,6 +20,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use TCG\Voyager\Models\Role;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Http;
 
 class AuthController extends Controller
 {
@@ -639,6 +640,38 @@ class AuthController extends Controller
             return response()->json([
                 'success' => false,
             ], 500);
+        }
+    }
+
+    /**
+     * Send Ads interest to API Old Server
+     */
+    public function sendAdsInterest(Request $request)
+    {
+        if (!$request->filled('destEmail') || !$request->filled('adTitle')) {
+            return response()->json([
+                'success' => false,
+            ]);
+        }
+
+        $response = Http::post('https://api.orthomaster.fr/ads/interest', [
+            'destination' => $request->destEmail,
+            'user' => [
+                'name'         => 'Test',
+                'email'        => 'test@gmail.com',
+                'job_function' => 'A',
+            ],
+            'ad_title' => !$request->adTitle,
+        ]);
+
+        // Kiểm tra kết quả
+        if ($response->successful()) {
+            $data = $response->json();
+            // xử lý $data...
+        } else {
+            // Xử lý lỗi
+            $statusCode = $response->status();
+            $errorBody  = $response->body();
         }
     }
 }

@@ -34,8 +34,6 @@ class PreRegDiplomaRequestController extends Controller
                 }
             }
 
-
-
             return response()->json([
                 'success' => false,
                 'message' => 'Votre demande a échoué, veuillez réessayer ultérieurement.',
