@@ -288,11 +288,43 @@
                                     <p id="other-job-error" class="mt-2 text-sm text-red-600 hidden"></p>
                                 </div>
 
-                                <!-- RPPS -->
+                                <!-- Company invitation -->
+                                @if (request()->filled('join_code'))
+                                    <div>
+                                        <label for="member-organization" class="block text-sm text-gray-500 mb-2">
+                                            Organisme de formation <span class="text-red-500">*</span>
+                                        </label>
+                                        <select id="member-organization" onchange="toggleOpcoEp()" name="organization"
+                                            class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all bg-white">
+                                            @foreach ($organizations as $organization)
+                                                <option value="{{ $organization->id }}"
+                                                    data-code="{{ $organization->code }}">
+                                                    {{ $organization->name }}</option>
+                                            @endforeach
+                                        </select>
+                                    </div>
+                                    <div id="dob-field" class="">
+                                        <label for="member-dob" class="block text-sm text-gray-500 mb-2">
+                                            Date de naissance <span class="text-red-500">*</span>
+                                        </label>
+                                        <input type="date" id="member-dob" name="dob"
+                                            class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all">
+                                        <p id="member-dob-error" class="mt-2 text-sm text-red-600 hidden"></p>
+                                    </div>
+                                    <div id="secu-field" class="">
+                                        <label for="member-secu" class="block text-sm text-gray-500 mb-2">
+                                            Numéro SECU <span class="text-red-500">*</span>
+                                        </label>
+                                        <input type="text" id="member-secu" name="secu"
+                                            class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all"
+                                            placeholder="1 00 10 00 100 010" maxlength="20">
+                                        <p id="member-secu-error" class="mt-2 text-sm text-red-600 hidden"></p>
+                                    </div>
+                                @endif
 
+                                <!-- RPPS -->
                                 <div id="rpps-field" class="mb-4">
                                     <hr class="mb-4" />
-
                                     <label class="block text-md text-gray-800 mb-2">
                                         Numéro professionnel
                                     </label>
@@ -418,7 +450,7 @@
                         <p class="text-gray-600 mb-6">Regardez vos mails, nous vous avons envoyé un mot de passe provisoire
                             pour vous connecter à l'application OrthoMaster.</p>
 
-                        @if (request('inapp'))
+                        @if (request('inapp') || request('join_code'))
                             <button onclick="closeSuccessModal()"
                                 class="w-full px-6 py-3 bg-primary text-white font-medium rounded-lg hover:bg-orange-600 transition-colors focus:ring-4 focus:ring-orange-200">
                                 Fermer
@@ -857,6 +889,28 @@
                     }
                     hideError('other-job-error');
 
+                    // Organization and more
+                    const joinCode = @json(request()->query('join_code'));
+                    if (joinCode) {
+                        // Dob
+                        const dob = document.getElementById('member-dob').value;
+                        if (!dob) {
+                            showError('member-dob-error', "Veuillez saisir une date de naissance valide !");
+                            return;
+                        } else {
+                            hideError('member-dob-error');
+                        }
+
+                        // SECU
+                        const secu = document.getElementById('member-secu').value;
+                        if (!secu) {
+                            showError('member-secu-error', "Veuillez saisir le numéro SECU !");
+                            return;
+                        } else {
+                            hideError('member-secu-error');
+                        }
+                    }
+
                     // RPPS
                     if (rppsType !== 'other' && !rpps && !hasInviteCode) {
                         showError('rpps-error', "Veuillez saisir votre numéro professionnel !");
@@ -864,8 +918,7 @@
                     }
                     hideError('rpps-error');
 
-                    // Student
-                } else if (occupation.value === 'student') {
+                } else if (occupation.value === 'student') { // Student
                     const major = document.getElementById('major').value;
                     const certificate = document.getElementById('enrollment-certificate').files[0];
 

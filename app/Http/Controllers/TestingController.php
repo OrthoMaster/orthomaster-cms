@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Controllers\Odoo\OdooInvoiceController;
 use App\Jobs\SendExpoNotificationJob;
+use App\Mail\RemindManagerMail;
 use App\Models\Cart;
 use App\Models\Contract;
 use App\Models\FundingOrganization;
@@ -14,9 +15,22 @@ use App\Services\OdooService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 
 class TestingController extends Controller
 {
+    public function sendEmail()
+    {
+        $email = 'fx.tiennguyen92@gmail.com';
+        $user = User::first();
+        Mail::to($email)->send(
+            new RemindManagerMail(
+                $user,
+                $email
+            )
+        );
+    }
+
     public function backupCreateContract(Request $request)
     {
         if (!$request->filled('contract_id') || !$request->filled('signature_link') || !$request->filled('signatory')) {
@@ -25,7 +39,7 @@ class TestingController extends Controller
 
         $generatePdfController = new GeneratePdfController();
 
-        
+
         $contract = Contract::find($request->contract_id);
         if (!$contract) {
             return 'False x';
@@ -41,7 +55,7 @@ class TestingController extends Controller
         $pdfLinks = [];
         if ($cart->payment_type == '1') {
             $itemGroups = $cart->groupItemsByDurationBestFit(Organization::OPCO_MAX_DURATION->value);
-            
+
             foreach ($itemGroups as $key => $group) {
                 $pdf = $generatePdfController->quotationTemp(
                     $cart->id,

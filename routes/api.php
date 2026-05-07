@@ -14,6 +14,7 @@ use App\Http\Controllers\API\MediaController;
 use App\Http\Controllers\API\PaymentController;
 use App\Http\Controllers\API\PlanController;
 use App\Http\Controllers\API\PreRegDiplomaRequestController;
+use App\Http\Controllers\API\ProductController;
 use App\Http\Controllers\API\PromotionController;
 use App\Http\Controllers\API\SearchController;
 use App\Http\Controllers\API\StripeWebhookController;
@@ -150,7 +151,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::post('/search', [SearchController::class, 'search']);
         Route::delete('/search/history/{id}', [SearchController::class, 'deleteKeyword']);
         Route::delete('/search/histories', [SearchController::class, 'clearHistory']);
-        
+
         Route::post('/search/lesson-openable', [SearchController::class, 'checkOpenableLesson']);
 
         Route::post('/s3-url', [SearchController::class, 'getS3Url']);
@@ -180,6 +181,13 @@ Route::middleware(['auth:sanctum'])->group(function () {
     // Pre-Reg
     Route::post('/pre-reg/diploma', [PreRegDiplomaRequestController::class, 'preReg']);
 
+    // Product
+    Route::prefix('products')->group(function () {
+        Route::get('/', [ProductController::class, 'index']);
+        Route::get('/count', [ProductController::class, 'count']);
+        Route::get('/{product}', [ProductController::class, 'show']);
+    });
+
     // Chatbot
     Route::prefix('chatbot')->group(function () {
         Route::post('/ask-notebook', [AiController::class, 'ask']);
@@ -200,9 +208,9 @@ Route::group(['prefix' => 'admin', 'middleware' => ['cmsAdmin']], function () {
 Route::middleware(['auth:sanctum', 'throttle:30,1'])->group(function () {
     // Web endpoint (signed cookies)
     Route::post('/video/{videoCode}/signed-cookies', [VideoController::class, 'getSignedCookies']);
-    
+
     // Mobile endpoint (proxy URL)
     Route::post('/video/{videoCode}/proxy-url', [VideoController::class, 'getProxyUrl']);
 });
 Route::get('/video/{videoCode}/mobile/master.m3u8', [VideoController::class, 'getMobileManifest'])
-        ->name('video.mobile-manifest');
+    ->name('video.mobile-manifest');

@@ -13,6 +13,7 @@ use App\Http\Controllers\CompanyController;
 use App\Http\Controllers\ContentViewReportController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\MediaController;
+use App\Http\Controllers\ProductController;
 use App\Http\Controllers\SaleAssignmentController;
 use App\Http\Controllers\TestingController;
 use App\Http\Controllers\TrainingPermissionController;
@@ -140,6 +141,19 @@ Route::group(['prefix' => 'admin', 'middleware' => ['cmsAdmin']], function () {
 
     Route::get('/sale-assignments', [SaleAssignmentController::class, 'index'])->name('sales.index');
     Route::post('/sale-assignments/{saleId}/user/{userId}', [SaleAssignmentController::class, 'remove'])->name('sales.remove');
+
+    // Products
+    Route::get('/products', [ProductController::class, 'index'])->name('products.index');
+    Route::get('/product', [ProductController::class, 'create'])->name('products.create');
+    Route::post('/product', [ProductController::class, 'store'])->name('products.store');
+    Route::get('/products/{id}', [ProductController::class, 'edit'])->name('products.edit');
+    Route::put('/products/{id}', [ProductController::class, 'update'])->name('products.update');
+    Route::delete('/products/{id}', [ProductController::class, 'destroy'])->name('products.destroy');
+
+    Route::get('/rules', [ProductController::class, 'getRules'])->name('rules.default');
+    Route::get('/rules/products', [ProductController::class, 'viewRules'])->name('rules.products');
+    Route::get('/rules/products/edit', [ProductController::class, 'editRules'])->name('rules.products.edit');
+    Route::post('/rules/products/edit', [ProductController::class, 'updateRules'])->name('rules.products.update');
 });
 
 Route::group(['prefix' => 'syncSystem', 'middleware' => ['cmsAdmin']], function () {
@@ -147,13 +161,13 @@ Route::group(['prefix' => 'syncSystem', 'middleware' => ['cmsAdmin']], function 
     // Route::get('/lessons', [AdminController::class, 'syncNewUserWithOldLessons']);
 
     // Assign Clients for Sales
-    Route::get('/sale-assignments/first-assign', [SaleAssignmentController::class, 'firstAssign'])->name('sales.first-assign');
-    Route::get('/sale-assignments/assign', [SaleAssignmentController::class, 'assign'])->name('sales.assign');
+    // Route::get('/sale-assignments/first-assign', [SaleAssignmentController::class, 'firstAssign'])->name('sales.first-assign');
+    // Route::get('/sale-assignments/assign', [SaleAssignmentController::class, 'assign'])->name('sales.assign');
     
-    //Route::get('/testing/send-notification', [TestingController::class, 'testSendNotification']);
+    // Route::get('/testing/send-email', [TestingController::class, 'sendEmail']);
     //Route::get('/testing/create-invoice', [TestingController::class, 'testCreateInvoiceFromContract']);
     //Route::get('/testing/create-invoice', [TestingController::class, 'testChangeStatusToPaid']);
-    Route::get('/backup/create-contract', [TestingController::class, 'backupCreateContract']);
+    // Route::get('/backup/create-contract', [TestingController::class, 'backupCreateContract']);
 });
 
 

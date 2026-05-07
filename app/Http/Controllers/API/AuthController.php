@@ -585,6 +585,29 @@ class AuthController extends Controller
                     'topics' => $user->topic_ids,
                 ],
 
+                // Remind
+                'remind_to_create_company' => (
+                    $user->profession_id == 11 &&
+                    !$user->companiesUserIsManager()->exists()
+                ),
+                'remind_manager_to_add_member' => (
+                    $user->profession_id == 11
+                    && $user->companiesUserIsManager()
+                    ->whereDoesntHave('users', function ($query) {
+                        $query->where('manager_flg', false);
+                    })
+                    ->exists()
+                ),
+                'remind_manager_to_add_package' => (
+                    $user->companiesUserIsManager()->exists()
+                    && $user->packages()->doesntExist()
+                ),
+                'remind_to_open_new_package' => (
+                    !$user->packages()
+                        ->wherePivot('progress', '<', 100)
+                        ->exists()
+                ),
+
                 // Sync with old version
                 'id_user' => $user->id_user,
                 'id_odoo_partner' => $user->id_odoo_partner,
@@ -657,7 +680,7 @@ class AuthController extends Controller
         $response = Http::post('https://api.orthomaster.fr/ads/interest', [
             'destination' => $request->destEmail,
             'user' => [
-                'name'         => $request->user()->name .' '.$request->user()->first_name,
+                'name'         => $request->user()->name . ' ' . $request->user()->first_name,
                 'email'        => $request->user()->email,
                 'job_function' => $request->user()->profession ? $request->user()->profession->name : '',
             ],

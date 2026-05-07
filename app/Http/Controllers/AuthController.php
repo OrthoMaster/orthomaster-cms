@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Controllers\Odoo\OdooAccountController;
 use App\Models\Company;
 use App\Models\Establishment;
+use App\Models\FundingOrganization;
 use App\Models\HealthcareProfessional;
 use App\Models\InviteCode;
 use App\Models\NoProfType;
@@ -46,9 +47,15 @@ class AuthController extends Controller
             }
         }
 
+        // Organizations
+        $organizations = null;
+        if ($request->filled('join_code')) {
+            $organizations = FundingOrganization::getAll();
+        }
+
         return view(
             'landingpage.register',
-            compact('estabs', 'professions', 'noProfTypes', 'countries', 'invCode')
+            compact('estabs', 'professions', 'noProfTypes', 'countries', 'invCode', 'organizations')
         );
     }
 
@@ -198,7 +205,7 @@ class AuthController extends Controller
                 'invite_code' => $request->invite_code,
 
                 'created_from' => $request->inapp && $request->inapp == 'WEB' ? 'WEB' : 'APP',
-                'status' => ($isActive ? Status::ACTIVE->value : Status::PENDING->value)
+                'status' => ($isActive ? Status::ACTIVE->value : Status::PENDING->value),
             ]);
 
             // Assign company if has invitation
@@ -207,6 +214,11 @@ class AuthController extends Controller
                 if ($company) {
                     $company->users()->attach($user->id);
                 }
+
+                $user->funding_organization_id = $request->organization ?: null;
+                $user->no_secu = trim($request->secu) ?: null;
+                $user->date_of_birth = $request->dob ?: null;
+                $user->save();
             }
 
             // Upload certificate

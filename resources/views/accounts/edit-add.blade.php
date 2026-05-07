@@ -216,7 +216,7 @@
 
                         <div class="panel-footer">
                             @if ($edit)
-                                @if ($user->status == 2 && $user->companies->isEmpty())
+                                @if ($user->status == 2)
                                     <button id="confirm-button" type="button" class="btn btn-primary"
                                         style="margin-right: 5px" onclick="confirmAccount();">Confirmer &
                                         Activer</button>
