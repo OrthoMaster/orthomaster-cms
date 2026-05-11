@@ -2,7 +2,7 @@
 
 namespace App\Console\Commands;
 
-use App\Jobs\SendEmailRemindMangerJob;
+use App\Jobs\SendEmailRemindManagerJob;
 use App\Models\Company;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
@@ -41,9 +41,11 @@ class SendEmailsRemindManagers extends Command
         $globalIndex = 1;
         $query->chunk(100, function ($companies) use (&$globalIndex) {
             foreach ($companies as $company) {
-                SendEmailRemindMangerJob::dispatch($company)
-                    ->delay(now()->addSeconds($globalIndex * 2));
-                $globalIndex++;
+                foreach ($company->managers as $manager) {
+                    SendEmailRemindManagerJob::dispatch($manager)
+                        ->delay(now()->addSeconds($globalIndex));
+                    $globalIndex++;
+                }
             }
         });
 
