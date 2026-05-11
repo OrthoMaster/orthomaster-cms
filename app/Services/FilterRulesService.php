@@ -61,6 +61,127 @@ class FilterRulesService
         Cache::forget(self::CACHE_KEY);
     }
 
+    /**
+     * Build a map: childId => nodeId   (which node OWNS this child).
+     *
+     * Each childId belongs to exactly one node in the tree (the one
+     * whose `children[]` array contains it). This is the "group" the
+     * child is part of for matching purposes.
+     */
+    public function groupMap(): array
+    {
+        $tree = $this->loadTree();
+        $map = [];
+        foreach ($tree as $node) {
+            foreach (($node['children'] ?? []) as $child) {
+                $map[$child['id']] = $node['id'];
+            }
+        }
+        return $map;
+    }
+
+    /**
+     * Return all child IDs belonging to a given group (nodeId).
+     */
+    public function childrenOfGroup(string $nodeId): array
+    {
+        $tree = $this->loadTree();
+        foreach ($tree as $node) {
+            if ($node['id'] === $nodeId) {
+                return array_map(fn ($c) => $c['id'], $node['children'] ?? []);
+            }
+        }
+        return [];
+    }
+
+    /**
+     * Pure match logic: does `$productTags` satisfy `$userFilters`?
+     *
+     * Rule per group:
+     *   1. If user has no filter in a group → group doesn't restrict.
+     *   2. If product has no tag in that group → product is unrestricted
+     *      for this group → match.
+     *   3. If product has ONLY the generic tag (= the group's nodeId) →
+     *      product is "any sub-option" → match.
+     *   4. If product has at least one SPECIFIC tag in the group →
+     *      ignore any generic tag it might also have; product matches
+     *      only if user's filter shares at least one specific tag.
+     *
+     * Across groups: product must pass EVERY group the user filtered on.
+     */
+    public function productMatches(array $productTags, array $userFilters): bool
+    {
+        if (empty($userFilters)) return true;
+ 
+        $groupMap = $this->groupMap();
+ 
+        // Index product tags by group:
+        //   groupId => ['generic' => bool, 'specifics' => [childId, ...]]
+        // - generic = true when product tagged the group's nodeId itself
+        //   (e.g. 'activite' rather than 'activ-2')
+        // - specifics = list of specific child IDs in this group
+        $productByGroup = [];
+        foreach ($productTags as $tag) {
+            // A tag is "generic" if its own ID is a groupId (= some node id).
+            $isGeneric = isset(array_flip($groupMap)[$tag]); // tag appears as a value (= a group)
+            if ($isGeneric) {
+                if (!isset($productByGroup[$tag])) {
+                    $productByGroup[$tag] = ['generic' => false, 'specifics' => []];
+                }
+                $productByGroup[$tag]['generic'] = true;
+            } elseif (isset($groupMap[$tag])) {
+                $g = $groupMap[$tag];
+                if (!isset($productByGroup[$g])) {
+                    $productByGroup[$g] = ['generic' => false, 'specifics' => []];
+                }
+                $productByGroup[$g]['specifics'][] = $tag;
+            }
+            // Tags not in either map are stale/unknown — ignore.
+        }
+ 
+        // Group user's filters the same way.
+        $userByGroup = [];
+        foreach ($userFilters as $tag) {
+            $isGeneric = isset(array_flip($groupMap)[$tag]);
+            if ($isGeneric) {
+                if (!isset($userByGroup[$tag])) {
+                    $userByGroup[$tag] = ['generic' => false, 'specifics' => []];
+                }
+                $userByGroup[$tag]['generic'] = true;
+            } elseif (isset($groupMap[$tag])) {
+                $g = $groupMap[$tag];
+                if (!isset($userByGroup[$g])) {
+                    $userByGroup[$g] = ['generic' => false, 'specifics' => []];
+                }
+                $userByGroup[$g]['specifics'][] = $tag;
+            }
+        }
+ 
+        // Check each group the user filtered on.
+        foreach ($userByGroup as $groupId => $userBucket) {
+            $productBucket = $productByGroup[$groupId] ?? null;
+ 
+            // Rule 2: product has nothing in this group → ok.
+            if ($productBucket === null) continue;
+ 
+            // Rule 4: product has specifics → user must share at least one.
+            if (!empty($productBucket['specifics'])) {
+                $overlap = array_intersect($productBucket['specifics'], $userBucket['specifics']);
+                if (empty($overlap)) {
+                    return false;       // group failed
+                }
+                continue;
+            }
+ 
+            // Rule 3: product has only generic → match anything in group.
+            if ($productBucket['generic']) continue;
+ 
+            // Product had something we didn't recognize — treat as unrestricted.
+        }
+ 
+        return true;
+    }
+
     private function buildParentMap(): array
     {
         $tree = $this->loadTree();

@@ -68,8 +68,13 @@ class ProductController extends Controller
     /**
      * PUT/PATCH admin/products/{product}
      */
-    public function update(Request $request, Product $product)
+    public function update(Request $request, string $id)
     {
+        $product = Product::find($id);
+        if (!$product) {
+            return abort(404);
+        }
+
         $data = $this->validateInput($request);
 
         DB::transaction(function () use ($product, $data) {
@@ -90,10 +95,14 @@ class ProductController extends Controller
     }
 
     /**
-     * DELETE admin/products/{product}
+     * DELETE admin/products/{id}
      */
-    public function destroy(Product $product)
+    public function destroy(string $id)
     {
+        $product = Product::find($id);
+        if (!$product) {
+            return abort(404);
+        }
         $product->delete();
         return redirect()
             ->route('products.index')
@@ -148,7 +157,7 @@ class ProductController extends Controller
             'name'                            => ['required', 'string', 'max:255'],
             'manufacturer_id'                 => ['required', 'integer', 'exists:manufacturers,id'],
             'category'                        => ['required', 'string', 'max:255'],
-            'image_urls'                      => ['nullable', 'string'],          // textarea, 1 URL per line
+            'image_urls'                      => ['nullable', 'string'],
             'tabs'                            => ['nullable', 'array'],
             'tabs.*.title'                    => ['nullable', 'string', 'max:255'],
             'tabs.*.content_markdown'         => ['nullable', 'string'],
