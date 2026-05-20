@@ -20,6 +20,7 @@ use App\Http\Controllers\API\SearchController;
 use App\Http\Controllers\API\StripeWebhookController;
 use App\Http\Controllers\API\ToolController;
 use App\Http\Controllers\API\TrainingController;
+use App\Http\Controllers\API\VideoAdController;
 use App\Http\Controllers\GeneratePdfController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\SystemNotificationController;
@@ -186,6 +187,13 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/', [ProductController::class, 'index']);
         Route::get('/count', [ProductController::class, 'count']);
         Route::get('/{product}', [ProductController::class, 'show']);
+    });
+
+    // Video ads
+    Route::prefix('video-ads')->group(function () {
+        Route::get('feed', [VideoAdController::class, 'feed']);
+        Route::post('{id}/impression', [VideoAdController::class, 'impression']);
+        Route::post('{id}/view', [VideoAdController::class, 'view']);
     });
 
     // Chatbot

@@ -4,6 +4,7 @@
             <button class="hamburger btn-link">
                 <span class="hamburger-inner"></span>
             </button>
+            @if (auth()->check())
             @section('breadcrumbs')
                 <ol class="breadcrumb hidden-xs">
                     @php
@@ -40,7 +41,9 @@
                     @endif
                 </ol>
             @show
+            @endif
         </div>
+        @if (auth()->check())
         <ul class="nav navbar-nav @if (__('voyager::generic.is_rtl') == 'true') navbar-left @else navbar-right @endif">
             <li class="dropdown profile">
                 <a href="#" class="dropdown-toggle text-right" data-toggle="dropdown" role="button"
@@ -84,5 +87,6 @@
                 </ul>
             </li>
         </ul>
+        @endif
     </div>
 </nav>

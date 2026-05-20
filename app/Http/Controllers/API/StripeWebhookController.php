@@ -73,7 +73,7 @@ class StripeWebhookController extends Controller
 
         if ($invoice) {
             $invoice->markAsFailed($paymentIntent->last_payment_error->message ?? 'Payment failed');
-            Log::warning("Invoice #{$invoice->id} payment failed");
+            Log::warning("Invoice #{$invoice->id} payment failed - #{$paymentIntent->id}");
         }
     }
 

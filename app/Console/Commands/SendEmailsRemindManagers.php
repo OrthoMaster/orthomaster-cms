@@ -41,7 +41,7 @@ class SendEmailsRemindManagers extends Command
         $globalIndex = 1;
         $query->chunk(100, function ($companies) use (&$globalIndex) {
             foreach ($companies as $company) {
-                foreach ($company->managers as $manager) {
+                foreach ($company->managers() as $manager) {
                     SendEmailRemindManagerJob::dispatch($manager)
                         ->delay(now()->addSeconds($globalIndex));
                     $globalIndex++;

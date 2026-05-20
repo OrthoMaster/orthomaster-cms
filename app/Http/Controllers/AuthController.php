@@ -408,7 +408,7 @@ class AuthController extends Controller
             Password::RESET_THROTTLED => 'Veuillez patienter avant de réessayer.',
         ];
 
-        Log::error($errorMessages[$status] ?? 'Une erreur s\'est produite.', ['auth', 'reset-password']);
+        Log::error($errorMessages[$status] ?? 'Une erreur s\'est produite.', [$request->email, 'auth', 'reset-password']);
         return response()->json([
             'status' => 'failed',
             'errors' => ['email' => [$errorMessages[$status] ?? 'Une erreur s\'est produite.']]

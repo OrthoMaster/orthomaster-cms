@@ -794,10 +794,58 @@
                 }));
                 body.appendChild(selRow);
 
+                // Parent override — only meaningful when this node has a
+                // visibility rule (i.e. it's a sub-node, not a root planet).
+                // It tells the app "show me in THIS planet's sheet", overriding
+                // the BFS-from-rule default. Options are limited to root nodes
+                // (no visibilityRule), since those are the planets that own sheets.
+                //
+                // Default: "(auto)" → empty string, no field stored in JSON.
+                if (node.visibilityRule != null) {
+                    const parentRow = el('div', 'field-row');
+                    parentRow.appendChild(el('label', null, 'Parent'));
+
+                    const parentOpts = [{ value: '', label: '(auto — first matching planet)' }];
+                    nodes.forEach(n => {
+                        if (n.id && n.id !== node.id && n.visibilityRule == null) {
+                            parentOpts.push({
+                                value: n.id,
+                                label: n.title ? `${n.id} — ${n.title}` : n.id,
+                            });
+                        }
+                    });
+
+                    const parentSel = makeSelect(node.parentNodeId || '', parentOpts, v => {
+                        if (v === '') delete node.parentNodeId;
+                        else node.parentNodeId = v;
+                        syncJsonFromNodes();
+                    });
+                    parentRow.appendChild(parentSel);
+
+                    // Warn if parentNodeId is set but the referenced node no longer exists
+                    // or isn't a root planet (still kept in JSON; app will fall back to auto).
+                    if (node.parentNodeId) {
+                        const ref = nodes.find(n => n.id === node.parentNodeId);
+                        if (!ref) {
+                            parentRow.appendChild(el('span', 'rule-warn',
+                                `(node "${node.parentNodeId}" not found)`));
+                        } else if (ref.visibilityRule != null) {
+                            parentRow.appendChild(el('span', 'rule-warn',
+                                '(not a root planet — app will fallback to auto)'));
+                        }
+                    }
+
+                    body.appendChild(parentRow);
+                }
+
                 // Visibility rule
                 body.appendChild(el('div', 'section-label', 'Visibility rule'));
                 body.appendChild(renderRuleEditor(node.visibilityRule || null, newRule => {
                     node.visibilityRule = newRule;
+                    // If the rule was cleared, parentNodeId is no longer
+                    // meaningful (node became a root planet itself) — drop it
+                    // so it doesn't pollute the JSON.
+                    if (newRule == null) delete node.parentNodeId;
                     rerenderAll();
                 }, node.id));
 

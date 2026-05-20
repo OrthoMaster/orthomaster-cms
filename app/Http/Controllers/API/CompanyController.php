@@ -45,7 +45,7 @@ class CompanyController extends Controller
             ->with('establishment:id,name,image')
             ->first();
 
-        $managers = $company->managers();
+        $managers = optional($company)->managers();
         $members = $company->members()->count() > 0 ? $company->members() : null;
 
         $usersWithPackages = $company->usersWithPackages();

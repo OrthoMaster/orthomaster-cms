@@ -48,7 +48,7 @@ class Invoice extends Model
     public function markAsFailed($reason = null)
     {
         $this->update([
-            'status' => self::STATUS_FAILED,
+            // 'status' => self::STATUS_FAILED,
             'failed_reason' => $reason,
         ]);
     }

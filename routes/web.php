@@ -12,6 +12,7 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CompanyController;
 use App\Http\Controllers\ContentViewReportController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\DashboardVideoAdsController;
 use App\Http\Controllers\MediaController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\SaleAssignmentController;
@@ -154,21 +155,28 @@ Route::group(['prefix' => 'admin', 'middleware' => ['cmsAdmin']], function () {
     Route::get('/rules/products', [ProductController::class, 'viewRules'])->name('rules.products');
     Route::get('/rules/products/edit', [ProductController::class, 'editRules'])->name('rules.products.edit');
     Route::post('/rules/products/edit', [ProductController::class, 'updateRules'])->name('rules.products.update');
+
+    // Ads
+    Route::prefix('dashboard/video-ads')
+        ->group(function () {
+            Route::get('/', [DashboardVideoAdsController::class, 'index'])
+                ->name('dashboard.video-ads');
+
+            Route::get('/data', [DashboardVideoAdsController::class, 'chartData'])
+                ->name('dashboard.video-ads.data');
+        });
 });
 
-Route::group(['prefix' => 'syncSystem', 'middleware' => ['cmsAdmin']], function () {
-    // Route::get('/trainings', [AdminController::class, 'syncNewUserWithOldTrainings']);
-    // Route::get('/lessons', [AdminController::class, 'syncNewUserWithOldLessons']);
 
-    // Assign Clients for Sales
-    // Route::get('/sale-assignments/first-assign', [SaleAssignmentController::class, 'firstAssign'])->name('sales.first-assign');
-    // Route::get('/sale-assignments/assign', [SaleAssignmentController::class, 'assign'])->name('sales.assign');
-    
-    // Route::get('/testing/send-email', [TestingController::class, 'sendEmail']);
-    //Route::get('/testing/create-invoice', [TestingController::class, 'testCreateInvoiceFromContract']);
-    //Route::get('/testing/create-invoice', [TestingController::class, 'testChangeStatusToPaid']);
-    // Route::get('/backup/create-contract', [TestingController::class, 'backupCreateContract']);
-});
+Route::prefix('dashboard/video-ads/shared/{company}')
+    ->group(function () {
+        Route::get('/', [DashboardVideoAdsController::class, 'shared'])
+            ->name('dashboard.video-ads.shared');
+
+        Route::get('/data', [DashboardVideoAdsController::class, 'sharedChartData'])
+            ->name('dashboard.video-ads.shared.data');
+    });
+
 
 
 Route::get('/00e7eb2a475/chat', [AiController::class, 'view']);
