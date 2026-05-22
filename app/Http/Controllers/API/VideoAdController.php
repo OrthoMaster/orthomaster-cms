@@ -39,7 +39,7 @@ class VideoAdController extends Controller
                 'thumbnail_url' => $v->thumbnail_url,
                 'ads_company'   => [
                     'id'   => $v->ads_company_id,
-                    'name' => $v->relationLoaded('adsCompany') ? $v->adsCompany?->name : null,
+                    'name' => $v->adsCompany?->name,
                 ],
             ]),
         ]);
@@ -79,6 +79,24 @@ class VideoAdController extends Controller
         return response()->json([
             'video_ads_id' => $videoAd->id,
             'total_views' => $videoAd->fresh()->total_views,
+        ]);
+    }
+
+    public function contact(Request $request, int $id)
+    {
+        $videoAd = VideoAds::findOrFail($id);
+
+        $data = $request->all();
+
+        $this->service->recordView(
+            $videoAd,
+            isCompleted: true,
+            userId: $data['user_id'] ?? $request->user()?->id,
+            isContacted: $data['is_contacted'] ?? false,
+        );
+
+        return response()->json([
+            'video_ads_id' => $videoAd->id,
         ]);
     }
 }

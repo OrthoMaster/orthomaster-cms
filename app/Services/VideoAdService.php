@@ -20,6 +20,7 @@ class VideoAdService
 
         if ($professionId !== null) {
             $videos = VideoAds::query()
+                ->with('adsCompany')
                 ->whereHas('professions', function ($q) use ($professionId) {
                     $q->where('professions.id', $professionId);
                 })
@@ -33,6 +34,7 @@ class VideoAdService
             $remaining = $limit - $videos->count();
 
             $fillers = VideoAds::query()
+                ->with('adsCompany')
                 ->when($videos->isNotEmpty(), function ($q) use ($videos) {
                     $q->whereNotIn('id', $videos->pluck('id'));
                 })
@@ -66,15 +68,20 @@ class VideoAdService
     public function recordView(
         VideoAds $videoAd,
         bool $isCompleted = false,
-        ?int $userId = null
+        ?int $userId = null,
+        ?bool $isContacted = false,
     ): VideoAdView {
         return DB::transaction(function () use (
-            $videoAd, $isCompleted, $userId
+            $videoAd,
+            $isCompleted,
+            $userId,
+            $isContacted
         ) {
             $view = VideoAdView::create([
                 'video_ads_id'     => $videoAd->id,
                 'user_id'         => $userId,
                 'is_completed'    => $isCompleted,
+                'is_contacted'    => $isContacted
             ]);
 
             $videoAd->incrementViews();
@@ -82,7 +89,8 @@ class VideoAdService
             $this->bumpDailyStat(
                 $videoAd,
                 views: 1,
-                completedViews: $isCompleted ? 1 : 0
+                completedViews: $isCompleted ? 1 : 0,
+                contactedActions: $isContacted ? 1 : 0
             );
 
             return $view;
@@ -93,7 +101,8 @@ class VideoAdService
         VideoAds $videoAd,
         int $impressions = 0,
         int $views = 0,
-        int $completedViews = 0
+        int $completedViews = 0,
+        int $contactedActions = 0
     ): void {
         $today = Carbon::today()->toDateString();
 
@@ -107,6 +116,7 @@ class VideoAdService
                 'impressions_count'     => 0,
                 'views_count'           => 0,
                 'completed_views_count' => 0,
+                'contacted_count' => 0,
             ]
         );
 
@@ -117,6 +127,7 @@ class VideoAdService
                 'impressions_count'     => $impressions,
                 'views_count'           => $views,
                 'completed_views_count' => $completedViews,
+                'contacted_count' => $contactedActions,
             ]);
     }
 }

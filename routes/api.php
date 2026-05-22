@@ -194,6 +194,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('feed', [VideoAdController::class, 'feed']);
         Route::post('{id}/impression', [VideoAdController::class, 'impression']);
         Route::post('{id}/view', [VideoAdController::class, 'view']);
+        Route::post('{id}/contact', [VideoAdController::class, 'contact']);
     });
 
     // Chatbot
