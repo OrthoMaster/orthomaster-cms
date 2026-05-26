@@ -15,6 +15,11 @@ class VideoAdView extends Model
 
     public function videoAd()
     {
-        return $this->belongsTo(VideoAds::class);
+        return $this->belongsTo(VideoAds::class, 'video_ads_id', 'id');
+    }
+
+    public function user()
+    {
+        return $this->belongsTo(User::class);
     }
 }

@@ -52,3 +52,8 @@ Schedule::command('emails:remind-managers')
     ->fridays()
     ->at('11:00')
     ->timezone('Europe/Paris');
+
+// Ad Provider
+Schedule::command('emails:ad-provider')
+    ->dailyAt('10:01')
+    ->timezone('Europe/Paris');
