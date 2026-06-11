@@ -101,7 +101,7 @@ class GenerateDocumentController extends Controller
     public function generateInvoice(Request $request)
     {
         try {
-            $generatePdfController = new generatePdfController();
+            $generatePdfController = new GeneratePdfController();
 
             $cartId = $request->cartId;
             $userId = $request->userId;
