@@ -39,7 +39,6 @@ class TestingController extends Controller
 
         $generatePdfController = new GeneratePdfController();
 
-
         $contract = Contract::find($request->contract_id);
         if (!$contract) {
             return 'False x';
@@ -73,10 +72,10 @@ class TestingController extends Controller
                     $request->signature_link,
                     $request->signatory
                 );
-            }
 
-            if ($pdf) {
-                array_push($pdfLinks, $pdf);
+                if ($pdf) {
+                    array_push($pdfLinks, $pdf);
+                }
             }
         }
 
@@ -238,7 +237,7 @@ class TestingController extends Controller
     public function testFifplCert()
     {
         $generatePdfController = new generatePdfController();
-        return $generatePdfController->fifplCertificate2();
+        return $generatePdfController->testGenerateFifplCert();
     }
 
     public function testGenerateInvoice()

@@ -21,8 +21,6 @@ use Illuminate\Support\Str;
 
 class ContractController extends Controller
 {
-    const COMMON_PROGRAM_PDF_LINK = 'https://content-orthomaster-prod.s3.eu-west-1.amazonaws.com/application-data/templates/program.pdf';
-
     public function generate(Request $request)
     {
         $cart = Cart::findByUser($request->user()->id, null, true);
@@ -89,7 +87,7 @@ class ContractController extends Controller
 
             // Sign to program
             $generatePdfController = new GeneratePdfController();
-            $pdfUrl = $generatePdfController->programFilePdf(
+            $pdfUrl = $generatePdfController->autoProgFilePdf(
                 $cart->id,
                 $signatureUrl,
                 $company->name,
@@ -211,6 +209,9 @@ class ContractController extends Controller
                 return null;
             }
 
+            // Programme link
+            $progPdfLink = $generatePdfController->autoProgFilePdf($cart->id);
+
             // OPCO-EP
             if ($cart->payment_type == '1') {
                 $itemGroups = $cart->groupItemsByDurationBestFit(Organization::OPCO_MAX_DURATION->value);
@@ -254,7 +255,7 @@ class ContractController extends Controller
                 // Add common program pdf 
                 array_push($reponseData, array(
                     'group' => 'Programme',
-                    'pdfLinks' => [$this::COMMON_PROGRAM_PDF_LINK]
+                    'pdfLinks' => [$progPdfLink]
                 ));
             }
 
@@ -306,7 +307,7 @@ class ContractController extends Controller
                 // Add common program pdf 
                 array_push($reponseData, array(
                     'group' => 'Programme',
-                    'pdfLinks' => [$this::COMMON_PROGRAM_PDF_LINK]
+                    'pdfLinks' => [$progPdfLink]
                 ));
             }
 
@@ -358,7 +359,7 @@ class ContractController extends Controller
                 // Add common program pdf 
                 array_push($reponseData, array(
                     'group' => 'Programme',
-                    'pdfLinks' => [$this::COMMON_PROGRAM_PDF_LINK]
+                    'pdfLinks' => [$progPdfLink]
                 ));
             }
 

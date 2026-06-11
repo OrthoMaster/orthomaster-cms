@@ -13,7 +13,11 @@ use App\Http\Controllers\CompanyController;
 use App\Http\Controllers\ContentViewReportController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DashboardVideoAdsController;
+use App\Http\Controllers\GenerateDocumentController;
+use App\Http\Controllers\GeneratePdfController;
+use App\Http\Controllers\IntEmpTrackerController;
 use App\Http\Controllers\MediaController;
+use App\Http\Controllers\MeetingController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\SaleAssignmentController;
 use App\Http\Controllers\TestingController;
@@ -165,6 +169,23 @@ Route::group(['prefix' => 'admin', 'middleware' => ['cmsAdmin']], function () {
             Route::get('/data', [DashboardVideoAdsController::class, 'chartData'])
                 ->name('dashboard.video-ads.data');
         });
+
+    // Sales
+    Route::group(['prefix' => 'dashboard/staffs'], function () {
+        Route::get('/', [IntEmpTrackerController::class, 'dashboard'])->name('telesales.dashboard');
+        Route::get('/calls', [IntEmpTrackerController::class, 'callLogsData'])->name('telesales.calls.data');
+        Route::get('/recalls', [IntEmpTrackerController::class, 'recallReminders'])->name('telesales.recalls.data');
+        Route::get('/meetings', [IntEmpTrackerController::class, 'meetingReminders'])->name('telesales.meetings.data');
+        Route::post('/calls/{id}/meeting', [IntEmpTrackerController::class, 'updateMeeting'])->name('telesales.calls.meeting');
+        Route::post('/calls/{id}/customer-type', [IntEmpTrackerController::class, 'defineCustomerType'])->name('telesales.calls.define');
+    });
+
+    // Generate
+    Route::group(['prefix' => 'generate/document'], function () {
+        Route::get('contract', [GenerateDocumentController::class, 'generateContractView'])->name('generate.document.contract');
+        Route::post('contract', [GenerateDocumentController::class, 'generateContract'])->name('generate.document.contract.export');
+        Route::post('invoice', [GenerateDocumentController::class, 'generateInvoice'])->name('generate.document.invoice.export');
+    });
 });
 
 
@@ -178,6 +199,10 @@ Route::prefix('dashboard/video-ads/shared/{company}')
     });
 
 
-
+// Demo
 Route::get('/00e7eb2a475/chat', [AiController::class, 'view']);
 Route::post('/api/ask-notebook', [AiController::class, 'ask']);
+
+// Route::get('/test/auto-programme', [GeneratePdfController::class, 'testAutotProgFilePdf']);
+Route::get('/test-fifpl-cert', [TestingController::class, 'testFifplCert']);
+// Route::get('/test-meeting', [MeetingController::class, 'createMeeting']);

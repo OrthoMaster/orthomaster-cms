@@ -371,7 +371,7 @@
         <tbody>
             @foreach ($items as $item)
                 <tr>
-                    <td>{{ $item->package->name }}</td>
+                    <td>{{ $item->package->fifpl_cert_name }}</td>
 
                     <td class="text-right">1 Unité</td>
                     <td class="text-right">{{ number_format($item->package->duration / 60, 1, ',', ' ') }} h</td>

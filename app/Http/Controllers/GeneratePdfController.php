@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Cart;
 use App\Models\Contract;
 use App\Models\Invoice;
+use App\Models\Package;
 use App\Models\User;
 use App\Status;
 use Illuminate\Http\Request;
@@ -85,6 +86,7 @@ class GeneratePdfController extends Controller
         $durationTotal,
         $signatureLink = null,
         $signatory = null,
+        $exportPdf = false
     ) {
         if ($organizationId == '2') {
             $amountHT = round($unitPrice * $durationTotal, 2);
@@ -126,6 +128,11 @@ class GeneratePdfController extends Controller
         $pdf->setOption('isRemoteEnabled', true);
         $pdf->setPaper('A4', 'portrait');
 
+        // Export pdf for generate/test
+        if ($exportPdf) {
+            return $pdf->download($qNo . '-' . now()->format('YmdHi') . '.pdf');
+        }
+
         // Upload S3
         $path = Storage::disk('s3')->put($fileName, $pdf->output());
         if ($path) {
@@ -136,57 +143,52 @@ class GeneratePdfController extends Controller
         return false;
     }
 
-    public function programFilePdf($cartId, $signatureLink, $companyName, $name, $location, $date)
+    public function autoProgFilePdf($cartId, $signatureLink = '', $companyName = '', $name = '', $location = '', $date = '', $exportPdf = false)
     {
-        try {
-            $pdf = new Fpdi();
-            $pageCount = $pdf->setSourceFile(storage_path('app/samples/program.pdf'));
+        // Get training list with cartId
+        $cart = Cart::with([
+            'items',
+            'items.package',
+            'items.package.modules',
+            'items.package.modules.lessons'
+        ])->find($cartId);
 
-            for ($pageNo = 1; $pageNo <= $pageCount; $pageNo++) {
-                $templateId = $pdf->importPage($pageNo);
-                $pdf->AddPage();
-                $pdf->useTemplate($templateId);
-
-                if ($pageNo == 8) {
-                    $pdf->SetFont('Helvetica', '', 12);
-                    $pdf->SetDrawColor(255, 0, 0); // RGB
-
-                    // Company
-                    $pdf->SetXY(38, 204.5);
-                    $pdf->Write(0, $companyName);
-
-                    // Name
-                    $pdf->SetXY(80, 212);
-                    $pdf->Write(0, $name);
-
-                    // City
-                    $pdf->SetXY(24, 235.2);
-                    $pdf->Write(0, $location);
-
-                    // Date
-                    $pdf->SetXY(78, 235.2);
-                    $pdf->Write(0, $date);
-
-                    // Signature
-                    $pdf->Image($signatureLink, 100, 237, 45, 45);
-                }
-            }
-
-            $pdfContent = $pdf->Output('', 'S');
-
-
-            // Create file name
-            $fileName = 'quotations_signed/' . $cartId . '/programme.pdf';
-            $success = Storage::disk('s3')->put($fileName, $pdfContent, 'public');;
-            if ($success) {
-                $url = Storage::disk('s3')->url($fileName);
-                return $url;
-            }
-
-            return false;
-        } catch (\Exception $e) {
-            throw $e;
+        $totalModules = 0;
+        if ($cart) {
+            $totalModules = $cart->items->sum(function ($item) {
+                return $item->package->modules->count();
+            });
         }
+
+        $data = [
+            'company' => $this::COMPANY,
+            'signatureLink' => $signatureLink,
+            'companyName' => $companyName,
+            'name' => $name,
+            'location' => $location,
+            'date' => $date,
+            'cart' => $cart,
+            'totalModules' => $totalModules
+        ];
+
+        $pdf = Pdf::loadView('pdf.auto_programme', $data);
+        $pdf->setOption('isPhpEnabled', true);
+        $pdf->setOption('isRemoteEnabled', true);
+        $pdf->setPaper('A4', 'portrait');
+
+        if ($exportPdf) {
+            return $pdf->stream('programme-' . now()->format('YmdHi') . '.pdf');
+        }
+
+        // Upload S3
+        $fileName = 'quotations_signed/' . $cartId . '/programme-' . now()->format('YmdHi') . '.pdf';
+        $path = Storage::disk('s3')->put($fileName, $pdf->output());
+        if ($path) {
+            $url = Storage::disk('s3')->url($fileName);
+            return $url;
+        }
+
+        return false;
     }
 
     public function fifplPaymentInvoice(
@@ -202,6 +204,7 @@ class GeneratePdfController extends Controller
         $tva,
         $durationTotal,
         $paidDate,
+        $exportPdf = false
     ) {
         $amountHT = round($unitPrice * $durationTotal, 2);
         $tvaAmount = round(round($unitPrice * $durationTotal, 2) * $tva / 100, 2);
@@ -234,6 +237,11 @@ class GeneratePdfController extends Controller
         $pdf->setOption('isRemoteEnabled', true);
         $pdf->setPaper('A4', 'portrait');
 
+        // Export pdf for generate/test
+        if ($exportPdf) {
+            return $pdf->download(str_replace('/', '_', $invNo) . '-' . now()->format('YmdHi') . '.pdf');
+        }
+
         // Upload S3
         $path = Storage::disk('s3')->put($fileName, $pdf->output());
         if ($path) {
@@ -265,7 +273,7 @@ class GeneratePdfController extends Controller
                     $pdf->Write(0, $name);
 
                     foreach ($packages as $key => $package) {
-                        $pdf->SetFont('Helvetica', '', mb_strlen($package->package->name) > 30 ? 7.5 : 8);
+                        $pdf->SetFont('Helvetica', '', 8);
                         switch ($key) {
                             case 0:
                                 $pdf->SetXY(15, 111);
@@ -274,23 +282,17 @@ class GeneratePdfController extends Controller
                                 $pdf->SetXY(15, 115);
                                 break;
                             case 2:
-                                $pdf->SetXY(62, 111);
-                                break;
-                            case 3: 
-                                $pdf->SetXY(62, 115);
-                                break;
-                            case 4: 
                                 $pdf->SetXY(108, 111);
                                 break;
-                            case 5: 
+                            case 3:
                                 $pdf->SetXY(108, 115);
                                 break;
-                            case 6: 
-                                $pdf->SetXY(152, 115);
+                            case 4:
+                                $pdf->SetXY(15, 119);
                                 break;
                         }
 
-                        $pdf->Write(0, $package->package->name);
+                        $pdf->Write(0, $package->package->fifpl_cert_name);
                     }
 
                     // Date
@@ -345,8 +347,19 @@ class GeneratePdfController extends Controller
         }
     }
 
-    public function fifplCertificate2()
+    public function testGenerateFifplCert()
     {
+        $name = 'Debard Lydie';
+        $packages = Package::whereIn('id', [3])->get();
+        $packages[0]->fifpl_cert_name = "Les Bases de l'Appareillage Orthopédique de Série";
+        $startDate = '01      01      2026';
+        $endDate = '31      01      2026';
+        $totalHour = '12.00';
+        $endDate2 = '31 / 01 / 2026';
+        $price1 = '300.00';
+        $price2 = '360.00';
+
+
         try {
             $pdf = new Fpdi();
             $pageCount = $pdf->setSourceFile(storage_path('app/fifpl/certificate.pdf'));
@@ -361,84 +374,96 @@ class GeneratePdfController extends Controller
                     $pdf->SetDrawColor(255, 0, 0); // RGB
 
                     // Name
-                    $pdf->SetFont('Helvetica', '', 14);
+                    $pdf->SetFont('Helvetica', '', 15);
                     $pdf->SetXY(65, 99);
-                    $pdf->Write(0, 'Lê François œ ç');
+                    $pdf->Write(0, $name);
 
                     // Packages
-                    $pdf->SetFont('Helvetica', '', 7.5);
-                    $pdf->SetXY(15, 111);
-                    $pdf->Write(0, 'Membre Inférieur / Matériel médical');
+                    foreach ($packages as $key => $package) {
+                        $pdf->SetFont('Helvetica', '', 8);
+                        switch ($key) {
+                            case 0:
+                                $pdf->SetXY(15, 111);
+                                break;
+                            case 1:
+                                $pdf->SetXY(15, 115);
+                                break;
+                            case 2:
+                                $pdf->SetXY(108, 111);
+                                break;
+                            case 3:
+                                $pdf->SetXY(108, 115);
+                                break;
+                            case 4:
+                                $pdf->SetXY(15, 119);
+                                break;
+                        }
 
-                    $pdf->SetFont('Helvetica', '', 7.5);
-                    $pdf->SetXY(62, 111);
-                    $pdf->Write(0, 'Membre Inférieur / Matériel médical');
-
-                    $pdf->SetFont('Helvetica', '', 7.5);
-                    $pdf->SetXY(108, 111);
-                    $pdf->Write(0, 'Membre Inférieur / Matériel médical');
-
-                    $pdf->SetFont('Helvetica', '', 7.5);
-                    $pdf->SetXY(152, 111);
-                    $pdf->Write(0, 'Membre Inférieur / Matériel médical');
-
-
-                    $pdf->SetFont('Helvetica', '', 8);
-                    $pdf->SetXY(15, 115);
-                    $pdf->Write(0, 'Rachis Lombaire et Cervical');
-
-                    $pdf->SetFont('Helvetica', '', 8);
-                    $pdf->SetXY(65, 115);
-                    $pdf->Write(0, 'Rachis Lombaire et Cervical');
-
-                    $pdf->SetFont('Helvetica', '', 8);
-                    $pdf->SetXY(115, 115);
-                    $pdf->Write(0, 'Rachis Lombaire et Cervical');
+                        $pdf->Write(0, $package->fifpl_cert_name);
+                    }
 
                     // Date
                     $pdf->SetFont('Helvetica', '', 10);
                     $pdf->SetXY(103, 121);
-                    $pdf->Write(0, '05      07      2026');
+                    $pdf->Write(0, $startDate);
                     $pdf->SetXY(156, 121);
-                    $pdf->Write(0, '05      07      2026');
+                    $pdf->Write(0, $endDate);
 
                     // Training Info
                     $pdf->SetFont('Helvetica', '', 10);
                     $pdf->SetXY(65, 178.5);
-                    $pdf->Write(0, '12');
+                    $pdf->Write(0, $totalHour);
 
                     $pdf->SetFont('Helvetica', '', 10);
                     $pdf->SetXY(115, 178.5);
-                    $pdf->Write(0, '12');
+                    $pdf->Write(0, sizeof($packages));
 
                     $pdf->SetFont('Helvetica', '', 10);
                     $pdf->SetXY(155, 178.5);
-                    $pdf->Write(0, '12 / 04 / 2026');
+                    $pdf->Write(0, $endDate2);
 
                     // Price
                     $pdf->SetFont('Helvetica', '', 10);
                     $pdf->SetXY(70, 210.5);
-                    $pdf->Write(0, '1000.00');
+                    $pdf->Write(0, $price1);
 
                     $pdf->SetFont('Helvetica', '', 10);
                     $pdf->SetXY(115, 210.5);
-                    $pdf->Write(0, '1000.00');
+                    $pdf->Write(0, $price2);
 
                     // Sign date
                     $pdf->SetFont('Helvetica', '', 12);
                     $pdf->SetXY(27, 242);
-                    $pdf->Write(0, '12 / 04 / 2026');
+                    $pdf->Write(0, $endDate2);
                 }
             }
 
             $pdfContent = $pdf->Output('', 'S');
 
+            $fileName = 'certif-' . now()->format('YmdHi') . '.pdf';
+
             return response($pdfContent, 200)
                 ->header('Content-Type', 'application/pdf')
-                ->header('Content-Disposition', 'inline; filename="certificate.pdf"')
+                ->header('Content-Disposition', 'inline; filename="' . $fileName . '"')
                 ->header('Content-Length', strlen($pdfContent));
         } catch (\Exception $e) {
             throw $e;
         }
+    }
+
+    // New program
+    public function testAutotProgFilePdf()
+    {
+        return $this->autoProgFilePdf(
+            400,
+            'https://content-orthomaster-prod.s3.eu-west-1.amazonaws.com/application-data/signatures/2026/04/14/28cd1fd1-bccc-4f8e-8fe3-9e61381cb094.png',
+            'CompanyName',
+            'Name',
+            'Strasbourg',
+            '11/01/2022',
+            true
+        );
+
+        return $this->autoProgFilePdf(400);
     }
 }

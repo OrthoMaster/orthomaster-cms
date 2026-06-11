@@ -351,7 +351,7 @@
         <tbody>
             @foreach ($items as $item)
                 <tr>
-                    <td>{{ $item->package->name }}</td>
+                    <td>{{ $organizationId == '2' ? $item->package->fifpl_cert_name : $item->package->name }}</td>
 
                     @if ($organizationId == '2')
                         <td class="text-right">{{ number_format(sizeof($members), 2, ',', ' ') }}

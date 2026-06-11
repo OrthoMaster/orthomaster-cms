@@ -22,6 +22,7 @@ use App\Http\Controllers\API\ToolController;
 use App\Http\Controllers\API\TrainingController;
 use App\Http\Controllers\API\VideoAdController;
 use App\Http\Controllers\GeneratePdfController;
+use App\Http\Controllers\IntEmpTrackerController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\SystemNotificationController;
 use App\Http\Controllers\Tracking\TrkAppOpenController;
@@ -223,3 +224,6 @@ Route::middleware(['auth:sanctum', 'throttle:30,1'])->group(function () {
 });
 Route::get('/video/{videoCode}/mobile/master.m3u8', [VideoController::class, 'getMobileManifest'])
     ->name('video.mobile-manifest');
+
+Route::post('/internal/calls', [IntEmpTrackerController::class, 'receiveData']);
+Route::post('/internal/heartbeat', [IntEmpTrackerController::class, 'receiveHeartbeat']);

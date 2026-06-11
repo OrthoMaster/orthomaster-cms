@@ -24,6 +24,7 @@
         "setasign/fpdf": "^1.8",
         "setasign/fpdi": "^2.6",
         "setasign/fpdi-tcpdf": "^2.3",
+        "spatie/laravel-google-calendar": "^3.8",
         "stripe/stripe-php": "^19.1",
         "tcg/voyager": "^1.8",
         "tecnickcom/tcpdf": "^6.11"
