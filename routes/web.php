@@ -68,11 +68,11 @@ Route::get('/legal-notice', [WebController::class, 'legalNotice'])->name('web.le
 
 Route::group(['prefix' => 'admin', 'middleware' => ['cmsAdmin']], function () {
     Route::get('/', [DashboardController::class, 'index'])->name('voyager.dashboard');
-    Route::get('/dashboard/staff', [DashboardController::class, 'staffIndex'])->name('voyager.dashboard.staff');
-    Route::post('/dashboard/staff', [DashboardController::class, 'syncStaff']);
-    Route::post('/dashboard/staff/log/{id}', [DashboardController::class, 'confirmStaffLog'])->name('kpi.log.confirm');
-    Route::get('/dashboard/staff/calendar', [DashboardController::class, 'staffCalendarIndex'])->name('voyager.dashboard.staff.calendar');
-    Route::post('/dashboard/staff/calendar', [DashboardController::class, 'syncStaffCalendar']);
+    Route::get('/dashboard/staffs/kpi', [DashboardController::class, 'staffIndex'])->name('voyager.dashboard.staff');
+    Route::post('/dashboard/staffs/kpi', [DashboardController::class, 'syncStaff']);
+    Route::post('/dashboard/staffs/log/{id}', [DashboardController::class, 'confirmStaffLog'])->name('kpi.log.confirm');
+    Route::get('/dashboard/staffs/calendar', [DashboardController::class, 'staffCalendarIndex'])->name('voyager.dashboard.staff.calendar');
+    Route::post('/dashboard/staffs/calendar', [DashboardController::class, 'syncStaffCalendar']);
 
     Route::get('/kpi-daily-logs/{id}/edit', [DashboardController::class, 'editStaffDailyLog']);
     Route::post('/kpi-daily-logs/{id}/edit', [DashboardController::class, 'updateStaffDailyLog'])->name('kpi.log.update');
@@ -173,11 +173,36 @@ Route::group(['prefix' => 'admin', 'middleware' => ['cmsAdmin']], function () {
     // Sales
     Route::group(['prefix' => 'dashboard/staffs'], function () {
         Route::get('/', [IntEmpTrackerController::class, 'dashboard'])->name('telesales.dashboard');
+        Route::get('/summary', [IntEmpTrackerController::class, 'summaryData'])->name('telesales.summary.data');
         Route::get('/calls', [IntEmpTrackerController::class, 'callLogsData'])->name('telesales.calls.data');
         Route::get('/recalls', [IntEmpTrackerController::class, 'recallReminders'])->name('telesales.recalls.data');
         Route::get('/meetings', [IntEmpTrackerController::class, 'meetingReminders'])->name('telesales.meetings.data');
         Route::post('/calls/{id}/meeting', [IntEmpTrackerController::class, 'updateMeeting'])->name('telesales.calls.meeting');
         Route::post('/calls/{id}/customer-type', [IntEmpTrackerController::class, 'defineCustomerType'])->name('telesales.calls.define');
+
+        // Contacts
+        Route::post('/contacts', [IntEmpTrackerController::class, 'storeContact'])->name('telesales.contacts.store');
+        Route::get('/contacts/sync', [IntEmpTrackerController::class, 'syncContacts'])
+            ->name('telesales.contacts.sync')->middleware('cmsAdmin');
+
+        // Devices of salers
+        Route::get('/devices', [IntEmpTrackerController::class, 'devices'])
+            ->name('telesales.devices')->middleware('cmsAdmin');
+        Route::get('/devices/data', [IntEmpTrackerController::class, 'devicesData'])->name('telesales.devices.data');
+        Route::get('/devices/alerts', [IntEmpTrackerController::class, 'deviceAlertsData'])->name('telesales.devices.alerts');
+        Route::post('/devices', [IntEmpTrackerController::class, 'deviceStore'])->name('telesales.devices.store');
+        Route::post('/devices/{id}', [IntEmpTrackerController::class, 'deviceUpdate'])->name('telesales.devices.update');
+        Route::delete('/devices/alerts', [IntEmpTrackerController::class, 'deviceAlertsClear'])->name('telesales.devices.alerts.clear');
+        Route::delete('/devices/{id}', [IntEmpTrackerController::class, 'deviceDestroy'])->name('telesales.devices.destroy');
+        Route::delete('/devices/alerts/{id}', [IntEmpTrackerController::class, 'deviceAlertDestroy'])->name('telesales.devices.alerts.destroy');
+
+        // Install guide
+        Route::get('/install-guide', [IntEmpTrackerController::class, 'installGuide'])->name('telesales.install.guide');
+        Route::get('/install-guide/download', function () {
+            $path = storage_path('app/call-tracker/tracker.zip');
+            abort_unless(file_exists($path), 404);
+            return response()->download($path, 'tracker.zip');
+        })->name('telesales.install.download');
     });
 
     // Generate

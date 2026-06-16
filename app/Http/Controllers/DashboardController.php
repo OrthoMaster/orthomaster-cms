@@ -12,6 +12,7 @@ use App\Models\User;
 use App\Status;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
 class DashboardController extends Controller
@@ -443,6 +444,12 @@ class DashboardController extends Controller
 
     public function index()
     {
+        $authUser = Auth::user();
+        $isAdmin  = $authUser->hasPermission('edit_admins');
+        if (!$isAdmin) {
+            return redirect()->route('telesales.dashboard');
+        }
+
         $days = request()->get('days', 7);
         $dailyAppOpens = $this->getDailyAppOpens($days);
 
