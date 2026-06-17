@@ -64,6 +64,9 @@
                                         Double-cliquez sur <code>tracker.zip</code> — un dossier <code>tracker</code>
                                         apparaît à côté.
                                     </p>
+                                    <p>
+                                        Double-cliquez sur <code>tracker-bundle.zip</code> — un dossier <code>tracker</code>
+                                    </p>
                                 </div>
                             </div>
 
@@ -116,6 +119,7 @@
                                     </p>
                                     <ul>
                                         <li><code>+33612345678</code> (format international)</li>
+                                        <li>ou <code>0612345678</code> (format français)</li>
                                     </ul>
                                 </div>
                             </div>
@@ -176,7 +180,7 @@
                             <div class="vts-substep">
                                 <div class="vts-substep-num">1.7</div>
                                 <div class="vts-substep-body">
-                                    <h4>Vérifier que tout fonctionne (pour Développeur/Administrateur)</h4>
+                                    <h4>Vérifier que tout fonctionne</h4>
                                     <p>
                                         Revenez dans le tableau de bord (lien Tableau de bord dans le menu).
                                         Votre Mac doit apparaître avec le statut <strong>En ligne</strong> (badge vert).
@@ -221,8 +225,9 @@
                                     <ul>
                                         <li>iPhone et Mac connectés au <strong>même réseau Wi-Fi</strong></li>
                                         <li>
-                                            <strong>Même identifiant Apple</strong> sur les deux appareils
-                                            (Réglages → votre nom)
+                                            <strong>Même Compte Apple</strong> sur les deux appareils
+                                            (Réglages → votre nom en haut). Voir l'étape 3 si vous devez
+                                            séparer votre Compte Apple personnel du Compte Apple OrthoMaster.
                                         </li>
                                         <li>
                                             <strong>Bluetooth activé</strong> sur les deux appareils
@@ -238,7 +243,11 @@
                                     <h4>Sur votre iPhone</h4>
                                     <ol class="vts-numbered">
                                         <li>Ouvrez <strong>Réglages</strong></li>
-                                        <li>Allez dans <strong>Téléphone</strong></li>
+                                        <li>
+                                            Faites défiler jusqu'en bas et touchez
+                                            <strong>« Apps »</strong>
+                                        </li>
+                                        <li>Touchez <strong>Téléphone</strong></li>
                                         <li>Touchez <strong>Appels sur d'autres appareils</strong></li>
                                         <li>
                                             Activez <strong>« Autoriser les appels sur d'autres appareils »</strong>
@@ -249,6 +258,12 @@
                                             à <strong>votre Mac</strong>
                                         </li>
                                     </ol>
+                                    <div class="vts-tip">
+                                        💡 <strong>Depuis iOS 18, les réglages des applications Apple
+                                        (Téléphone, FaceTime, Messages, etc.) sont regroupés dans une
+                                        section « Apps » en bas de Réglages.</strong> Si vous ne voyez
+                                        pas « Téléphone » directement, c'est normal.
+                                    </div>
                                 </div>
                             </div>
 
@@ -278,7 +293,7 @@
                                         <li>Le Mac affiche aussi une notification d'appel&nbsp;: ✓ continuité OK</li>
                                         <li>
                                             Le Mac ne sonne pas&nbsp;: revérifiez les conditions de l'étape 2.1
-                                            (Wi-Fi, identifiant Apple identique)
+                                            (Wi-Fi, Compte Apple identique)
                                         </li>
                                     </ul>
                                 </div>
@@ -297,7 +312,7 @@
             </div>
 
             {{-- ============================================================ --}}
-            {{--  ÉTAPE 3 — Partager Google Calendar avec OrthoMaster          --}}
+            {{--  ÉTAPE 3 — Séparation pro / personnel sur l'iPhone           --}}
             {{-- ============================================================ --}}
             <div class="row">
                 <div class="col-md-12">
@@ -305,6 +320,171 @@
                         <div class="panel-heading">
                             <h3 class="panel-title">
                                 <span class="vts-step-badge">3</span>
+                                Configurer la séparation pro / personnel sur votre iPhone
+                            </h3>
+                        </div>
+                        <div class="panel-body">
+
+                            <p>
+                                Votre iPhone est <strong>personnel</strong>, mais reçoit aussi
+                                les appels professionnels via l'eSIM OrthoMaster. Sans cette
+                                étape, vos <strong>appels personnels</strong> seraient eux aussi
+                                relayés sur le Mac et enregistrés dans le système&nbsp;— ce que
+                                ni vous ni OrthoMaster ne souhaitons.
+                            </p>
+
+                            <div class="vts-warning">
+                                ⚠ <strong>Important&nbsp;:</strong> les sous-étapes 3.1 et 3.2
+                                sont <strong>obligatoires</strong>. Sans elles, vos données
+                                privées risquent d'être collectées.
+                            </div>
+
+                            <div class="vts-substep">
+                                <div class="vts-substep-num">3.1</div>
+                                <div class="vts-substep-body">
+                                    <h4>Connecter FaceTime à votre Compte Apple OrthoMaster</h4>
+                                    <p>
+                                        Sur votre iPhone, ouvrez l'app
+                                        <strong>Réglages</strong>, faites défiler jusqu'en bas,
+                                        puis touchez <strong>« Apps »</strong>.
+                                    </p>
+                                    <div class="vts-tip">
+                                        💡 <strong>Depuis iOS 18, les réglages des applications
+                                        Apple sont regroupés dans une section « Apps »</strong>
+                                        en bas de l'écran principal. Si vous ne voyez pas
+                                        FaceTime directement dans Réglages, c'est normal&nbsp;:
+                                        il faut passer par « Apps ».
+                                    </div>
+                                    <p>
+                                        Dans la liste, touchez <strong>FaceTime</strong>.
+                                    </p>
+                                    <p>
+                                        En haut de l'écran FaceTime, touchez la ligne qui affiche
+                                        votre nom ou l'adresse de votre Compte Apple (par exemple
+                                        <strong>« Compte Apple : votre.email@… »</strong>).
+                                    </p>
+                                    <ol class="vts-numbered">
+                                        <li>
+                                            Si vous êtes connecté avec votre Compte Apple personnel,
+                                            touchez <strong>« Se déconnecter »</strong>.
+                                        </li>
+                                        <li>
+                                            Touchez <strong>« Utiliser votre Compte Apple pour FaceTime »</strong>
+                                            (ou bouton équivalent qui apparaît après déconnexion).
+                                        </li>
+                                        <li>
+                                            Quand on vous propose un Compte Apple, choisissez
+                                            <strong>« Utiliser un autre Compte Apple »</strong>.
+                                        </li>
+                                        <li>
+                                            Saisissez le Compte Apple OrthoMaster fourni par l'administrateur
+                                            (ex. <code>sales.prenom@orthomaster.fr</code>) et son mot de passe.
+                                        </li>
+                                        <li>
+                                            Validez le code à 6 chiffres envoyé sur votre Mac de travail
+                                            (qui est déjà connecté avec ce même Compte Apple).
+                                        </li>
+                                    </ol>
+
+                                    <div class="vts-tip">
+                                        💡 <strong>Ce changement ne concerne QUE FaceTime.</strong>
+                                        Vos messages iMessage, photos iCloud, contacts, Apple Music
+                                        et tous les autres services restent connectés à votre
+                                        Compte Apple <strong>personnel</strong> (visible en haut
+                                        de l'écran Réglages, sous votre nom). Seuls les appels
+                                        téléphoniques sont concernés.
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="vts-substep">
+                                <div class="vts-substep-num">3.2</div>
+                                <div class="vts-substep-body">
+                                    <h4>Relayer uniquement les appels professionnels</h4>
+                                    <p>
+                                        Toujours dans <strong>Réglages</strong>, retournez au menu
+                                        principal, descendez à la section <strong>« Apps »</strong>,
+                                        puis touchez <strong>Téléphone</strong>.
+                                    </p>
+                                    <p>
+                                        Dans l'écran Téléphone, touchez
+                                        <strong>« Appels sur d'autres appareils »</strong>.
+                                    </p>
+                                    <ol class="vts-numbered">
+                                        <li>
+                                            Vérifiez que l'interrupteur
+                                            <strong>« Autoriser les appels sur d'autres appareils »</strong>
+                                            est <strong>activé</strong> (vert).
+                                        </li>
+                                        <li>
+                                            Dans la section
+                                            <strong>« Autoriser les appels sur »</strong>,
+                                            vous verrez la liste de vos appareils (votre Mac apparaît).
+                                            Vérifiez qu'il est bien activé.
+                                        </li>
+                                        <li>
+                                            Si votre iPhone dispose de deux lignes (eSIM pro + SIM perso),
+                                            une section supplémentaire <strong>« Lignes »</strong> ou
+                                            <strong>« Données cellulaires »</strong> apparaît.
+                                            <strong>Cochez uniquement la ligne professionnelle</strong>
+                                            (eSIM OrthoMaster) et <strong>décochez la ligne personnelle</strong>.
+                                        </li>
+                                    </ol>
+                                    <p>
+                                        Résultat&nbsp;: seuls les appels arrivant sur votre numéro pro
+                                        seront relayés au Mac. Vos appels personnels restent uniquement
+                                        sur l'iPhone.
+                                    </p>
+
+                                    <div class="vts-tip">
+                                        💡 Si vous n'avez qu'une seule ligne SIM (que la ligne pro),
+                                        cette sous-section <strong>« Lignes »</strong> peut ne pas
+                                        apparaître&nbsp;: dans ce cas, ne vous inquiétez pas, tous
+                                        les appels relayés sont déjà ceux de la ligne pro.
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="vts-substep">
+                                <div class="vts-substep-num">3.3</div>
+                                <div class="vts-substep-body">
+                                    <h4>Vérifier la séparation</h4>
+                                    <p>
+                                        Demandez à un collègue d'appeler successivement vos deux
+                                        numéros, et observez ce qui se passe&nbsp;:
+                                    </p>
+                                    <ul>
+                                        <li>
+                                            <strong>Appel pro</strong>&nbsp;: l'iPhone sonne,
+                                            le Mac sonne aussi → ✓ relai OK.
+                                        </li>
+                                        <li>
+                                            <strong>Appel perso</strong>&nbsp;: l'iPhone sonne,
+                                            le Mac <strong>ne sonne PAS</strong> → ✓ séparation OK.
+                                        </li>
+                                    </ul>
+                                    <p>
+                                        Si le Mac sonne aussi pour un appel personnel, retournez
+                                        à la sous-étape 3.2 et vérifiez que la ligne personnelle
+                                        est bien décochée dans la section « Lignes ».
+                                    </p>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {{-- ============================================================ --}}
+            {{--  ÉTAPE 4 — Partager Google Calendar avec OrthoMaster          --}}
+            {{-- ============================================================ --}}
+            <div class="row">
+                <div class="col-md-12">
+                    <div class="panel panel-bordered">
+                        <div class="panel-heading">
+                            <h3 class="panel-title">
+                                <span class="vts-step-badge">4</span>
                                 Partager votre Google Calendar avec OrthoMaster
                             </h3>
                         </div>
@@ -318,7 +498,7 @@
                             </p>
 
                             <div class="vts-substep">
-                                <div class="vts-substep-num">3.1</div>
+                                <div class="vts-substep-num">4.1</div>
                                 <div class="vts-substep-body">
                                     <h4>Ouvrir Google Calendar</h4>
                                     <p>
@@ -331,7 +511,7 @@
                             </div>
 
                             <div class="vts-substep">
-                                <div class="vts-substep-num">3.2</div>
+                                <div class="vts-substep-num">4.2</div>
                                 <div class="vts-substep-body">
                                     <h4>Trouver votre agenda principal</h4>
                                     <p>
@@ -343,7 +523,7 @@
                             </div>
 
                             <div class="vts-substep">
-                                <div class="vts-substep-num">3.3</div>
+                                <div class="vts-substep-num">4.3</div>
                                 <div class="vts-substep-body">
                                     <h4>Ouvrir les paramètres de partage</h4>
                                     <p>
@@ -355,7 +535,7 @@
                             </div>
 
                             <div class="vts-substep">
-                                <div class="vts-substep-num">3.4</div>
+                                <div class="vts-substep-num">4.4</div>
                                 <div class="vts-substep-body">
                                     <h4>Ajouter le compte de service OrthoMaster</h4>
                                     <p>
@@ -381,7 +561,7 @@
                             </div>
 
                             <div class="vts-substep">
-                                <div class="vts-substep-num">3.5</div>
+                                <div class="vts-substep-num">4.5</div>
                                 <div class="vts-substep-body">
                                     <h4>Choisir le bon niveau de permission</h4>
                                     <p>
@@ -393,11 +573,16 @@
                                         le tracker doit pouvoir créer et modifier des événements, mais
                                         n'a pas besoin de gérer les partages de votre agenda.
                                     </p>
+                                    <div class="vts-tip">
+                                        💡 <strong>Ne choisissez pas</strong>
+                                        « Apporter des modifications et gérer le partage » — c'est un
+                                        niveau plus élevé qui n'est pas requis.
+                                    </div>
                                 </div>
                             </div>
 
                             <div class="vts-substep">
-                                <div class="vts-substep-num">3.6</div>
+                                <div class="vts-substep-num">4.6</div>
                                 <div class="vts-substep-body">
                                     <h4>Valider</h4>
                                     <p>
@@ -413,7 +598,7 @@
                             </div>
 
                             <div class="vts-substep">
-                                <div class="vts-substep-num">3.7</div>
+                                <div class="vts-substep-num">4.7</div>
                                 <div class="vts-substep-body">
                                     <h4>Vérifier</h4>
                                     <p>
@@ -535,5 +720,54 @@
         }
         .vts-tip { background: #fdf8ee; border-left: 3px solid #f0ad4e; }
         .vts-warning { background: #fdf4f4; border-left: 3px solid #d9534f; }
+
+        /* Hàng "copier" pour adresse longue (compte de service) */
+        .vts-copy-row {
+            display: flex; align-items: center; gap: 10px;
+            background: #f5f5f5; padding: 8px 12px; border-radius: 4px;
+            border: 1px solid #ddd; margin: 8px 0; flex-wrap: wrap;
+        }
+        .vts-copy-row code {
+            flex: 1; min-width: 0; background: transparent;
+            font-family: Menlo, Monaco, monospace; font-size: 12px;
+            color: #333; word-break: break-all; padding: 0;
+        }
     </style>
+@stop
+
+@section('javascript')
+    <script>
+        // Copier l'adresse du compte de service dans le presse-papiers.
+        document.getElementById('vtsCopyEmailBtn').addEventListener('click', function () {
+            const email = document.getElementById('vtsServiceAccountEmail').textContent.trim();
+            const btn = this;
+            const original = btn.textContent;
+
+            navigator.clipboard.writeText(email)
+                .then(() => {
+                    btn.textContent = '✓ Copié !';
+                    btn.classList.remove('btn-default');
+                    btn.classList.add('btn-success');
+                })
+                .catch(() => {
+                    // Fallback pour navigateurs sans Clipboard API (anciens Safari)
+                    const range = document.createRange();
+                    range.selectNode(document.getElementById('vtsServiceAccountEmail'));
+                    window.getSelection().removeAllRanges();
+                    window.getSelection().addRange(range);
+                    document.execCommand('copy');
+                    window.getSelection().removeAllRanges();
+                    btn.textContent = '✓ Copié !';
+                    btn.classList.remove('btn-default');
+                    btn.classList.add('btn-success');
+                })
+                .finally(() => {
+                    setTimeout(() => {
+                        btn.textContent = original;
+                        btn.classList.remove('btn-success');
+                        btn.classList.add('btn-default');
+                    }, 2000);
+                });
+        });
+    </script>
 @stop

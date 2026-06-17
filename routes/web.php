@@ -13,6 +13,7 @@ use App\Http\Controllers\CompanyController;
 use App\Http\Controllers\ContentViewReportController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DashboardVideoAdsController;
+use App\Http\Controllers\DashboardVideoViewsController;
 use App\Http\Controllers\GenerateDocumentController;
 use App\Http\Controllers\GeneratePdfController;
 use App\Http\Controllers\IntEmpTrackerController;
@@ -169,6 +170,16 @@ Route::group(['prefix' => 'admin', 'middleware' => ['cmsAdmin']], function () {
             Route::get('/data', [DashboardVideoAdsController::class, 'chartData'])
                 ->name('dashboard.video-ads.data');
         });
+
+    // Videos views
+    Route::prefix('reports/video-views')
+    ->group(function () {
+        Route::get('/', [DashboardVideoViewsController::class, 'index'])
+            ->name('dashboard.videos');
+
+        Route::get('/data', [DashboardVideoViewsController::class, 'tableData'])
+            ->name('dashboard.videos.data');
+    });
 
     // Sales
     Route::group(['prefix' => 'dashboard/staffs'], function () {
