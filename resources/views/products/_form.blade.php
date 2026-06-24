@@ -1,10 +1,11 @@
 {{--
     Shared product form partial.
     Required vars:
-      - $product       (Product, may be unsaved instance)
-      - $manufacturers (Collection of Manufacturer)
-      - $filterTree    (array decoded from rules.json)
-      - $selectedKeys  (array of filter_key strings already on the product)
+      - $product               (Product, may be unsaved instance)
+      - $manufacturers         (Collection of Manufacturer)
+      - $filterTree            (array decoded from rules.json)
+      - $selectedKeys          (array of pathology filter_key strings)
+      - $measurementDimensions (array of {key, title} for size form dropdown)
     Required wrapping <form> around this include.
 --}}
 
@@ -82,7 +83,7 @@
             @forelse ($tabs as $idx => $tab)
                 @include('products._tab_row', ['idx' => $idx, 'tab' => $tab])
             @empty
-                @include('products._tab_row', ['idx' => 0, 'tab' => ['title' => '', 'content_markdown' => '']])
+                @include('products._tab_row', ['idx' => 0, 'tab' => ['title' => '', 'content' => '']])
             @endforelse
         </div>
         <button type="button" class="btn btn-default" id="btn-add-tab">
@@ -93,38 +94,33 @@
 
 <div class="panel panel-bordered">
     <div class="panel-heading">
-        <h3 class="panel-title">Sizes</h3>
+        <h3 class="panel-title">
+            Sizes
+            <button type="button" class="btn btn-xs btn-info" id="btn-parse-markdown"
+                    style="margin-left:12px;font-weight:600;">
+                <i class="voyager-magic"></i> Parse from markdown
+            </button>
+        </h3>
     </div>
     <div class="panel-body">
-        {{-- Explainer box — teaches the AND/OR mental model up front --}}
+        {{-- Explainer box — schema mental model --}}
         <div style="background:#f0f6ff;border:1px solid #c5dafa;border-radius:6px;padding:12px 14px;margin-bottom:18px;font-size:12px;line-height:18px;color:#374a63;">
             <div style="font-weight:700;margin-bottom:6px;color:#1d3557;">
                 <i class="voyager-info-circled"></i> How sizes match user filters
             </div>
             <div style="margin-bottom:6px;">
-                Each <strong>dimension</strong> (Tour de taille, Hauteur…) is rendered as its own list in the app. Inside a dimension, each <strong>option</strong> is one selectable size (S, M, L, 1, 2, …).
-            </div>
-            <div style="margin-bottom:6px;">
-                <strong>Required filters</strong> on an option = <em>ALL</em> listed keys must be in the user's selection. Use this when the size depends on a single combination of conditions.
-                <br>
-                <span style="color:#5c6b7e;font-style:italic;">Example: option "M" with required filters <code>[taille-m, homme]</code> → matches only when user has selected both Tour de taille = M <em>and</em> Type = Homme.</span>
+                Each <strong>option</strong> is one size variant of this product (Taille 1, S, M, …). Each option declares numeric <strong>measurements</strong> — the actual ranges that taille covers (e.g. tour de cheville 19-21 cm).
             </div>
             <div>
-                <strong>Alternative match conditions (variants)</strong> = <em>ANY</em> variant can match. Each variant is its own AND-group. Use this when a size can be reached through multiple unrelated paths.
-                <br>
-                <span style="color:#5c6b7e;font-style:italic;">Example: option "26cm" with no required filters and two variants:</span>
-                <ul style="margin:4px 0 0 18px;padding:0;color:#5c6b7e;font-style:italic;">
-                    <li>Variant 1: <code>[hauteur-xl]</code> — matches when Hauteur &gt; 185 cm</li>
-                    <li>Variant 2: <code>[hauteur-l, homme]</code> — matches when Hauteur 175-185 cm <em>and</em> Type = Homme</li>
-                </ul>
+                When a user picks a measurement bucket in the app (e.g. tour de cheville <em>22-25 cm</em>), the app matches the product if at least one option's measurement <em>overlaps</em> that bucket. Below, pick the right <em>dimension</em> for each measurement so the overlap can be computed.
             </div>
         </div>
 
-        <div id="dimensions-container">
+        <div id="options-container">
             {{-- Hydrated by JS from #sizes-initial-data --}}
         </div>
-        <button type="button" class="btn btn-default" id="btn-add-dimension">
-            <i class="voyager-plus"></i> Add dimension
+        <button type="button" class="btn btn-default" id="btn-add-option">
+            <i class="voyager-plus"></i> Add option
         </button>
     </div>
 </div>
@@ -134,6 +130,7 @@
         <h3 class="panel-title">Pathology filters</h3>
         <p class="text-muted" style="margin: 4px 0 0; font-size: 12px;">
             Tick the options this product is suitable for. Children appear when their parent option is checked.
+            Measurement buckets (Tour de poignet, Hauteur…) are NOT shown here — they're matched automatically via the product's size measurements.
         </p>
     </div>
     <div class="panel-body">
@@ -160,8 +157,31 @@
     <a href="{{ route('products.index') }}" class="btn btn-default">Cancel</a>
 </div>
 
+{{-- Markdown paste modal — hidden until "Parse from markdown" is clicked.
+     Plain CSS modal so we don't depend on Bootstrap JS being loaded. --}}
+<div id="markdown-modal" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.45);">
+    <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;border-radius:8px;padding:22px;width:680px;max-width:92vw;max-height:90vh;overflow:auto;box-shadow:0 12px 40px rgba(0,0,0,0.25);">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+            <h4 style="margin:0;font-weight:600;">Parse sizes from markdown</h4>
+            <button type="button" class="btn btn-xs btn-default" id="md-close" title="Close">✕</button>
+        </div>
+        <p class="text-muted" style="font-size:12px;line-height:18px;margin-bottom:10px;">
+            Paste a markdown table where the first column is the size label and other columns are measurements.
+            Headers are normalized to <code>dimensionKey</code> (lowercase, no accents, snake_case) and matched against your rules.
+        </p>
+        <textarea id="md-input" rows="10" class="form-control" style="font-family:monospace;font-size:12px;"
+                  placeholder="| Taille | Tour de cheville |&#10;| --- | --- |&#10;| Taille 1 | 19 cm - 21 cm |&#10;| Taille 2 | 21 cm - 23 cm |"></textarea>
+        <div id="md-warnings" style="margin-top:10px;font-size:12px;line-height:18px;color:#8a6300;"></div>
+        <div style="display:flex;gap:8px;margin-top:14px;justify-content:flex-end;">
+            <button type="button" class="btn btn-default" id="md-cancel">Cancel</button>
+            <button type="button" class="btn btn-info"    id="md-append">Append</button>
+            <button type="button" class="btn btn-primary" id="md-replace">Parse and replace</button>
+        </div>
+    </div>
+</div>
+
 {{-- Pass server data to JS without inline-script-injection issues --}}
 <script type="application/json" id="filter-tree-data">{!! json_encode($filterTree, JSON_UNESCAPED_UNICODE) !!}</script>
 <script type="application/json" id="filter-selected-data">{!! json_encode(array_values($sel), JSON_UNESCAPED_UNICODE) !!}</script>
-<script type="application/json" id="filter-key-options-data">{!! json_encode($filterKeyOptions ?? [], JSON_UNESCAPED_UNICODE) !!}</script>
+<script type="application/json" id="measurement-dimensions-data">{!! json_encode($measurementDimensions ?? [], JSON_UNESCAPED_UNICODE) !!}</script>
 <script type="application/json" id="sizes-initial-data">{!! json_encode($sizes ?? null, JSON_UNESCAPED_UNICODE) !!}</script>

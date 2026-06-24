@@ -18,7 +18,7 @@ return new class extends Migration
             $table->string('category');
             $table->foreignIdFor(Manufacturer::class);
             $table->json('images')->nullable();           // [{"url": "...", "order": 0}, ...]
-            $table->json('description_tabs')->nullable(); // [{"title": "...", "content_markdown": "..."}, ...]
+            $table->json('description_tabs')->nullable(); // [{"title": "...", "content": "..."}, ...]
             $table->timestamps();
         });
     }

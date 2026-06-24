@@ -221,7 +221,7 @@ class ProductController extends Controller
             'image_urls'                      => ['nullable', 'string'],
             'tabs'                            => ['nullable', 'array'],
             'tabs.*.title'                    => ['nullable', 'string', 'max:255'],
-            'tabs.*.content_markdown'         => ['nullable', 'string'],
+            'tabs.*.content'         => ['nullable', 'string'],
             'filter_keys'                     => ['nullable', 'array'],
             'filter_keys.*'                   => ['string', 'max:64'],
             // Nested sizes structure. Each dimension is a list of options;
@@ -251,9 +251,9 @@ class ProductController extends Controller
         $tabs = collect($validated['tabs'] ?? [])
             ->map(fn($t) => [
                 'title'            => trim($t['title'] ?? ''),
-                'content_markdown' => $t['content_markdown'] ?? '',
+                'content' => $t['content'] ?? '',
             ])
-            ->filter(fn($t) => $t['title'] !== '' || $t['content_markdown'] !== '')
+            ->filter(fn($t) => $t['title'] !== '' || $t['content'] !== '')
             ->values()
             ->all();
 

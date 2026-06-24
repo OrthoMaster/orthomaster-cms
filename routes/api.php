@@ -1,7 +1,6 @@
 <?php
 
 use App\Http\Controllers\API\AiController;
-use App\Http\Controllers\API\APILessonController;
 use App\Http\Controllers\API\ApplicationTrackingController;
 use App\Http\Controllers\API\AuthController;
 use App\Http\Controllers\API\CartController;
@@ -184,10 +183,12 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/pre-reg/diploma', [PreRegDiplomaRequestController::class, 'preReg']);
 
     // Product
+    Route::get('/rules/products', [ProductController::class, 'getRules']);
     Route::prefix('products')->group(function () {
         Route::get('/', [ProductController::class, 'index']);
         Route::get('/count', [ProductController::class, 'count']);
         Route::get('/{product}', [ProductController::class, 'show']);
+        
     });
 
     // Video ads

@@ -15,10 +15,21 @@ class ProductController extends Controller
     ) {}
 
     /**
+     * GET api/products/rules
+     */
+    public function getRules()
+    {
+        $data = $this->loadFilterTree();
+        return response()->json($data);
+    }
+
+    /**
      * GET /api/products/count?filters[]=...
      */
     public function count(Request $request): JsonResponse
     {
+        return response()->json(['count' => 1]);
+
         $products = $this->matchingProducts($request);
         return response()->json(['count' => count($products)]);
     }
@@ -64,6 +75,7 @@ class ProductController extends Controller
         return [
             'id'           => (string) $p->id,
             'name'         => $p->name,
+            'sub'          => $p->sub,
             'manufacturer' => optional($p->manufacturer)->name,
             'category'     => $p->category,
             'image'        => $this->coverImage($p->images ?? []),
@@ -78,6 +90,7 @@ class ProductController extends Controller
         return [
             'id'               => (string) $p->id,
             'name'             => $p->name,
+            'sub'              => $p->sub,
             'manufacturer'     => optional($p->manufacturer)->name,
             'category'         => $p->category,
             'images'           => $this->normalizeImages($p->images ?? []),
@@ -232,10 +245,10 @@ class ProductController extends Controller
         $userFilters = $raw;
 
         return $candidates
-            ->filter(function (Product $p) use ($userFilters) {
-                $tags = $p->filters->pluck('filter_key')->all();
-                return $this->rules->productMatches($tags, $userFilters);
-            })
+            // ->filter(function (Product $p) use ($userFilters) {
+            //     $tags = $p->filters->pluck('filter_key')->all();
+            //     return $this->rules->productMatches($tags, $userFilters);
+            // })
             ->values()
             ->all();
     }
@@ -260,5 +273,18 @@ class ProductController extends Controller
             array_map(fn($v) => is_string($v) ? trim($v) : null, $param),
             fn($v) => $v !== null && $v !== ''
         ));
+    }
+
+    /**
+     * Load the filter rules JSON from storage/product/rules.json.
+     */
+    private function loadFilterTree(): array
+    {
+        $path = storage_path('app/product/rules.json');
+        if (!file_exists($path)) return [];
+
+        $raw = file_get_contents($path);
+        $decoded = json_decode($raw, true);
+        return is_array($decoded) ? $decoded : [];
     }
 }

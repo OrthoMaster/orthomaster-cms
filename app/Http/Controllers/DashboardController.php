@@ -445,10 +445,10 @@ class DashboardController extends Controller
     public function index()
     {
         $authUser = Auth::user();
-        $isAdmin  = $authUser->hasPermission('edit_admins');
-        if (!$isAdmin) {
-            return redirect()->route('telesales.dashboard');
-        }
+        // $isAdmin  = $authUser->hasPermission('edit_admins');
+        // if (!$isAdmin) {
+        //     return redirect()->route('telesales.dashboard');
+        // }
 
         $days = request()->get('days', 7);
         $dailyAppOpens = $this->getDailyAppOpens($days);

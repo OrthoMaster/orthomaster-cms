@@ -46,7 +46,9 @@ class CompanyController extends Controller
             ->first();
 
         $managers = optional($company)->managers();
-        $members = $company->members()->count() > 0 ? $company->members() : null;
+        $members = optional($company)->members()?->count() > 0
+            ? $company->members()
+            : null;
 
         $usersWithPackages = $company->usersWithPackages();
 

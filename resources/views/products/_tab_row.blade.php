@@ -8,6 +8,6 @@
             <i class="voyager-trash"></i>
         </button>
     </div>
-    <textarea name="tabs[{{ $idx }}][content_markdown]" rows="6" class="form-control"
-        placeholder="Markdown content...">{{ $tab['content_markdown'] ?? '' }}</textarea>
+    <textarea name="tabs[{{ $idx }}][content]" rows="6" class="form-control"
+        placeholder="Markdown content...">{{ $tab['content'] ?? '' }}</textarea>
 </div>

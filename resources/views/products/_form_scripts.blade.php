@@ -5,7 +5,6 @@ $(document).ready(function () {
     // ============================================================
     var $tabsContainer = $('#tabs-container');
 
-    // Build a fresh tab row in JS (mirrors _tab_row.blade.php structure)
     function buildTabRow(idx) {
         var html = ''
             + '<div class="tab-row" style="border:1px solid #e8e8e8;border-radius:4px;padding:12px;margin-bottom:10px;background:#fafafa;">'
@@ -15,7 +14,7 @@ $(document).ready(function () {
             +       '<i class="voyager-trash"></i>'
             +     '</button>'
             +   '</div>'
-            +   '<textarea name="tabs['+idx+'][content_markdown]" rows="6" class="form-control" placeholder="Markdown content..."></textarea>'
+            +   '<textarea name="tabs['+idx+'][content]" rows="6" class="form-control" placeholder="Markdown content..."></textarea>'
             + '</div>';
         return $(html);
     }
@@ -23,7 +22,7 @@ $(document).ready(function () {
     function reindexTabs() {
         $tabsContainer.find('.tab-row').each(function (i, row) {
             $(row).find('input[name^="tabs"]').attr('name', 'tabs['+i+'][title]');
-            $(row).find('textarea[name^="tabs"]').attr('name', 'tabs['+i+'][content_markdown]');
+            $(row).find('textarea[name^="tabs"]').attr('name', 'tabs['+i+'][content]');
         });
     }
 
@@ -53,9 +52,6 @@ $(document).ready(function () {
         arr.forEach(function (k) { selected.add(k); });
     } catch (e) {}
 
-    // Determine selected children PER NODE from the flat selected set.
-    // We need this because rules reference (nodeId, childId) pairs.
-    // Build it on demand; selections object maps nodeId -> [childId, ...]
     function buildSelections() {
         var sel = {};
         treeData.forEach(function (node) {
@@ -93,7 +89,6 @@ $(document).ready(function () {
         return evaluateRule(child.visibilityRule, sel);
     }
 
-    // Render: tree rebuilds on every selection change. Visible nodes only.
     function render() {
         var $tree = $('#filter-tree');
         if (!$tree.length) return;
@@ -102,6 +97,11 @@ $(document).ready(function () {
         var html = '';
 
         treeData.forEach(function (node) {
+            // SKIP measurement nodes — they aren't user-tickable filter
+            // tags. Their buckets are matched via product.sizes numeric
+            // ranges, not via the filter_keys table.
+            if (node.dimensionKey) return;
+
             if (!isNodeVisible(node, sel)) return;
 
             html += '<div class="ftree-node' + (node.visibilityRule ? ' indent' : '') + '">';
@@ -129,7 +129,6 @@ $(document).ready(function () {
     function escapeHtml(s) { return String(s).replace(/[&<>"']/g, function (c) { return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]; }); }
     function escapeAttr(s) { return escapeHtml(s); }
 
-    // Cascade-prune: remove selections invalidated by other deselections.
     function pruneInvalid() {
         var changed = true;
         while (changed) {
@@ -152,11 +151,6 @@ $(document).ready(function () {
         }
     }
 
-    // Pill click handler — delegated.
-    // NOTE (admin form): we ignore the node's selectionType and always treat
-    // pills as multi-select. A product can be suitable for many treatment
-    // paths simultaneously (e.g. both rhumato and traumato), so single-select
-    // semantics from the patient-facing app don't apply here.
     $('#filter-tree').on('click', '.ftree-pill', function (e) {
         e.preventDefault();
         var childId = $(this).data('child');
@@ -180,176 +174,170 @@ $(document).ready(function () {
     render();
 
     // ============================================================
-    // Dynamic sizes — nested dimensions / options / variants
+    // Dynamic sizes — flat options with per-option measurements
     // ============================================================
-    var $dimsContainer = $('#dimensions-container');
+    var $optsContainer = $('#options-container');
 
-    var filterKeyOptions = [];
+    // List of {key, title} from rules.json (measurement nodes).
+    var measurementDimensions = [];
     try {
-        filterKeyOptions = JSON.parse($('#filter-key-options-data').text() || '[]');
-    } catch (e) { filterKeyOptions = []; }
+        measurementDimensions = JSON.parse($('#measurement-dimensions-data').text() || '[]');
+    } catch (e) { measurementDimensions = []; }
 
-    // Each filter_keys field is a multi-select. Cache the <option> markup
-    // string once, so we don't rebuild it for every new row.
-    function buildOptionsHtml(currentValues) {
-        var current = new Set(currentValues || []);
-        var html = '';
-        var byGroup = {};
-        filterKeyOptions.forEach(function (o) {
-            if (!byGroup[o.group]) byGroup[o.group] = [];
-            byGroup[o.group].push(o);
+    // -----------------------------------------------------------
+    // Builders
+    // -----------------------------------------------------------
+
+    // <option> markup for the dimension key dropdown.
+    function buildDimSelectOptions(currentKey) {
+        var html = '<option value="">— select dimension —</option>';
+        measurementDimensions.forEach(function (d) {
+            var sel = (d.key === currentKey) ? ' selected' : '';
+            html += '<option value="' + escapeAttr(d.key) + '"' + sel + '>'
+                  + escapeHtml(d.title) + ' (' + escapeHtml(d.key) + ')'
+                  + '</option>';
         });
-        Object.keys(byGroup).forEach(function (group) {
-            html += '<optgroup label="' + escapeAttr(group) + '">';
-            byGroup[group].forEach(function (o) {
-                var sel = current.has(o.id) ? ' selected' : '';
-                html += '<option value="' + escapeAttr(o.id) + '"' + sel + '>'
-                      + escapeHtml(o.label) + '</option>';
-            });
-            html += '</optgroup>';
-        });
+        // If the current key isn't in the known list, surface it so admin
+        // can see what's saved even when rules.json doesn't have it yet.
+        if (currentKey && !measurementDimensions.some(function (d) { return d.key === currentKey; })) {
+            html += '<option value="' + escapeAttr(currentKey) + '" selected>'
+                  + '⚠ ' + escapeHtml(currentKey) + ' (not in rules.json)'
+                  + '</option>';
+        }
         return html;
     }
-    function escapeHtml(s) { return String(s).replace(/[&<>]/g, function (c) { return ({'&':'&amp;','<':'&lt;','>':'&gt;'})[c]; }); }
-    function escapeAttr(s) { return String(s).replace(/[&"<>]/g, function (c) { return ({'&':'&amp;','"':'&quot;','<':'&lt;','>':'&gt;'})[c]; }); }
 
-    // -----------------------------------------------------------
-    // Builders — each returns a $jQuery element with the
-    // appropriate `name="sizes_dimensions[di][...]"` attrs.
-    // -----------------------------------------------------------
-
-    function buildVariantRow(di, oi, vi, variant) {
-        variant = variant || {};
+    function buildMeasurementRow(oi, mi, dimKey, m) {
+        m = m || {};
         var html = ''
-            + '<div class="variant-row" style="background:#f4f7fb;padding:8px 10px;border-radius:5px;margin-top:6px;border-left:3px solid #93b5e8;">'
-            +   '<div style="font-size:10px;color:#7d8a9c;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;font-weight:700;">'
-            +     'Variant — all selected filters below must match'
-            +   '</div>'
-            +   '<div style="display:grid;grid-template-columns:2fr 1.4fr auto;gap:6px;align-items:center;">'
-            +     '<select multiple class="form-control variant-keys" size="3" title="Hold Ctrl/Cmd to select multiple. All selected keys must match." name="sizes_dimensions['+di+'][options]['+oi+'][variants]['+vi+'][filter_keys][]">'
-            +       buildOptionsHtml(variant.filter_keys || [])
-            +     '</select>'
-            +     '<input type="text" class="form-control variant-range" name="sizes_dimensions['+di+'][options]['+oi+'][variants]['+vi+'][range]" placeholder="Display range when this variant matches" value="' + escapeAttr(variant.range || '') + '">'
-            +     '<button type="button" class="btn btn-xs btn-danger btn-remove-variant" title="Remove variant"><i class="voyager-trash"></i></button>'
+            + '<div class="measurement-row" style="background:#f4f7fb;padding:10px 12px;border-radius:6px;margin-top:8px;border-left:3px solid #93b5e8;">'
+            +   '<div style="display:grid;grid-template-columns:1.6fr 0.7fr 0.7fr 1.4fr auto;gap:8px;align-items:end;">'
+
+            +     '<div>'
+            +       '<label style="display:block;font-size:10px;color:#7d8a9c;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px;font-weight:700;">Dimension</label>'
+            +       '<select class="form-control m-dim" data-dim-select>'
+            +         buildDimSelectOptions(dimKey || '')
+            +       '</select>'
+            +     '</div>'
+
+            +     '<div>'
+            +       '<label style="display:block;font-size:10px;color:#7d8a9c;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px;font-weight:700;">Min</label>'
+            +       '<input type="number" step="any" class="form-control m-min" placeholder="19" value="' + escapeAttr(m.min != null ? String(m.min) : '') + '">'
+            +     '</div>'
+
+            +     '<div>'
+            +       '<label style="display:block;font-size:10px;color:#7d8a9c;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px;font-weight:700;">Max</label>'
+            +       '<input type="number" step="any" class="form-control m-max" placeholder="21" value="' + escapeAttr(m.max != null ? String(m.max) : '') + '">'
+            +     '</div>'
+
+            +     '<div>'
+            +       '<label style="display:block;font-size:10px;color:#7d8a9c;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px;font-weight:700;">Display range</label>'
+            +       '<input type="text" class="form-control m-display" placeholder="19 cm - 21 cm" value="' + escapeAttr(m.displayRange || '') + '">'
+            +     '</div>'
+
+            +     '<div style="padding-bottom:1px;">'
+            +       '<button type="button" class="btn btn-xs btn-danger btn-remove-measurement" title="Remove measurement"><i class="voyager-trash"></i></button>'
+            +     '</div>'
             +   '</div>'
             + '</div>';
         return $(html);
     }
 
-    function buildOptionRow(di, oi, opt) {
+    function buildOptionRow(oi, opt) {
         opt = opt || {};
         var $row = $(''
-            + '<div class="option-row" style="border:1px solid #d8dde6;border-radius:6px;padding:12px;margin-bottom:10px;background:#fcfdff;">'
-            +   '<div style="display:grid;grid-template-columns:1fr 1.4fr 2fr auto;gap:8px;align-items:start;">'
+            + '<div class="option-row" style="border:1px solid #d8dde6;border-radius:8px;padding:14px;margin-bottom:12px;background:#fcfdff;">'
+
+            +   '<div style="display:grid;grid-template-columns:1fr 1.4fr auto;gap:10px;align-items:end;">'
             +     '<div>'
             +       '<label style="display:block;font-size:10px;color:#7d8a9c;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px;font-weight:700;">Label</label>'
-            +       '<input type="text" class="form-control opt-label" placeholder="S, M, 1, 2…" value="' + escapeAttr(opt.label || '') + '">'
+            +       '<input type="text" class="form-control opt-label" placeholder="Taille 1, S, M…" value="' + escapeAttr(opt.label || '') + '">'
             +     '</div>'
             +     '<div>'
-            +       '<label style="display:block;font-size:10px;color:#7d8a9c;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px;font-weight:700;">Display range</label>'
-            +       '<input type="text" class="form-control opt-range" placeholder="14-16 cm" value="' + escapeAttr(opt.range || '') + '">'
+            +       '<label style="display:block;font-size:10px;color:#7d8a9c;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px;font-weight:700;">Display range (summary)</label>'
+            +       '<input type="text" class="form-control opt-display" placeholder="19-21 cm" value="' + escapeAttr(opt.displayRange || '') + '">'
             +     '</div>'
             +     '<div>'
-            +       '<label style="display:block;font-size:10px;color:#7d8a9c;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px;font-weight:700;">Required filters (ALL must match)</label>'
-            +       '<select multiple class="form-control opt-keys" size="3" title="Hold Ctrl/Cmd to select multiple. ALL selected keys must be in the user filters for this option to match."></select>'
-            +       '<div style="font-size:10.5px;color:#94a3b8;margin-top:2px;font-style:italic;">Leave empty if you only use variants below.</div>'
-            +     '</div>'
-            +     '<div style="padding-top:18px;">'
             +       '<button type="button" class="btn btn-xs btn-danger btn-remove-option" title="Remove option"><i class="voyager-trash"></i></button>'
             +     '</div>'
             +   '</div>'
-            +   '<div style="margin-top:12px;padding-top:10px;border-top:1px dashed #e0e6ee;">'
-            +     '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">'
-            +       '<div>'
-            +         '<span style="font-size:11px;color:#1d3557;font-weight:700;text-transform:uppercase;letter-spacing:.5px;">Alternative match conditions</span>'
-            +         '<span style="font-size:11px;color:#7d8a9c;margin-left:6px;font-style:italic;">— option matches if <strong>ANY</strong> variant matches</span>'
-            +       '</div>'
+
+            +   '<div style="margin-top:14px;padding-top:10px;border-top:1px dashed #e0e6ee;">'
+            +     '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">'
+            +       '<span style="font-size:11px;color:#1d3557;font-weight:700;text-transform:uppercase;letter-spacing:.5px;">Measurements</span>'
             +     '</div>'
-            +     '<div class="variants-container"></div>'
-            +     '<button type="button" class="btn btn-xs btn-default btn-add-variant" style="margin-top:6px;"><i class="voyager-plus"></i> Add variant</button>'
-            +     '<div class="opt-mix-warning" style="display:none;margin-top:8px;padding:6px 10px;background:#fff7e6;border-left:3px solid #f0a500;font-size:11.5px;color:#8a6300;">'
-            +       '<strong>Note:</strong> this option has both required filters and variants. The option matches if the variants match (checked first), or if all required filters match (checked second).'
-            +     '</div>'
+            +     '<div class="measurements-container"></div>'
+            +     '<button type="button" class="btn btn-xs btn-default btn-add-measurement" style="margin-top:8px;">'
+            +       '<i class="voyager-plus"></i> Add measurement'
+            +     '</button>'
             +   '</div>'
+
             + '</div>'
         );
-        $row.find('.opt-label').attr('name', 'sizes_dimensions['+di+'][options]['+oi+'][label]');
-        $row.find('.opt-range').attr('name', 'sizes_dimensions['+di+'][options]['+oi+'][range]');
-        $row.find('.opt-keys')
-            .attr('name', 'sizes_dimensions['+di+'][options]['+oi+'][filter_keys][]')
-            .html(buildOptionsHtml(opt.filter_keys || []));
 
-        var $vCont = $row.find('.variants-container');
-        (opt.variants || []).forEach(function (v, vi) {
-            $vCont.append(buildVariantRow(di, oi, vi, v));
+        // Hydrate measurements from the option's `measurements` object.
+        // Object keys (= dimensionKey) become rows.
+        var $mCont = $row.find('.measurements-container');
+        var measurements = opt.measurements || {};
+        var keys = Object.keys(measurements);
+        keys.forEach(function (k, mi) {
+            $mCont.append(buildMeasurementRow(oi, mi, k, measurements[k]));
         });
 
-        updateMixWarning($row);
         return $row;
     }
 
-    // Show a warning under an option if it has BOTH required filters and
-    // variants set — that's an unusual combination and we want admin to
-    // know which one will take precedence. (Variants are checked first.)
-    function updateMixWarning($row) {
-        var hasReqKeys = $row.find('.opt-keys option:selected').length > 0;
-        var hasVariants = $row.find('.variant-row').length > 0;
-        $row.find('.opt-mix-warning').toggle(hasReqKeys && hasVariants);
-    }
-
-    function buildDimensionBlock(di, dim) {
-        dim = dim || {};
-        var $block = $(''
-            + '<div class="dimension-block" style="border:1px solid #c3ccda;border-radius:8px;padding:14px;margin-bottom:16px;background:#f8fafd;">'
-            +   '<div style="display:grid;grid-template-columns:1fr auto;gap:8px;align-items:end;margin-bottom:12px;">'
-            +     '<div>'
-            +       '<label style="display:block;font-size:10px;color:#7d8a9c;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px;font-weight:700;">Dimension name</label>'
-            +       '<input type="text" class="form-control dim-name" placeholder="Tour de taille, Hauteur, Longueur…" value="' + escapeAttr(dim.name || '') + '">'
-            +     '</div>'
-            +     '<button type="button" class="btn btn-sm btn-danger btn-remove-dimension" title="Remove dimension"><i class="voyager-trash"></i></button>'
-            +   '</div>'
-            +   '<div class="options-container" style="margin-left:8px;"></div>'
-            +   '<button type="button" class="btn btn-xs btn-default btn-add-option" style="margin-top:4px;"><i class="voyager-plus"></i> Add option</button>'
-            + '</div>'
-        );
-        $block.find('.dim-name').attr('name', 'sizes_dimensions['+di+'][name]');
-
-        var $optCont = $block.find('.options-container');
-        var options = dim.options || [];
-        if (options.length === 0) {
-            $optCont.append(buildOptionRow(di, 0, null));
-        } else {
-            options.forEach(function (o, oi) {
-                $optCont.append(buildOptionRow(di, oi, o));
-            });
-        }
-
-        return $block;
-    }
-
     // -----------------------------------------------------------
-    // Reindex helpers — after add/remove, rewrite name attributes
-    // so submitted form keeps indexes 0..N-1 contiguous.
+    // Submission shaping — instead of relying on raw name=
+    // attributes (which is hard with object-keyed measurements),
+    // we serialize the options block into hidden inputs whose
+    // names match the Laravel validation rules at submit time.
+    // This way we don't have to keep `name=` attrs in sync as
+    // measurements get added/removed/reordered.
     // -----------------------------------------------------------
 
-    function reindexAll() {
-        $dimsContainer.find('.dimension-block').each(function (di, dimEl) {
-            var $dim = $(dimEl);
-            $dim.find('> div > .dim-name').attr('name', 'sizes_dimensions['+di+'][name]');
+    function collectAndSerialize() {
+        // Remove any previously-injected hidden fields for sizes
+        $('input[data-sizes-hidden]').remove();
 
-            $dim.find('.option-row').each(function (oi, optEl) {
-                var $opt = $(optEl);
-                $opt.find('.opt-label').attr('name', 'sizes_dimensions['+di+'][options]['+oi+'][label]');
-                $opt.find('.opt-range').attr('name', 'sizes_dimensions['+di+'][options]['+oi+'][range]');
-                $opt.find('.opt-keys').attr('name', 'sizes_dimensions['+di+'][options]['+oi+'][filter_keys][]');
+        var $form = $optsContainer.closest('form');
+        var oi = 0;
 
-                $opt.find('.variant-row').each(function (vi, vEl) {
-                    var $v = $(vEl);
-                    $v.find('.variant-keys').attr('name', 'sizes_dimensions['+di+'][options]['+oi+'][variants]['+vi+'][filter_keys][]');
-                    $v.find('.variant-range').attr('name', 'sizes_dimensions['+di+'][options]['+oi+'][variants]['+vi+'][range]');
-                });
+        $optsContainer.find('.option-row').each(function () {
+            var $opt = $(this);
+            var label   = $opt.find('.opt-label').val();
+            var display = $opt.find('.opt-display').val();
+
+            // Hidden inputs for the option scalars
+            $form.append(makeHidden('sizes_options['+oi+'][label]', label));
+            $form.append(makeHidden('sizes_options['+oi+'][displayRange]', display));
+
+            $opt.find('.measurement-row').each(function () {
+                var $m = $(this);
+                var dim = $m.find('.m-dim').val();
+                var min = $m.find('.m-min').val();
+                var max = $m.find('.m-max').val();
+                var dsp = $m.find('.m-display').val();
+                if (!dim) return; // skip rows without a dimension selected
+
+                // Bracket-key the measurement by dimension key — Laravel
+                // happily decodes this into an associative array.
+                var prefix = 'sizes_options['+oi+'][measurements]['+dim+']';
+                $form.append(makeHidden(prefix + '[min]', min));
+                $form.append(makeHidden(prefix + '[max]', max));
+                $form.append(makeHidden(prefix + '[displayRange]', dsp));
             });
+
+            oi++;
         });
+    }
+
+    function makeHidden(name, value) {
+        var $i = $('<input type="hidden">');
+        $i.attr('name', name);
+        $i.attr('data-sizes-hidden', '1');
+        $i.val(value == null ? '' : String(value));
+        return $i;
     }
 
     // -----------------------------------------------------------
@@ -357,67 +345,233 @@ $(document).ready(function () {
     // -----------------------------------------------------------
     var initialSizes = null;
     try { initialSizes = JSON.parse($('#sizes-initial-data').text() || 'null'); } catch (e) {}
-    var initialDims = (initialSizes && Array.isArray(initialSizes.dimensions))
-        ? initialSizes.dimensions
+    var initialOpts = (initialSizes && Array.isArray(initialSizes.options))
+        ? initialSizes.options
         : [];
 
-    if (initialDims.length === 0) {
-        // Start with one empty dimension so user has something to fill in
-        $dimsContainer.append(buildDimensionBlock(0, null));
-    } else {
-        initialDims.forEach(function (d, di) {
-            $dimsContainer.append(buildDimensionBlock(di, d));
-        });
-    }
+    initialOpts.forEach(function (o, oi) {
+        $optsContainer.append(buildOptionRow(oi, o));
+    });
 
     // -----------------------------------------------------------
     // Event handlers
     // -----------------------------------------------------------
 
-    $('#btn-add-dimension').on('click', function () {
-        var di = $dimsContainer.find('.dimension-block').length;
-        $dimsContainer.append(buildDimensionBlock(di, null));
+    $('#btn-add-option').on('click', function () {
+        var oi = $optsContainer.find('.option-row').length;
+        $optsContainer.append(buildOptionRow(oi, null));
     });
 
-    $dimsContainer.on('click', '.btn-remove-dimension', function () {
-        $(this).closest('.dimension-block').remove();
-        reindexAll();
-    });
-
-    $dimsContainer.on('click', '.btn-add-option', function () {
-        var $optCont = $(this).siblings('.options-container');
-        var $dim = $(this).closest('.dimension-block');
-        var di = $dimsContainer.find('.dimension-block').index($dim);
-        var oi = $optCont.find('.option-row').length;
-        $optCont.append(buildOptionRow(di, oi, null));
-    });
-
-    $dimsContainer.on('click', '.btn-remove-option', function () {
+    $optsContainer.on('click', '.btn-remove-option', function () {
         $(this).closest('.option-row').remove();
-        reindexAll();
     });
 
-    $dimsContainer.on('click', '.btn-add-variant', function () {
-        var $vCont = $(this).siblings('.variants-container');
+    $optsContainer.on('click', '.btn-add-measurement', function () {
+        var $mCont = $(this).siblings('.measurements-container');
         var $opt = $(this).closest('.option-row');
-        var $dim = $opt.closest('.dimension-block');
-        var di = $dimsContainer.find('.dimension-block').index($dim);
-        var oi = $dim.find('.option-row').index($opt);
-        var vi = $vCont.find('.variant-row').length;
-        $vCont.append(buildVariantRow(di, oi, vi, null));
-        updateMixWarning($opt);
+        var oi = $optsContainer.find('.option-row').index($opt);
+        var mi = $mCont.find('.measurement-row').length;
+        $mCont.append(buildMeasurementRow(oi, mi, '', null));
     });
 
-    $dimsContainer.on('click', '.btn-remove-variant', function () {
-        var $opt = $(this).closest('.option-row');
-        $(this).closest('.variant-row').remove();
-        reindexAll();
-        updateMixWarning($opt);
+    $optsContainer.on('click', '.btn-remove-measurement', function () {
+        $(this).closest('.measurement-row').remove();
     });
 
-    // Update warning when admin toggles selections in the required-filters multi-select
-    $dimsContainer.on('change', '.opt-keys', function () {
-        updateMixWarning($(this).closest('.option-row'));
+    // Serialize sizes right before form submission.
+    $optsContainer.closest('form').on('submit', function () {
+        collectAndSerialize();
     });
+
+    // ============================================================
+    // Markdown parser modal
+    // ============================================================
+    var $mdModal    = $('#markdown-modal');
+    var $mdInput    = $('#md-input');
+    var $mdWarnings = $('#md-warnings');
+
+    $('#btn-parse-markdown').on('click', function () {
+        $mdInput.val('');
+        $mdWarnings.html('');
+        $mdModal.css('display', 'block');
+    });
+    $('#md-close, #md-cancel').on('click', function () {
+        $mdModal.css('display', 'none');
+    });
+
+    $('#md-replace').on('click', function () {
+        applyMarkdownParse(true);
+    });
+    $('#md-append').on('click', function () {
+        applyMarkdownParse(false);
+    });
+
+    function applyMarkdownParse(replaceAll) {
+        var result = parseMarkdownTable($mdInput.val());
+        if (result.warnings.length > 0) {
+            var html = '<strong>Warnings:</strong><ul style="margin:4px 0 0 18px;padding:0;">';
+            result.warnings.forEach(function (w) {
+                html += '<li>' + escapeHtml(w) + '</li>';
+            });
+            html += '</ul>';
+            $mdWarnings.html(html);
+        } else {
+            $mdWarnings.html('');
+        }
+
+        if (result.options.length === 0) {
+            $mdWarnings.append('<div style="color:#a40000;margin-top:6px;"><strong>No options parsed.</strong> Check the table format.</div>');
+            return;
+        }
+
+        if (replaceAll) {
+            $optsContainer.empty();
+        }
+        var startIdx = $optsContainer.find('.option-row').length;
+        result.options.forEach(function (o, i) {
+            $optsContainer.append(buildOptionRow(startIdx + i, o));
+        });
+        $mdModal.css('display', 'none');
+    }
+
+    // -----------------------------------------------------------
+    // Markdown table parser — produces the same shape we'd save:
+    //   { options: [ { label, displayRange, measurements: {...} } ] }
+    // -----------------------------------------------------------
+    function parseMarkdownTable(src) {
+        var warnings = [];
+        var options = [];
+        if (!src || !src.trim()) return { options: options, warnings: warnings };
+
+        // Split into non-empty trimmed lines that look like table rows.
+        var lines = src.split(/\r?\n/)
+            .map(function (l) { return l.trim(); })
+            .filter(function (l) { return l.length > 0 && l.indexOf('|') !== -1; });
+
+        if (lines.length < 2) {
+            warnings.push('Need at least a header row and one data row.');
+            return { options: options, warnings: warnings };
+        }
+
+        // Trim wrapping pipes and split each row by | into cells
+        function rowCells(line) {
+            // Strip leading/trailing |
+            var s = line.replace(/^\|/, '').replace(/\|$/, '');
+            return s.split('|').map(function (c) { return c.trim(); });
+        }
+
+        var header = rowCells(lines[0]);
+
+        // Skip the separator row (e.g. | --- | --- |) if present.
+        var dataStart = 1;
+        if (/^[\s\-:|]+$/.test(lines[1].replace(/\|/g, ' '))) {
+            dataStart = 2;
+        } else {
+            warnings.push('No separator row (| --- |) detected — proceeding anyway.');
+        }
+
+        if (header.length < 2) {
+            warnings.push('Header must have at least 2 columns (label + 1 measurement).');
+            return { options: options, warnings: warnings };
+        }
+
+        // First column = size label. Remaining columns = measurements.
+        var dimKeys = [];
+        for (var c = 1; c < header.length; c++) {
+            var raw = header[c];
+            var key = normalizeDimKey(raw);
+            if (!key) {
+                warnings.push('Column "' + raw + '" produced an empty dimensionKey — skipped.');
+                dimKeys.push(null);
+                continue;
+            }
+            // Warn when the key isn't in rules.json
+            if (!measurementDimensions.some(function (d) { return d.key === key; })) {
+                warnings.push('Dimension "' + key + '" (column "' + raw + '") is not in rules.json — saved anyway.');
+            }
+            dimKeys.push(key);
+        }
+
+        for (var r = dataStart; r < lines.length; r++) {
+            var cells = rowCells(lines[r]);
+            var label = cells[0] || '';
+            if (!label) continue;
+
+            var measurements = {};
+            var displayParts = [];
+
+            for (var c = 1; c < cells.length && c < header.length; c++) {
+                var key = dimKeys[c - 1];
+                if (!key) continue;
+                var cell = cells[c];
+                if (!cell || /^[—\-n\/an\.a]*$/i.test(cell.replace(/\s/g, ''))) continue;
+                var range = parseRange(cell);
+                if (!range) {
+                    warnings.push('Row "' + label + '" / column "' + header[c] + '": could not parse "' + cell + '" — skipped.');
+                    continue;
+                }
+                measurements[key] = {
+                    min: range.min,
+                    max: range.max,
+                    displayRange: cell,
+                };
+                displayParts.push(cell);
+            }
+
+            options.push({
+                label: label,
+                displayRange: displayParts.join(' / '),
+                measurements: measurements,
+            });
+        }
+
+        return { options: options, warnings: warnings };
+    }
+
+    // Normalize header text → snake_case ascii key.
+    // "Tour de cheville" → "tour_de_cheville", "Périmètre" → "perimetre"
+    function normalizeDimKey(s) {
+        if (!s) return '';
+        // Strip accents
+        var ascii = s.normalize ? s.normalize('NFD').replace(/[\u0300-\u036f]/g, '') : s;
+        return ascii
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '_')
+            .replace(/^_+|_+$/g, '');
+    }
+
+    // Parse a single range cell into { min, max }.
+    // Supports: "19 cm - 21 cm", "19-21 cm", "< 22 cm", "> 30 cm",
+    //           "≤ 22 cm", "≥ 30 cm", "22 cm" (single), FR decimal "19,5".
+    function parseRange(s) {
+        if (!s) return null;
+        // Normalize: replace commas in numbers with dots for parsing
+        var raw = s.replace(/(\d),(\d)/g, '$1.$2');
+
+        // Strip units we don't need to parse — keep numbers + operators
+        var num = '(\\d+(?:\\.\\d+)?)';
+        var m;
+
+        // "< 22" / "≤ 22" / "<= 22"
+        m = raw.match(new RegExp('^\\s*[<≤]=?\\s*' + num + '\\s*[a-zA-Z%°]*\\s*$'));
+        if (m) return { min: 0, max: parseFloat(m[1]) };
+
+        // "> 30" / "≥ 30" / ">= 30"
+        m = raw.match(new RegExp('^\\s*[>≥]=?\\s*' + num + '\\s*[a-zA-Z%°]*\\s*$'));
+        if (m) return { min: parseFloat(m[1]), max: 999 };
+
+        // "19 cm - 21 cm" / "19 - 21" / "19-21 cm" / "19 to 21 cm"
+        m = raw.match(new RegExp(num + '\\s*(?:cm|mm|m|in)?\\s*(?:-|–|—|to|à)\\s*' + num + '\\s*[a-zA-Z%°]*'));
+        if (m) return { min: parseFloat(m[1]), max: parseFloat(m[2]) };
+
+        // Single value "22 cm"
+        m = raw.match(new RegExp('^\\s*' + num + '\\s*[a-zA-Z%°]*\\s*$'));
+        if (m) {
+            var v = parseFloat(m[1]);
+            return { min: v, max: v };
+        }
+
+        return null;
+    }
 });
 </script>

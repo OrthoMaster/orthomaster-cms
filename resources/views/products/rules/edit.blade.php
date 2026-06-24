@@ -794,6 +794,31 @@
                 }));
                 body.appendChild(selRow);
 
+                // Dimension key — only meaningful for measurement nodes.
+                // When set, marks this node as a measurement bucket node and
+                // exposes the dimension under which products' size options
+                // declare their numeric ranges (e.g. tour_de_poignet).
+                // Children of a node with a dimensionKey MUST have min/max.
+                const dimRow = el('div', 'field-row');
+                dimRow.appendChild(el('label', null, 'Dim key'));
+                dimRow.appendChild(makeInput(node.dimensionKey, v => {
+                    const trimmed = v.trim();
+                    if (trimmed === '') {
+                        delete node.dimensionKey;
+                        // When toggling off a measurement node, the min/max
+                        // numeric fields on its children become meaningless
+                        // — strip them so the JSON stays clean.
+                        (node.children || []).forEach(c => {
+                            delete c.min;
+                            delete c.max;
+                        });
+                    } else {
+                        node.dimensionKey = trimmed;
+                    }
+                    rerenderAll();
+                }, 'e.g. tour_de_poignet (leave blank for non-measurement)'));
+                body.appendChild(dimRow);
+
                 // Parent override — only meaningful when this node has a
                 // visibility rule (i.e. it's a sub-node, not a root planet).
                 // It tells the app "show me in THIS planet's sheet", overriding
@@ -912,6 +937,52 @@
             }, 'icon danger'));
 
             card.appendChild(row);
+
+            // Numeric min/max — only when this node is a measurement node
+            // (has dimensionKey). Children of measurement nodes are buckets
+            // and need a numeric range so backend can do overlap matching
+            // with product size measurements.
+            if (node.dimensionKey) {
+                const rangeRow = el('div', 'child-row');
+                rangeRow.appendChild(el('label', null, 'Min'));
+                const minInput = makeInput(child.min != null ? String(child.min) : '', v => {
+                    const trimmed = v.trim();
+                    if (trimmed === '') { delete child.min; syncJsonFromNodes(); return; }
+                    const num = Number(trimmed);
+                    if (Number.isFinite(num)) {
+                        child.min = num;
+                        syncJsonFromNodes();
+                    }
+                }, '0');
+                minInput.type = 'number';
+                minInput.step = 'any';
+                minInput.style.width = '80px';
+                rangeRow.appendChild(minInput);
+
+                rangeRow.appendChild(el('label', null, 'Max'));
+                const maxInput = makeInput(child.max != null ? String(child.max) : '', v => {
+                    const trimmed = v.trim();
+                    if (trimmed === '') { delete child.max; syncJsonFromNodes(); return; }
+                    const num = Number(trimmed);
+                    if (Number.isFinite(num)) {
+                        child.max = num;
+                        syncJsonFromNodes();
+                    }
+                }, '999');
+                maxInput.type = 'number';
+                maxInput.step = 'any';
+                maxInput.style.width = '80px';
+                rangeRow.appendChild(maxInput);
+
+                // Sanity warning when min/max missing or inverted
+                if (child.min == null || child.max == null) {
+                    rangeRow.appendChild(el('span', 'rule-warn', '(min/max required)'));
+                } else if (Number(child.min) > Number(child.max)) {
+                    rangeRow.appendChild(el('span', 'rule-warn', '(min > max)'));
+                }
+
+                card.appendChild(rangeRow);
+            }
 
             card.appendChild(el('div', 'section-label', 'Rule'));
             card.appendChild(renderRuleEditor(child.visibilityRule || null, newRule => {

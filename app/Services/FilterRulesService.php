@@ -2,22 +2,30 @@
 
 namespace App\Services;
 
+use App\Models\Product;
 use Illuminate\Support\Facades\Cache;
 
 /**
  * Reads storage/product/rules.json and exposes helpers around the
  * filter tree.
  *
- * Key responsibility: expanding a flat filter set with its "parents",
- * so that a product tagged generically ('age') still matches a query
- * for a specific value ('age-u25').
+ * Responsibilities:
+ *   1. Expand a flat pathology filter set with its "parents" so a product
+ *      tagged generically ('age') still matches a query for a specific
+ *      value ('age-u25'). [LEGACY pathology behavior, preserved.]
+ *   2. Resolve measurement bucket ids → numeric (dimensionKey, min, max)
+ *      so callers can check overlap with product size measurements.
+ *   3. Match a product against a user's filter selection, combining
+ *      pathology per-group logic and measurement range overlap.
  *
- * Parent map is built once and cached for an hour. Bust the cache by
- * calling FilterRulesService::clearCache() when rules.json changes.
+ * Caches are busted via FilterRulesService::clearCache() when rules.json
+ * changes (e.g. from the rules edit page).
  */
 class FilterRulesService
 {
-    public const CACHE_KEY    = 'filter_rules.parent_map';
+    public const CACHE_KEY_PARENT_MAP     = 'filter_rules.parent_map';
+    public const CACHE_KEY_BUCKET_MAP     = 'filter_rules.bucket_map';
+    public const CACHE_KEY_MEASUREMENT_NODE_IDS = 'filter_rules.measurement_node_ids';
     public const CACHE_MINUTES = 60;
 
     /**
@@ -42,23 +50,69 @@ class FilterRulesService
      *      indicator pattern.
      *   2. The node id itself ("age") is NOT a child id — only entries
      *      that appear as `children[].id` somewhere are valid filter keys.
-     *
-     * Example output:
-     *   "age-u25"       => ["age"]
-     *   "age"           => []         (top-level child of patient indicator)
-     *   "tronc-rac-hau" => ["tronc"]  (segment child whose visibility depends on zone=tronc)
-     *   "tronc"         => []
      */
     public function parentMap(): array
     {
-        return Cache::remember(self::CACHE_KEY, now()->addMinutes(self::CACHE_MINUTES), function () {
+        return Cache::remember(self::CACHE_KEY_PARENT_MAP, now()->addMinutes(self::CACHE_MINUTES), function () {
             return $this->buildParentMap();
+        });
+    }
+
+    /**
+     * Build a map: bucketChildId => ['dimensionKey' => ..., 'min' => N, 'max' => N]
+     *
+     * Only includes children of measurement nodes (nodes with a
+     * top-level "dimensionKey" field). Children without numeric
+     * min/max are SKIPPED — they're malformed for a measurement bucket.
+     */
+    public function bucketMap(): array
+    {
+        return Cache::remember(self::CACHE_KEY_BUCKET_MAP, now()->addMinutes(self::CACHE_MINUTES), function () {
+            $tree = $this->loadTree();
+            $map = [];
+            foreach ($tree as $node) {
+                $dimKey = $node['dimensionKey'] ?? null;
+                if (!is_string($dimKey) || $dimKey === '') continue;
+                foreach (($node['children'] ?? []) as $child) {
+                    $cid = $child['id'] ?? null;
+                    if (!is_string($cid) || $cid === '') continue;
+                    if (!isset($child['min']) || !isset($child['max'])) continue;
+                    if (!is_numeric($child['min']) || !is_numeric($child['max'])) continue;
+                    $map[$cid] = [
+                        'dimensionKey' => $dimKey,
+                        'min'          => (float) $child['min'],
+                        'max'          => (float) $child['max'],
+                    ];
+                }
+            }
+            return $map;
+        });
+    }
+
+    /**
+     * Set of node ids that are measurement nodes (have a dimensionKey).
+     * Used to detect non-measurement (pathology) tags vs measurement
+     * buckets when partitioning a user's filter list.
+     */
+    public function measurementNodeIds(): array
+    {
+        return Cache::remember(self::CACHE_KEY_MEASUREMENT_NODE_IDS, now()->addMinutes(self::CACHE_MINUTES), function () {
+            $ids = [];
+            foreach ($this->loadTree() as $node) {
+                $dk = $node['dimensionKey'] ?? null;
+                if (is_string($dk) && $dk !== '') {
+                    $ids[] = $node['id'];
+                }
+            }
+            return $ids;
         });
     }
 
     public static function clearCache(): void
     {
-        Cache::forget(self::CACHE_KEY);
+        Cache::forget(self::CACHE_KEY_PARENT_MAP);
+        Cache::forget(self::CACHE_KEY_BUCKET_MAP);
+        Cache::forget(self::CACHE_KEY_MEASUREMENT_NODE_IDS);
     }
 
     /**
@@ -95,7 +149,56 @@ class FilterRulesService
     }
 
     /**
-     * Pure match logic: does `$productTags` satisfy `$userFilters`?
+     * Master match function: does this product satisfy the user's
+     * filter selection?
+     *
+     * Combines two independent checks:
+     *   1. Pathology tags (per-group rule, see pathologyMatch())
+     *   2. Measurement buckets (range-overlap with product.sizes, see
+     *      measurementMatch())
+     *
+     * Product passes if BOTH checks pass. If user supplied no filter in
+     * a category, that category's check is vacuously true.
+     */
+    public function productMatches(Product $product, array $userFilters): bool
+    {
+        if (empty($userFilters)) return true;
+
+        // Split user's filters into pathology tags vs measurement buckets.
+        $bucketMap = $this->bucketMap();
+        $pathologyFilters = [];
+        $measurementFilters = [];
+        foreach ($userFilters as $f) {
+            if (!is_string($f) || $f === '') continue;
+            if (isset($bucketMap[$f])) {
+                $measurementFilters[] = $f;
+            } else {
+                $pathologyFilters[] = $f;
+            }
+        }
+
+        // Pathology check uses the product's filter tags.
+        if (!empty($pathologyFilters)) {
+            $tags = $product->relationLoaded('filters')
+                ? $product->filters->pluck('filter_key')->all()
+                : $product->filters()->pluck('filter_key')->all();
+            if (!$this->pathologyMatch($tags, $pathologyFilters)) {
+                return false;
+            }
+        }
+
+        // Measurement check uses the product's structured sizes JSON.
+        if (!empty($measurementFilters)) {
+            if (!$this->measurementMatch($product->sizes, $measurementFilters)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Pathology per-group match (preserved legacy logic).
      *
      * Rule per group:
      *   1. If user has no filter in a group → group doesn't restrict.
@@ -109,127 +212,132 @@ class FilterRulesService
      *
      * Across groups: product must pass EVERY group the user filtered on.
      */
-    public function productMatches(array $productTags, array $userFilters): bool
+    public function pathologyMatch(array $productTags, array $userFilters): bool
     {
         if (empty($userFilters)) return true;
- 
+
         $groupMap = $this->groupMap();
- 
+
+        // Set of node ids — used to detect "generic" tags (tag id == a group id).
+        $groupIds = array_flip(array_values(array_unique(array_values($groupMap))));
+
         // Index product tags by group:
         //   groupId => ['generic' => bool, 'specifics' => [childId, ...]]
-        // - generic = true when product tagged the group's nodeId itself
-        //   (e.g. 'activite' rather than 'activ-2')
-        // - specifics = list of specific child IDs in this group
-        $productByGroup = [];
-        foreach ($productTags as $tag) {
-            // A tag is "generic" if its own ID is a groupId (= some node id).
-            $isGeneric = isset(array_flip($groupMap)[$tag]); // tag appears as a value (= a group)
-            if ($isGeneric) {
-                if (!isset($productByGroup[$tag])) {
-                    $productByGroup[$tag] = ['generic' => false, 'specifics' => []];
-                }
-                $productByGroup[$tag]['generic'] = true;
-            } elseif (isset($groupMap[$tag])) {
-                $g = $groupMap[$tag];
-                if (!isset($productByGroup[$g])) {
-                    $productByGroup[$g] = ['generic' => false, 'specifics' => []];
-                }
-                $productByGroup[$g]['specifics'][] = $tag;
-            }
-            // Tags not in either map are stale/unknown — ignore.
-        }
- 
-        // Group user's filters the same way.
-        $userByGroup = [];
-        foreach ($userFilters as $tag) {
-            $isGeneric = isset(array_flip($groupMap)[$tag]);
-            if ($isGeneric) {
-                if (!isset($userByGroup[$tag])) {
-                    $userByGroup[$tag] = ['generic' => false, 'specifics' => []];
-                }
-                $userByGroup[$tag]['generic'] = true;
-            } elseif (isset($groupMap[$tag])) {
-                $g = $groupMap[$tag];
-                if (!isset($userByGroup[$g])) {
-                    $userByGroup[$g] = ['generic' => false, 'specifics' => []];
-                }
-                $userByGroup[$g]['specifics'][] = $tag;
-            }
-        }
- 
-        // Check each group the user filtered on.
+        $productByGroup = $this->indexTagsByGroup($productTags, $groupMap, $groupIds);
+        $userByGroup    = $this->indexTagsByGroup($userFilters, $groupMap, $groupIds);
+
         foreach ($userByGroup as $groupId => $userBucket) {
             $productBucket = $productByGroup[$groupId] ?? null;
- 
+
             // Rule 2: product has nothing in this group → ok.
             if ($productBucket === null) continue;
- 
+
             // Rule 4: product has specifics → user must share at least one.
             if (!empty($productBucket['specifics'])) {
                 $overlap = array_intersect($productBucket['specifics'], $userBucket['specifics']);
                 if (empty($overlap)) {
-                    return false;       // group failed
+                    return false;
                 }
                 continue;
             }
- 
+
             // Rule 3: product has only generic → match anything in group.
             if ($productBucket['generic']) continue;
- 
-            // Product had something we didn't recognize — treat as unrestricted.
         }
- 
+
         return true;
     }
 
-    private function buildParentMap(): array
+    /**
+     * Helper: split a flat list of tags into per-group buckets.
+     */
+    private function indexTagsByGroup(array $tags, array $groupMap, array $groupIds): array
     {
-        $tree = $this->loadTree();
-        $parentMap = [];
-
-        // Index: nodeId => node
-        $nodeById = [];
-        foreach ($tree as $node) {
-            $nodeById[$node['id']] = $node;
-        }
-
-        // 1) For every concrete child whose node.id is also used as a child id
-        //    somewhere else, treat node.id as the child's parent.
-        $allChildIds = [];
-        foreach ($tree as $node) {
-            foreach (($node['children'] ?? []) as $child) {
-                $allChildIds[$child['id']] = true;
+        $out = [];
+        foreach ($tags as $tag) {
+            if (!is_string($tag) || $tag === '') continue;
+            // Generic tag = tag id is a group id (= a node id).
+            if (isset($groupIds[$tag])) {
+                if (!isset($out[$tag])) $out[$tag] = ['generic' => false, 'specifics' => []];
+                $out[$tag]['generic'] = true;
+            } elseif (isset($groupMap[$tag])) {
+                $g = $groupMap[$tag];
+                if (!isset($out[$g])) $out[$g] = ['generic' => false, 'specifics' => []];
+                $out[$g]['specifics'][] = $tag;
             }
+            // Tags not in the map are stale/unknown — ignore.
         }
+        return $out;
+    }
 
-        foreach ($tree as $node) {
-            $nodeId = $node['id'];
-            $isIndicator = isset($allChildIds[$nodeId]); // node id appears as a child elsewhere
-            foreach (($node['children'] ?? []) as $child) {
-                $cid = $child['id'];
-                if (!isset($parentMap[$cid])) $parentMap[$cid] = [];
+    /**
+     * Measurement match — every user-selected bucket must have at least
+     * one product size option whose measurement for the same dimension
+     * overlaps the bucket's [min, max] range (inclusive boundaries).
+     *
+     * Schema expected for $sizes:
+     *   {
+     *     "options": [
+     *       {
+     *         "label": "Taille 1",
+     *         "displayRange": "19-21 cm",
+     *         "measurements": {
+     *           "tour_de_cheville": { "min": 19, "max": 21, "displayRange": "19 cm - 21 cm" }
+     *         }
+     *       },
+     *       ...
+     *     ]
+     *   }
+     *
+     * Rules:
+     *   - No sizes data → fails (we can't promise fit).
+     *   - User picked a bucket for dimension X, but product has no
+     *     option that declares X → fails for that bucket.
+     *   - Otherwise: at least one option's [opt.min, opt.max] must
+     *     overlap bucket's [bk.min, bk.max] (inclusive).
+     */
+    public function measurementMatch($sizes, array $bucketIds): bool
+    {
+        if (empty($bucketIds)) return true;
 
-                // Implicit parent = the node id, IF it's a valid child id
-                if ($isIndicator) {
-                    $parentMap[$cid][] = $nodeId;
-                }
+        $bucketMap = $this->bucketMap();
 
-                // Explicit parent = via child.visibilityRule referencing
-                // another child (e.g. segment.tronc-rac-hau requires zone.tronc).
-                $rule = $child['visibilityRule'] ?? null;
-                $refs = $this->collectRuleChildRefs($rule);
-                foreach ($refs as $ref) {
-                    $parentMap[$cid][] = $ref;
+        // Without sizes data, we cannot guarantee any taille fits — fail.
+        if (!is_array($sizes)) return false;
+        $options = $sizes['options'] ?? null;
+        if (!is_array($options) || empty($options)) return false;
+
+        foreach ($bucketIds as $bucketId) {
+            $bucket = $bucketMap[$bucketId] ?? null;
+            if (!$bucket) {
+                // Bucket id unknown (stale data) — be strict and fail.
+                return false;
+            }
+            $dimKey = $bucket['dimensionKey'];
+            $bMin   = $bucket['min'];
+            $bMax   = $bucket['max'];
+
+            $matched = false;
+            foreach ($options as $opt) {
+                if (!is_array($opt)) continue;
+                $measurements = $opt['measurements'] ?? null;
+                if (!is_array($measurements)) continue;
+                $m = $measurements[$dimKey] ?? null;
+                if (!is_array($m)) continue;
+                if (!isset($m['min']) || !isset($m['max'])) continue;
+                if (!is_numeric($m['min']) || !is_numeric($m['max'])) continue;
+
+                // Inclusive overlap: a.min <= b.max && b.min <= a.max
+                if ((float) $m['min'] <= $bMax && $bMin <= (float) $m['max']) {
+                    $matched = true;
+                    break;
                 }
             }
+
+            if (!$matched) return false;
         }
 
-        // De-dupe each list
-        foreach ($parentMap as $k => $list) {
-            $parentMap[$k] = array_values(array_unique($list));
-        }
-
-        return $parentMap;
+        return true;
     }
 
     /**
@@ -240,16 +348,13 @@ class FilterRulesService
     {
         if (!$rule || !is_array($rule)) return [];
 
-        // Leaf rules
         if (isset($rule['kind'])) {
             if ($rule['kind'] === 'selected' && isset($rule['childId'])) {
                 return [$rule['childId']];
             }
-            // any_selected references a node, not a specific child — skip
             return [];
         }
 
-        // Compound rules
         if (isset($rule['op'])) {
             $op = $rule['op'];
             if (in_array($op, ['AND', 'OR'], true)) {
@@ -266,14 +371,53 @@ class FilterRulesService
         return [];
     }
 
+    private function buildParentMap(): array
+    {
+        $tree = $this->loadTree();
+        $parentMap = [];
+
+        // All child ids in the tree — for detecting indicator-pattern parents.
+        $allChildIds = [];
+        foreach ($tree as $node) {
+            foreach (($node['children'] ?? []) as $child) {
+                $allChildIds[$child['id']] = true;
+            }
+        }
+
+        foreach ($tree as $node) {
+            $nodeId = $node['id'];
+            $isIndicator = isset($allChildIds[$nodeId]);
+            foreach (($node['children'] ?? []) as $child) {
+                $cid = $child['id'];
+                if (!isset($parentMap[$cid])) $parentMap[$cid] = [];
+
+                if ($isIndicator) {
+                    $parentMap[$cid][] = $nodeId;
+                }
+
+                $rule = $child['visibilityRule'] ?? null;
+                $refs = $this->collectRuleChildRefs($rule);
+                foreach ($refs as $ref) {
+                    $parentMap[$cid][] = $ref;
+                }
+            }
+        }
+
+        foreach ($parentMap as $k => $list) {
+            $parentMap[$k] = array_values(array_unique($list));
+        }
+
+        return $parentMap;
+    }
+
     /**
      * Expand a flat list of filter keys with all transitive parents.
      *
      * Input:  ['age-u25', 'rhumato']
-     * Output: ['age-u25', 'rhumato', 'age']     (assuming age-u25 → age in the map)
+     * Output: ['age-u25', 'rhumato', 'age']
      *
-     * Pure function over the cached parentMap. Order of returned keys is
-     * not guaranteed; caller should treat it as a set.
+     * Pure function over the cached parentMap. Order is not guaranteed;
+     * caller should treat it as a set.
      */
     public function expandWithParents(array $keys): array
     {
@@ -283,7 +427,7 @@ class FilterRulesService
 
         while (!empty($queue)) {
             $k = array_shift($queue);
-            if (isset($result[$k])) continue;     // already visited
+            if (isset($result[$k])) continue;
             $result[$k] = true;
 
             foreach ($map[$k] ?? [] as $parent) {
