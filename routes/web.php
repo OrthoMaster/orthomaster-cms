@@ -20,6 +20,7 @@ use App\Http\Controllers\IntEmpTrackerController;
 use App\Http\Controllers\MediaController;
 use App\Http\Controllers\MeetingController;
 use App\Http\Controllers\ProductController;
+use App\Http\Controllers\QrCodeController;
 use App\Http\Controllers\QuizController;
 use App\Http\Controllers\SaleAssignmentController;
 use App\Http\Controllers\TestingController;
@@ -248,3 +249,5 @@ Route::get('/test-fifpl-cert', [TestingController::class, 'testFifplCert']);
 Route::get('/quiz/{slug}', [QuizController::class, 'show'])->name('quiz.show');
 Route::post('/quiz/{slug}/submit', [QuizController::class, 'submit'])->name('quiz.submit');
 Route::post('/submissions/{submission}/contact', [QuizController::class, 'contact'])->name('quiz.contact');
+// Qr Code
+Route::get('/qrcode', [QrCodeController::class, 'index'])->name('qrcode.index');

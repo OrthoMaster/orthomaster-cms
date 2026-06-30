@@ -14,6 +14,12 @@
 .chip{background:#FFF3E0;color:#A4631B;font-size:.8rem;font-weight:600;padding:7px 13px;border-radius:99px;display:flex;align-items:center;gap:6px}
 .err{color:var(--danger);font-size:.82rem;margin-top:6px;display:none}
 
+/* ---------- logo dans le brandmark ---------- */
+.brandmark .logo{
+  width:20px;height:20px;border-radius:6px;object-fit:contain;
+  display:block;flex-shrink:0;
+}
+
 /* ---------- quiz ---------- */
 .quiz-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;gap:12px}
 .qcount{font-weight:600;color:#A4631B;font-size:.9rem}
@@ -77,9 +83,9 @@
   <section class="screen active" id="screen-intro">
     <div class="spacer"></div>
     <div class="card intro">
-      <div class="intro-top"><div class="brandmark">OrthoMaster</div></div>
+      <div class="intro-top"><div class="brandmark"><img class="logo" src="{{ setting('system.web_icon') }}" alt="OrthoMaster">OrthoMaster</div></div>
       <h1>{{ $topic->name }}</h1>
-      <p class="sub">{{ $topic->description ?? ' ' }}</p>
+      <p class="sub">{{ $topic->description ?? 'Répondez honnêtement — il n’y a ni bonne ni mauvaise réponse.' }}</p>
       <div class="meta-row">
         <div class="chip">🧩 {{ count($questionsJson) }} questions</div>
         <div class="chip">⏱️ {{ $timePerQuestion }}s par question</div>
@@ -117,7 +123,7 @@
   <section class="screen" id="screen-result">
     <div class="spacer"></div>
     <div class="card result">
-      <div class="intro-top" style="margin-bottom:16px"><div class="brandmark">OrthoMaster</div></div>
+      <div class="intro-top" style="margin-bottom:16px"><div class="brandmark"><img class="logo" src="{{ setting('system.web_icon') }}" alt="OrthoMaster">OrthoMaster</div></div>
       <div class="score-ring">
         <svg width="180" height="180" viewBox="0 0 180 180">
           <defs><linearGradient id="grad" x1="0" y1="0" x2="1" y2="1">
@@ -133,15 +139,15 @@
       <p class="verdict-text" id="verdictText">—</p>
 
       <div class="contact">
-        <h3>📩 Recevez votre résultat</h3>
-        <p>Laissez votre e-mail pour recevoir votre résultat détaillé et permettre à OrthoMaster de vous contacter.</p>
+        <h3>📩 Gardons le contact</h3>
+        <p>Laissez votre e-mail pour recevoir des informations sur OrthoMaster et des newsletters sur le développement de votre pôle mobilité.</p>
         <input class="input" id="email" type="email" placeholder="votre@email.com" maxlength="180">
         <div class="err" id="emailErr">Veuillez saisir une adresse e-mail valide.</div>
         <label class="checkbox-row">
           <input type="checkbox" id="allowContact" checked>
           <span>J’accepte qu’OrthoMaster m’envoie mon résultat et me contacte.</span>
         </label>
-        <button class="btn" id="sendBtn">Envoyez-moi mon résultat</button>
+        <button class="btn" id="sendBtn">Envoyer</button>
         <div class="success-msg" id="successMsg">✓ C’est noté ! OrthoMaster vous contactera bientôt.</div>
       </div>
       <button class="restart" id="restartBtn">Recommencer le questionnaire</button>
@@ -180,14 +186,26 @@ function start(){
 const TIMER_CIRC = 2*Math.PI*24;
 $('#timerBar').style.strokeDasharray = TIMER_CIRC;
 
+// Mélange Fisher–Yates
+function shuffle(arr){
+  for(let i=arr.length-1;i>0;i--){
+    const j = Math.floor(Math.random()*(i+1));
+    [arr[i],arr[j]] = [arr[j],arr[i]];
+  }
+  return arr;
+}
+
 function renderQuestion(){
   const q = QUESTIONS[state.idx];
   $('#qNow').textContent = state.idx+1;
   $('#qText').textContent = q.content;
   $('#progressFill').style.width = (state.idx/QUESTIONS.length*100)+'%';
 
+  // Mélange les réponses (copie), sans toucher aux données d'origine.
+  const shuffled = shuffle([...q.answers]);
+
   const wrap = $('#answers'); wrap.className='answers'; wrap.innerHTML='';
-  q.answers.forEach((a,i)=>{
+  shuffled.forEach((a,i)=>{
     const btn = document.createElement('button');
     btn.className = 'answer c'+(i%6);
     btn.innerHTML = `<span class="ic">${String.fromCharCode(65+i)}</span><span class="lbl"></span>`;

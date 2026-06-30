@@ -105,10 +105,11 @@
         .brandmark {
             display: inline-flex;
             align-items: center;
-            gap: 9px;
-            font-weight: 700;
-            letter-spacing: .4px;
+            gap: 5px;
+            font-weight: 400;
+            letter-spacing: .6px;
             font-size: .95rem;
+            color: #ff9600;
             background: rgba(255, 255, 255, .75);
             padding: 7px 14px;
             border-radius: 99px;
