@@ -26,6 +26,7 @@ class FilterRulesService
     public const CACHE_KEY_PARENT_MAP     = 'filter_rules.parent_map';
     public const CACHE_KEY_BUCKET_MAP     = 'filter_rules.bucket_map';
     public const CACHE_KEY_MEASUREMENT_NODE_IDS = 'filter_rules.measurement_node_ids';
+    public const CACHE_KEY_PROTOCOLS      = 'filter_rules.protocols';
     public const CACHE_MINUTES = 60;
 
     /**
@@ -38,6 +39,46 @@ class FilterRulesService
         $raw = file_get_contents($path);
         $decoded = json_decode($raw, true);
         return is_array($decoded) ? $decoded : [];
+    }
+
+    /**
+     * Load the protocols list from storage/app/product/protocols.json.
+     * Returns the raw `protocols` array (not wrapped). Empty array on
+     * missing/malformed file. Cached for an hour — bust with clearCache().
+     *
+     * The file shape:
+     *   { "protocols": [ { id, title, phases: [ { id, title, groups: [...] } ] }, ... ] }
+     */
+    public function loadProtocols(): array
+    {
+        return Cache::remember(self::CACHE_KEY_PROTOCOLS, now()->addMinutes(self::CACHE_MINUTES), function () {
+            $path = storage_path('app/product/protocols.json');
+            if (!file_exists($path)) return [];
+            $raw = file_get_contents($path);
+            $decoded = json_decode($raw, true);
+            if (!is_array($decoded)) return [];
+            $protocols = $decoded['protocols'] ?? [];
+            return is_array($protocols) ? $protocols : [];
+        });
+    }
+
+    /**
+     * Given a child id (e.g. "cer-trau-tor") from the rules tree, return
+     * the protocolId attached to that child — or null when the child has
+     * no protocol. Used by the API to decide whether to surface the
+     * protocol screen on the mobile app or skip straight to products.
+     */
+    public function protocolIdForChild(string $childId): ?string
+    {
+        foreach ($this->loadTree() as $node) {
+            foreach (($node['children'] ?? []) as $child) {
+                if (($child['id'] ?? null) === $childId) {
+                    $pid = $child['protocolId'] ?? null;
+                    return (is_string($pid) && $pid !== '') ? $pid : null;
+                }
+            }
+        }
+        return null;
     }
 
     /**
@@ -113,6 +154,7 @@ class FilterRulesService
         Cache::forget(self::CACHE_KEY_PARENT_MAP);
         Cache::forget(self::CACHE_KEY_BUCKET_MAP);
         Cache::forget(self::CACHE_KEY_MEASUREMENT_NODE_IDS);
+        Cache::forget(self::CACHE_KEY_PROTOCOLS);
     }
 
     /**
@@ -152,20 +194,25 @@ class FilterRulesService
      * Master match function: does this product satisfy the user's
      * filter selection?
      *
-     * Combines two independent checks:
+     * Combines three independent checks:
      *   1. Pathology tags (per-group rule, see pathologyMatch())
      *   2. Measurement buckets (range-overlap with product.sizes, see
      *      measurementMatch())
+     *   3. Protocol group (when a doctor has drilled into a protocol's
+     *      group, the product must be tagged with that group id).
      *
-     * Product passes if BOTH checks pass. If user supplied no filter in
-     * a category, that category's check is vacuously true.
+     * Product passes if ALL active checks pass. If user supplied no
+     * filter / no groupId in a category, that category's check is
+     * vacuously true.
      */
-    public function productMatches(Product $product, array $userFilters): bool
+    public function productMatches(Product $product, array $userFilters, ?string $groupId = null): bool
     {
-        if (empty($userFilters)) return true;
+        $hasFilters = !empty($userFilters);
+        $hasGroup   = is_string($groupId) && $groupId !== '';
+        if (!$hasFilters && !$hasGroup) return true;
 
         // Split user's filters into pathology tags vs measurement buckets.
-        $bucketMap = $this->bucketMap();
+        $bucketMap = $hasFilters ? $this->bucketMap() : [];
         $pathologyFilters = [];
         $measurementFilters = [];
         foreach ($userFilters as $f) {
@@ -190,6 +237,16 @@ class FilterRulesService
         // Measurement check uses the product's structured sizes JSON.
         if (!empty($measurementFilters)) {
             if (!$this->measurementMatch($product->sizes, $measurementFilters)) {
+                return false;
+            }
+        }
+
+        // Protocol group check — when set, product must be tagged with
+        // this exact group id. Plain set membership against the product's
+        // `groups` JSON column.
+        if ($hasGroup) {
+            $groups = $product->groups ?? [];
+            if (!is_array($groups) || !in_array($groupId, $groups, true)) {
                 return false;
             }
         }

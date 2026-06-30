@@ -15,12 +15,32 @@ class ProductController extends Controller
     ) {}
 
     /**
-     * GET api/products/rules
+     * GET /api/products/rules
+     *
+     * Returns the raw filter rules tree (rules.json). The RN app fetches
+     * this on demand and caches via React Query.
+     *
+     * IMPORTANT: register this route BEFORE the /{product} wildcard, or
+     * Laravel will route `rules` into show() instead of getRules().
      */
-    public function getRules()
+    public function getRules(): JsonResponse
     {
-        $data = $this->loadFilterTree();
-        return response()->json($data);
+        return response()->json($this->loadFilterTree());
+    }
+
+    /**
+     * GET /api/products/protocols
+     *
+     * Returns the protocols list (protocols.json). One entry per
+     * treatment protocol: title + phases + groups (filter and info).
+     * RN uses this to render the ProtocolScreen when the user's
+     * pathology selection includes a child with a protocolId.
+     *
+     * Like /rules: register BEFORE the /{product} wildcard.
+     */
+    public function getProtocols(): JsonResponse
+    {
+        return response()->json($this->rules->loadProtocols());
     }
 
     /**
@@ -28,10 +48,57 @@ class ProductController extends Controller
      */
     public function count(Request $request): JsonResponse
     {
-        return response()->json(['count' => 1]);
-
         $products = $this->matchingProducts($request);
         return response()->json(['count' => count($products)]);
+    }
+
+    /**
+     * GET /api/products/counts-by-group?filters[]=...&groups[]=g1,g2
+     *
+     * Returns the product count per group id, given the user's pathology
+     * filter set. Used by the ProtocolScreen to disable groups that
+     * would lead to an empty product list — saves the doctor a tap and
+     * a "no results" screen.
+     *
+     * Strategy: one DB fetch, one pass over products. For each product
+     * that passes the pathology+measurement check, bump the counter on
+     * every group id it's tagged with. O(M products * G groups-per-
+     * product) which is much cheaper than calling count() per group.
+     *
+     * IMPORTANT: register route BEFORE the /{product} wildcard.
+     */
+    public function countsByGroup(Request $request): JsonResponse
+    {
+        $raw      = $this->parseFilterParam($request);
+        $groupIds = $this->parseGroupsParam($request);
+
+        if (empty($groupIds)) {
+            return response()->json((object) []);
+        }
+
+        $groupIdSet = array_flip($groupIds);
+        $counts     = array_fill_keys($groupIds, 0);
+
+        $candidates = Product::query()
+            ->with(['manufacturer', 'filters'])
+            ->get();
+
+        foreach ($candidates as $product) {
+            // Pathology + measurement match (no group filter — we want
+            // to count BY group, not after group filter).
+            if (!$this->rules->productMatches($product, $raw, null)) continue;
+
+            $productGroups = $product->groups;
+            if (!is_array($productGroups)) continue;
+
+            foreach ($productGroups as $gid) {
+                if (is_string($gid) && isset($groupIdSet[$gid])) {
+                    $counts[$gid]++;
+                }
+            }
+        }
+
+        return response()->json($counts);
     }
 
     /**
@@ -42,7 +109,7 @@ class ProductController extends Controller
     public function index(Request $request): JsonResponse
     {
         $products = $this->matchingProducts($request);
- 
+
         return response()->json([
             'data'  => array_map(fn ($p) => $this->shapeListItem($p), $products),
             'count' => count($products),
@@ -61,11 +128,11 @@ class ProductController extends Controller
             'data' => $this->shapeDetail($product),
         ]);
     }
- 
+
     // ---------------------------------------------------------------
     // Response shaping (inline instead of Resource classes)
     // ---------------------------------------------------------------
- 
+
     /**
      * Slim shape for list/grid views — drops description_tabs and
      * keeps only the cover image to keep payloads small.
@@ -81,7 +148,7 @@ class ProductController extends Controller
             'image'        => $this->coverImage($p->images ?? []),
         ];
     }
- 
+
     /**
      * Full shape for the detail modal — every image, tag, tab, and size.
      */
@@ -99,33 +166,29 @@ class ProductController extends Controller
                 : [],
             'description_tabs' => $p->description_tabs ?? [],
             'sizes'            => $this->normalizeSizes($p->sizes ?? []),
+            'groups'           => is_array($p->groups) ? array_values($p->groups) : [],
         ];
     }
- 
+
     /**
-     * Normalize sizes JSON to a stable shape with the keys the client
-     * expects. New schema is nested:
+     * Normalize sizes JSON to the FLAT schema the client expects:
      *   {
-     *     "dimensions": [
+     *     "options": [
      *       {
-     *         "name": "Tour de taille",
-     *         "options": [
-     *           { "label": "S", "range": "65-80 cm", "filter_keys": ["taille-s"] },
-     *           { "label": "M", "range": "Var.",
-     *             "variants": [
-     *               { "filter_keys": ["taille-m","homme"], "range": "32-36 cm" },
-     *               { "filter_keys": ["taille-s","femme"], "range": "20 cm" }
-     *             ]
-     *           }
-     *         ]
-     *       }
+     *         "label": "Taille 1",
+     *         "displayRange": "19-21 cm",
+     *         "measurements": {
+     *           "tour_de_cheville": { "min": 19, "max": 21, "displayRange": "19 cm - 21 cm" }
+     *         }
+     *       },
+     *       ...
      *     ]
      *   }
      *
      * Filters/normalizes:
-     *   - dimensions without a name or without options → dropped
      *   - options without a label → dropped
-     *   - empty filter_keys / variants → omitted from output
+     *   - measurements without numeric min/max → dropped (silent)
+     *   - empty measurements object → option kept but with empty map
      *
      * Returns null when nothing useful remained (so the client knows to
      * hide the "Tailles" tab entirely).
@@ -133,56 +196,45 @@ class ProductController extends Controller
     private function normalizeSizes($sizes): ?array
     {
         if (!is_array($sizes)) return null;
-        $rawDims = $sizes['dimensions'] ?? null;
-        if (!is_array($rawDims)) return null;
- 
-        $outDims = [];
-        foreach ($rawDims as $dim) {
-            if (!is_array($dim)) continue;
-            $name = isset($dim['name']) ? trim((string) $dim['name']) : '';
-            if ($name === '') continue;
- 
-            $outOpts = [];
-            foreach (($dim['options'] ?? []) as $opt) {
-                if (!is_array($opt)) continue;
-                $label = isset($opt['label']) ? trim((string) $opt['label']) : '';
-                if ($label === '') continue;
- 
-                $row = ['label' => $label];
-                $row['range'] = isset($opt['range']) ? (string) $opt['range'] : '';
- 
-                // Flat filter_keys
-                $flat = [];
-                foreach (($opt['filter_keys'] ?? []) as $k) {
-                    if (is_string($k) && $k !== '') $flat[] = $k;
-                }
-                if (!empty($flat)) $row['filter_keys'] = array_values(array_unique($flat));
- 
-                // Variants
-                $variants = [];
-                foreach (($opt['variants'] ?? []) as $v) {
-                    if (!is_array($v)) continue;
-                    $vKeys = [];
-                    foreach (($v['filter_keys'] ?? []) as $k) {
-                        if (is_string($k) && $k !== '') $vKeys[] = $k;
-                    }
-                    if (empty($vKeys)) continue;
-                    $variants[] = [
-                        'filter_keys' => array_values(array_unique($vKeys)),
-                        'range'       => isset($v['range']) ? (string) $v['range'] : '',
+        $rawOpts = $sizes['options'] ?? null;
+        if (!is_array($rawOpts)) return null;
+
+        $outOpts = [];
+        foreach ($rawOpts as $opt) {
+            if (!is_array($opt)) continue;
+            $label = isset($opt['label']) ? trim((string) $opt['label']) : '';
+            if ($label === '') continue;
+
+            $row = ['label' => $label];
+            $row['displayRange'] = isset($opt['displayRange'])
+                ? (string) $opt['displayRange']
+                : '';
+
+            // Measurements — map keyed by dimensionKey
+            $outMeasurements = [];
+            $rawMeasurements = $opt['measurements'] ?? null;
+            if (is_array($rawMeasurements)) {
+                foreach ($rawMeasurements as $dimKey => $m) {
+                    if (!is_string($dimKey) || $dimKey === '') continue;
+                    if (!is_array($m)) continue;
+                    if (!isset($m['min']) || !isset($m['max'])) continue;
+                    if (!is_numeric($m['min']) || !is_numeric($m['max'])) continue;
+                    $outMeasurements[$dimKey] = [
+                        'min'          => (float) $m['min'],
+                        'max'          => (float) $m['max'],
+                        'displayRange' => isset($m['displayRange'])
+                            ? (string) $m['displayRange']
+                            : '',
                     ];
                 }
-                if (!empty($variants)) $row['variants'] = $variants;
- 
-                $outOpts[] = $row;
             }
- 
-            if (empty($outOpts)) continue;
-            $outDims[] = ['name' => $name, 'options' => $outOpts];
+            $row['measurements'] = $outMeasurements;
+
+            $outOpts[] = $row;
         }
- 
-        if (empty($outDims)) return null;
-        return ['dimensions' => $outDims];
+
+        if (empty($outOpts)) return null;
+        return ['options' => $outOpts];
     }
 
     /**
@@ -202,7 +254,7 @@ class ProductController extends Controller
     {
         return $this->normalizeImages($images)[0] ?? null;
     }
- 
+
     // ---------------------------------------------------------------
     // Query building
     // ---------------------------------------------------------------
@@ -210,45 +262,33 @@ class ProductController extends Controller
     /**
      * Returns the list of matching Product models, ordered by name.
      *
-     * Strategy:
-     *   - No filters → return all products via SQL.
-     *   - With filters → fetch a candidate set via SQL, then refine with
-     *     productMatches() per group. This is more flexible than a pure
-     *     SQL whereIn because the per-group rule needs to inspect each
-     *     product's full tag set.
+     * Strategy: fetch all candidates eagerly with filters + sizes, then
+     * refine in PHP via FilterRulesService::productMatches(). The match
+     * logic combines pathology tag matching, measurement bucket overlap
+     * with product.sizes, AND optional protocol-group membership.
      *
-     * The SQL pre-filter pulls products that share at least one tag with
-     * the expanded filter set (parents included). Products fully outside
-     * any filter group are still candidates — they'll pass productMatches
-     * (rule 2: no tag in group = no restriction).
-     *
-     * For dataset sizes up to a few thousand products this is fine. If
-     * scale grows, push more logic to SQL or switch to a search engine.
+     * Filtering happens in PHP rather than SQL because the match rules
+     * are too involved (visibility tree, parent inheritance, numeric
+     * range overlap on sizes) to express cleanly as whereIn / whereJson
+     * conditions. Up to a few thousand products this is fine.
      */
     private function matchingProducts(Request $request): array
     {
-        $raw = $this->parseFilterParam($request);
+        $raw   = $this->parseFilterParam($request);
+        $group = $this->parseGroupParam($request);
 
-        $query = Product::query()->with(['manufacturer', 'filters']);
+        $candidates = Product::query()
+            ->with(['manufacturer', 'filters'])
+            ->orderBy('name')
+            ->get();
 
-        if (empty($raw)) {
-            return $query->orderBy('name')->get()->all();
+        // No filters and no group → everything.
+        if (empty($raw) && $group === null) {
+            return $candidates->all();
         }
 
-        // Pre-filter candidates that have at least one relevant tag, OR
-        // have no tags in any of the user's filter groups at all (which
-        // would still match per rule 2). The simplest approach: pull
-        // everything and filter in PHP. Add SQL pre-filter only if
-        // performance becomes an issue.
-        $candidates = $query->orderBy('name')->get();
-
-        $userFilters = $raw;
-
         return $candidates
-            // ->filter(function (Product $p) use ($userFilters) {
-            //     $tags = $p->filters->pluck('filter_key')->all();
-            //     return $this->rules->productMatches($tags, $userFilters);
-            // })
+            ->filter(fn (Product $p) => $this->rules->productMatches($p, $raw, $group))
             ->values()
             ->all();
     }
@@ -276,7 +316,46 @@ class ProductController extends Controller
     }
 
     /**
+     * Read the single `group` query string param — the id of a protocol
+     * filter-group the doctor drilled into. Empty / missing → null.
+     * Always one value; the protocol UI lets you view one group at a
+     * time, so multi-value is not supported.
+     */
+    private function parseGroupParam(Request $request): ?string
+    {
+        $g = $request->input('group');
+        if (!is_string($g)) return null;
+        $g = trim($g);
+        return $g !== '' ? $g : null;
+    }
+
+    /**
+     * Read groups[] from query string — list of group ids to compute
+     * counts for. Accepts both array (?groups[]=a&groups[]=b) and CSV
+     * (?groups=a,b) formats, matching parseFilterParam's tolerance.
+     */
+    private function parseGroupsParam(Request $request): array
+    {
+        $param = $request->input('groups', []);
+
+        if (is_string($param)) {
+            $param = explode(',', $param);
+        }
+        if (!is_array($param)) {
+            return [];
+        }
+
+        return array_values(array_filter(
+            array_map(fn($v) => is_string($v) ? trim($v) : null, $param),
+            fn($v) => $v !== null && $v !== ''
+        ));
+    }
+
+    /**
      * Load the filter rules JSON from storage/product/rules.json.
+     * Used by getRules() — match data live with the same file the
+     * FilterRulesService reads, so the RN app never goes out of sync
+     * with the matcher.
      */
     private function loadFilterTree(): array
     {

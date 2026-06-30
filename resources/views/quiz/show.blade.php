@@ -66,7 +66,11 @@
 .score-ring .val small{font-weight:600;color:#A4631B;font-size:.72rem;letter-spacing:1px}
 .verdict-badge{display:inline-block;font-weight:700;font-size:.9rem;padding:7px 18px;border-radius:99px;color:#fff;margin-bottom:12px;align-self:center}
 .verdict-title{font-family:'Bricolage Grotesque',sans-serif;font-size:1.5rem;margin-bottom:9px}
-.verdict-text{color:#6f5733;font-size:.95rem;line-height:1.6;margin:0 auto 24px}
+.verdict-text{color: #6f5733;
+    font-size: .8rem;
+    line-height: 1.4;
+    margin: 0 auto 24px;
+    text-align: justify;}
 .contact{background:#FFF7EC;border:2px dashed #FFD79A;border-radius:18px;padding:20px;text-align:left}
 .contact h3{font-size:1.05rem;margin-bottom:5px}
 .contact p{color:#8a6c3d;font-size:.85rem;margin-bottom:14px;line-height:1.5}
@@ -88,7 +92,9 @@
       <p class="sub">{{ $topic->description ?? 'Répondez honnêtement — il n’y a ni bonne ni mauvaise réponse.' }}</p>
       <div class="meta-row">
         <div class="chip">🧩 {{ count($questionsJson) }} questions</div>
-        <div class="chip">⏱️ {{ $timePerQuestion }}s par question</div>
+        @if($timePerQuestion > 0)
+          <div class="chip">⏱️ {{ $timePerQuestion }}s par question</div>
+        @endif
       </div>
       <div class="field">
         <label for="name">Votre prénom</label>
@@ -218,6 +224,14 @@ function renderQuestion(){
 
 function startTimer(){
   clearInterval(state.timer);
+
+  // Pas de limite de temps : on masque le compteur et on n'enchaîne pas automatiquement.
+  if(!TIME_PER_Q || TIME_PER_Q <= 0){
+    $('.timer').style.display = 'none';
+    return;
+  }
+  $('.timer').style.display = '';
+
   state.timeLeft = TIME_PER_Q;
   updateTimer();
   state.timer = setInterval(()=>{

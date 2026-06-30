@@ -1,6 +1,8 @@
 <?php
 
 namespace App\Http\Controllers;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Cache;
 
 class QrCodeController extends Controller
 {
@@ -10,11 +12,15 @@ class QrCodeController extends Controller
      */
     public function index()
     {
+        $logoSourceUrl = 'https://content-orthomaster-prod.s3.eu-west-1.amazonaws.com/application-data/logo-v2/pdf/logo.png';
+
+        $logoDataUri = Cache::remember('qrcode_logo_datauri', now()->addDay(), function () use ($logoSourceUrl) {
+            $body = Http::get($logoSourceUrl)->body();
+            return 'data:image/webp;base64,' . base64_encode($body);
+        });
+
         return view('qrcode.index', [
-            // URL du logo inséré au centre du QR code (modifiable ici).
-            // Vous pouvez aussi le brancher sur votre système de réglages :
-            // 'logoUrl' => setting('system.web_icon'),
-            'logoUrl'         => 'https://content-orthomaster-prod.s3.eu-west-1.amazonaws.com/application-data/logo-v2/web/logo_orange_no_bg_40.webp',
+            'logoUrl'           => $logoDataUri,
             'defaultForeground' => '#ff9600',
         ]);
     }

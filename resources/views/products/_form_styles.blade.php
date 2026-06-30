@@ -1,4 +1,5 @@
 <style>
+    .panel-heading .text-muted { padding: 0px 0px 20px 15px; }
     .panel-bordered { border: 1px solid #e8e8e8; }
     .panel-heading p { color: #888; margin: 0; }
 

@@ -6,6 +6,8 @@
       - $filterTree            (array decoded from rules.json)
       - $selectedKeys          (array of pathology filter_key strings)
       - $measurementDimensions (array of {key, title} for size form dropdown)
+      - $protocolsTree         (array decoded from protocols.json — list of protocols)
+      - $selectedGroups        (array of group id strings already on this product)
     Required wrapping <form> around this include.
 --}}
 
@@ -20,6 +22,9 @@
     $sel    = old('filter_keys', $selectedKeys ?? []);
     if (!is_array($sel)) $sel = [];
     if (!is_array($sizes)) $sizes = [];
+
+    $selGroups = old('groups', $selectedGroups ?? []);
+    if (!is_array($selGroups)) $selGroups = [];
 @endphp
 
 @csrf
@@ -83,7 +88,7 @@
             @forelse ($tabs as $idx => $tab)
                 @include('products._tab_row', ['idx' => $idx, 'tab' => $tab])
             @empty
-                @include('products._tab_row', ['idx' => 0, 'tab' => ['title' => '', 'content' => '']])
+                @include('products._tab_row', ['idx' => 0, 'tab' => ['title' => '', 'content_markdown' => '']])
             @endforelse
         </div>
         <button type="button" class="btn btn-default" id="btn-add-tab">
@@ -149,6 +154,30 @@
     </div>
 </div>
 
+<div class="panel panel-bordered">
+    <div class="panel-heading">
+        <h3 class="panel-title">Groupes de protocole</h3>
+        <p class="text-muted" style="margin: 4px 0 0; font-size: 12px;">
+            Tick the protocol groups this product belongs to. Grouped by protocol &gt; phase. Only filter-type groups
+            are shown — info groups (text-only hints) aren't selectable.
+        </p>
+    </div>
+    <div class="panel-body">
+        @if (empty($protocolsTree))
+            <p class="text-warning" style="margin:0;">
+                <i class="voyager-warning"></i>
+                No protocols configured yet. Make sure <code>storage/product/protocols.json</code> exists and contains at least one protocol.
+            </p>
+        @else
+            <div id="protocol-groups-tree"></div>
+            <p class="text-muted" style="margin-top: 10px;">
+                <span id="group-count">{{ count($selGroups) }}</span> group(s) selected.
+                <a href="#" id="group-clear" style="margin-left: 8px;">Clear all</a>
+            </p>
+        @endif
+    </div>
+</div>
+
 <div class="form-group" style="margin-top: 18px;">
     <button type="submit" class="btn btn-primary">
         <i class="voyager-check"></i>
@@ -185,3 +214,5 @@
 <script type="application/json" id="filter-selected-data">{!! json_encode(array_values($sel), JSON_UNESCAPED_UNICODE) !!}</script>
 <script type="application/json" id="measurement-dimensions-data">{!! json_encode($measurementDimensions ?? [], JSON_UNESCAPED_UNICODE) !!}</script>
 <script type="application/json" id="sizes-initial-data">{!! json_encode($sizes ?? null, JSON_UNESCAPED_UNICODE) !!}</script>
+<script type="application/json" id="protocols-tree-data">{!! json_encode($protocolsTree ?? [], JSON_UNESCAPED_UNICODE) !!}</script>
+<script type="application/json" id="groups-selected-data">{!! json_encode(array_values($selGroups), JSON_UNESCAPED_UNICODE) !!}</script>

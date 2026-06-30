@@ -14,7 +14,7 @@ $(document).ready(function () {
             +       '<i class="voyager-trash"></i>'
             +     '</button>'
             +   '</div>'
-            +   '<textarea name="tabs['+idx+'][content]" rows="6" class="form-control" placeholder="Markdown content..."></textarea>'
+            +   '<textarea name="tabs['+idx+'][content_markdown]" rows="6" class="form-control" placeholder="Markdown content..."></textarea>'
             + '</div>';
         return $(html);
     }
@@ -22,7 +22,7 @@ $(document).ready(function () {
     function reindexTabs() {
         $tabsContainer.find('.tab-row').each(function (i, row) {
             $(row).find('input[name^="tabs"]').attr('name', 'tabs['+i+'][title]');
-            $(row).find('textarea[name^="tabs"]').attr('name', 'tabs['+i+'][content]');
+            $(row).find('textarea[name^="tabs"]').attr('name', 'tabs['+i+'][content_markdown]');
         });
     }
 
@@ -573,5 +573,115 @@ $(document).ready(function () {
 
         return null;
     }
+    // ============================================================
+    // Protocol groups — flat checkbox tree grouped by protocol > phase.
+    // Only filter-type groups are rendered (info groups can't be
+    // assigned to a product). Posts as `groups[]=<id>` so the
+    // controller picks them up via array validation.
+    // ============================================================
+    (function () {
+        var $treeEl = $('#protocol-groups-tree');
+        if ($treeEl.length === 0) return; // no protocols configured
+
+        var protocols = [];
+        var initialSelected = [];
+        try {
+            protocols = JSON.parse($('#protocols-tree-data').text() || '[]');
+        } catch (e) { protocols = []; }
+        try {
+            initialSelected = JSON.parse($('#groups-selected-data').text() || '[]');
+        } catch (e) { initialSelected = []; }
+        if (!Array.isArray(protocols)) protocols = [];
+        if (!Array.isArray(initialSelected)) initialSelected = [];
+
+        var selectedGroups = new Set(initialSelected);
+
+        // Escape any value that lands inside HTML text — group/phase
+        // titles come from JSON, so a stray <script> would otherwise
+        // execute. Cheap and good enough for admin-side rendering.
+        function esc(s) {
+            return String(s == null ? '' : s)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;');
+        }
+
+        function render() {
+            var html = '';
+            var hasAnyFilter = false;
+
+            protocols.forEach(function (proto) {
+                var protoTitle = esc(proto.title || proto.id || '(untitled protocol)');
+                html += '<div style="margin-bottom:16px;border:1px solid #eaeef3;border-radius:6px;overflow:hidden;">';
+                html += '<div style="background:#f7fafc;padding:8px 12px;font-weight:600;color:#1d3557;font-size:13px;border-bottom:1px solid #eaeef3;">' + protoTitle + '</div>';
+                html += '<div style="padding:10px 14px;">';
+
+                var phases = Array.isArray(proto.phases) ? proto.phases : [];
+                if (phases.length === 0) {
+                    html += '<p class="text-muted" style="margin:0;font-size:12px;">No phases.</p>';
+                }
+
+                phases.forEach(function (phase) {
+                    var phaseTitle = esc(phase.title || phase.id || '(untitled phase)');
+                    var groups = Array.isArray(phase.groups) ? phase.groups : [];
+                    var filterGroups = groups.filter(function (g) { return g && g.type === 'filter'; });
+
+                    html += '<div style="margin-bottom:8px;">';
+                    html += '<div style="font-size:12px;font-weight:600;color:#5c6b7e;margin-bottom:4px;">' + phaseTitle + '</div>';
+
+                    if (filterGroups.length === 0) {
+                        html += '<p class="text-muted" style="margin:0 0 4px;font-size:11.5px;font-style:italic;">No filter groups in this phase.</p>';
+                    } else {
+                        html += '<div style="display:flex;flex-wrap:wrap;gap:6px 14px;">';
+                        filterGroups.forEach(function (g) {
+                            hasAnyFilter = true;
+                            var gid   = String(g.id || '');
+                            var label = esc(g.label || gid);
+                            var checked = selectedGroups.has(gid) ? ' checked' : '';
+                            html += '<label style="display:inline-flex;align-items:center;gap:6px;font-weight:normal;margin:0;font-size:13px;cursor:pointer;">';
+                            html += '<input type="checkbox" class="group-checkbox" name="groups[]" value="' + esc(gid) + '"' + checked + ' style="margin:0;">';
+                            html += '<span>' + label + '</span>';
+                            html += '</label>';
+                        });
+                        html += '</div>';
+                    }
+
+                    html += '</div>';
+                });
+
+                html += '</div></div>';
+            });
+
+            if (!hasAnyFilter) {
+                html = '<p class="text-muted" style="margin:0;font-size:12.5px;">No filter-type groups defined across any protocol. Add at least one filter group in <code>protocols.json</code>.</p>';
+            }
+
+            $treeEl.html(html);
+            updateCount();
+        }
+
+        function updateCount() {
+            $('#group-count').text(selectedGroups.size);
+        }
+
+        // Sync the selectedGroups Set with checkbox state on change.
+        $treeEl.on('change', '.group-checkbox', function () {
+            var id = $(this).val();
+            if (this.checked) selectedGroups.add(id);
+            else               selectedGroups.delete(id);
+            updateCount();
+        });
+
+        $('#group-clear').on('click', function (e) {
+            e.preventDefault();
+            selectedGroups.clear();
+            $treeEl.find('.group-checkbox').prop('checked', false);
+            updateCount();
+        });
+
+        render();
+    })();
+
 });
 </script>

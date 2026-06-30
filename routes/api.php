@@ -183,10 +183,12 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/pre-reg/diploma', [PreRegDiplomaRequestController::class, 'preReg']);
 
     // Product
+    Route::get('/protocols/products', [ProductController::class, 'getProtocols']);
     Route::get('/rules/products', [ProductController::class, 'getRules']);
     Route::prefix('products')->group(function () {
         Route::get('/', [ProductController::class, 'index']);
         Route::get('/count', [ProductController::class, 'count']);
+        Route::get('/counts-by-group', [ProductController::class, 'countsByGroup']);
         Route::get('/{product}', [ProductController::class, 'show']);
         
     });

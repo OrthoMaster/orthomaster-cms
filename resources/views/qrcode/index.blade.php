@@ -255,7 +255,6 @@
 
             if ($('#addLogo').checked) {
                 const img = new Image();
-                img.crossOrigin = 'anonymous';
                 img.onload = () => {
                     const ls = dim * 0.22,
                         lx = (dim - ls) / 2,

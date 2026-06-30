@@ -13,6 +13,7 @@ class Product extends Model
         'images'           => 'array',
         'description_tabs' => 'array',
         'sizes'            => 'array',
+        'groups'           => 'array'
     ];
 
     public function manufacturer()
