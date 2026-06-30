@@ -20,6 +20,7 @@ use App\Http\Controllers\IntEmpTrackerController;
 use App\Http\Controllers\MediaController;
 use App\Http\Controllers\MeetingController;
 use App\Http\Controllers\ProductController;
+use App\Http\Controllers\QuizController;
 use App\Http\Controllers\SaleAssignmentController;
 use App\Http\Controllers\TestingController;
 use App\Http\Controllers\TrainingPermissionController;
@@ -242,3 +243,8 @@ Route::post('/api/ask-notebook', [AiController::class, 'ask']);
 // Route::get('/test/auto-programme', [GeneratePdfController::class, 'testAutotProgFilePdf']);
 Route::get('/test-fifpl-cert', [TestingController::class, 'testFifplCert']);
 // Route::get('/test-meeting', [MeetingController::class, 'createMeeting']);
+
+// Quizz
+Route::get('/quiz/{slug}', [QuizController::class, 'show'])->name('quiz.show');
+Route::post('/quiz/{slug}/submit', [QuizController::class, 'submit'])->name('quiz.submit');
+Route::post('/submissions/{submission}/contact', [QuizController::class, 'contact'])->name('quiz.contact');
