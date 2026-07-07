@@ -44,6 +44,13 @@
                                     @endforeach
                                 </select>
 
+                                {{-- Granularité: par jour / semaine / mois --}}
+                                <select id="filterGranularity" class="form-control input-sm" style="width: auto;">
+                                    <option value="day" {{ $granularity === 'day' ? 'selected' : '' }}>Par jour</option>
+                                    <option value="week" {{ $granularity === 'week' ? 'selected' : '' }}>Par semaine</option>
+                                    <option value="month" {{ $granularity === 'month' ? 'selected' : '' }}>Par mois</option>
+                                </select>
+
                                 <input type="date" id="filterFrom" class="form-control input-sm" style="width: auto;"
                                     value="{{ $from }}">
                                 <input type="date" id="filterTo" class="form-control input-sm" style="width: auto;"
@@ -56,6 +63,36 @@
                                 <button type="button" id="shareBtn" class="btn btn-sm btn-default">
                                     <i class="voyager-share"></i> Partager
                                 </button>
+                            </div>
+                        </div>
+
+                        {{-- ===== Ligne de résumé : 4 KPI ===== --}}
+                        <div class="panel-body" style="padding-bottom: 0;">
+                            <div class="row vad-kpi-row">
+                                <div class="col-md-3 col-sm-6">
+                                    <div class="vad-kpi">
+                                        <div class="vad-kpi-label">Impressions</div>
+                                        <div class="vad-kpi-value" id="kpiImpressions">{{ number_format($summary['impressions'], 0, ',', ' ') }}</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3 col-sm-6">
+                                    <div class="vad-kpi">
+                                        <div class="vad-kpi-label">Vues</div>
+                                        <div class="vad-kpi-value" id="kpiViews">{{ number_format($summary['views'], 0, ',', ' ') }}</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3 col-sm-6">
+                                    <div class="vad-kpi">
+                                        <div class="vad-kpi-label">Vues complètes</div>
+                                        <div class="vad-kpi-value" id="kpiCompleted">{{ number_format($summary['completed_views'], 0, ',', ' ') }}</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3 col-sm-6">
+                                    <div class="vad-kpi">
+                                        <div class="vad-kpi-label">Contacts</div>
+                                        <div class="vad-kpi-value" id="kpiContacted">{{ number_format($summary['contacted'], 0, ',', ' ') }}</div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
@@ -72,14 +109,14 @@
                 <div class="col-md-12 col-lg-12">
                     <div class="panel panel-bordered">
                         <div class="panel-heading">
-                            <h3 class="panel-title">Détail par jour</h3>
+                            <h3 class="panel-title" id="vadTableTitle">Détail par jour</h3>
                         </div>
                         <div class="panel-body">
                             <div class="vad-table-wrap">
                                 <table class="table table-bordered table-hover vad-table">
                                     <thead>
                                         <tr>
-                                            <th class="vad-sticky-col">Date</th>
+                                            <th class="vad-sticky-col" id="vadTablePeriodHead">Date</th>
                                             <th>Impressions</th>
                                             <th>Vues</th>
                                             <th>CTR</th>
@@ -135,6 +172,33 @@
         .vad-table thead th.vad-sticky-col {
             z-index: 3;
         }
+
+        /* KPI cards */
+        .vad-kpi-row {
+            margin-bottom: 4px;
+        }
+        .vad-kpi {
+            background: #fff;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 14px 16px;
+            margin-bottom: 16px;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, .04);
+        }
+        .vad-kpi-label {
+            font-size: 12px;
+            font-weight: 600;
+            color: #94a3b8;
+            text-transform: uppercase;
+            letter-spacing: .5px;
+        }
+        .vad-kpi-value {
+            font-size: 26px;
+            font-weight: 700;
+            color: #1d3557;
+            margin-top: 6px;
+            line-height: 1;
+        }
     </style>
 @stop
 
@@ -150,6 +214,13 @@
             // URL gốc (không ký) của trang shared cho công ty đang xem.
             // companyId luôn có giá trị ở cả 2 chế độ.
             shareBaseUrl: @json($companyId ? url('dashboard/video-ads/shared/' . $companyId) : null),
+        };
+
+        // Libellé de la période selon la granularité (pour l'en-tête du tableau)
+        const PERIOD_LABELS = {
+            day: { title: 'Détail par jour', head: 'Date', unit: 'jour(s)' },
+            week: { title: 'Détail par semaine', head: 'Semaine', unit: 'semaine(s)' },
+            month: { title: 'Détail par mois', head: 'Mois', unit: 'mois' },
         };
 
         let videoAdsChartInstance;
@@ -223,23 +294,47 @@
                 }
             });
 
+            renderSummary(payload);
             renderTable(payload);
         }
 
-        // ---------- Bảng chi tiết theo ngày + phân trang ----------
+        // ---------- Ligne KPI ----------
+        function renderSummary(payload) {
+            // Si l'API renvoie summary, on l'utilise ; sinon on calcule côté client.
+            const s = payload.summary || {
+                impressions: payload.impressions.reduce((a, b) => a + b, 0),
+                views: payload.views.reduce((a, b) => a + b, 0),
+                completed_views: payload.completed_views.reduce((a, b) => a + b, 0),
+                contacted: (payload.contacted || []).reduce((a, b) => a + b, 0),
+            };
+            document.getElementById('kpiImpressions').textContent = (s.impressions || 0).toLocaleString('fr-FR');
+            document.getElementById('kpiViews').textContent = (s.views || 0).toLocaleString('fr-FR');
+            document.getElementById('kpiCompleted').textContent = (s.completed_views || 0).toLocaleString('fr-FR');
+            document.getElementById('kpiContacted').textContent = (s.contacted || 0).toLocaleString('fr-FR');
+        }
+
+        // ---------- Bảng chi tiết + phân trang ----------
         const VAD_PAGE_SIZE = 15;
-        let vadRows = []; // [{date, impressions, views, ctr, completed, contacted}]
+        let vadRows = []; // [{period, impressions, views, ctr, completed, contacted}]
         let vadPage = 1;
+        let vadUnit = 'jour(s)';
 
         function renderTable(payload) {
-            // Gộp các mảng song song thành mảng dòng. Bỏ ngày toàn 0 cho gọn?
-            // -> giữ tất cả ngày để báo cáo đầy đủ. Đảo thứ tự: mới nhất lên đầu.
+            const g = payload.granularity || 'day';
+            const meta = PERIOD_LABELS[g] || PERIOD_LABELS.day;
+            vadUnit = meta.unit;
+
+            // En-têtes dynamiques
+            document.getElementById('vadTableTitle').textContent = meta.title;
+            document.getElementById('vadTablePeriodHead').textContent = meta.head;
+
+            // Gộp các mảng song song thành mảng dòng. Mới nhất lên đầu.
             vadRows = payload.labels.map((label, i) => {
                 const imp = payload.impressions[i] || 0;
                 const vw = payload.views[i] || 0;
                 const ctr = imp > 0 ? (vw / imp * 100) : 0;
                 return {
-                    date: label,
+                    period: label,
                     impressions: imp,
                     views: vw,
                     ctr: ctr,
@@ -269,7 +364,7 @@
             } else {
                 tbody.innerHTML = pageRows.map(r => `
                     <tr>
-                        <td class="vad-sticky-col">${r.date}</td>
+                        <td class="vad-sticky-col">${r.period}</td>
                         <td>${r.impressions.toLocaleString('fr-FR')}</td>
                         <td>${r.views.toLocaleString('fr-FR')}</td>
                         <td>${r.ctr.toFixed(2)} %</td>
@@ -280,7 +375,7 @@
             }
 
             document.getElementById('vadPageInfo').textContent =
-                `Page ${vadPage} / ${totalPages} — ${total} jour(s)`;
+                `Page ${vadPage} / ${totalPages} — ${total} ${vadUnit}`;
 
             document.getElementById('vadPrevPage').disabled = (vadPage <= 1);
             document.getElementById('vadNextPage').disabled = (vadPage >= totalPages);
@@ -307,6 +402,7 @@
                     ads_company_id: this.value || '',
                     from: document.getElementById('filterFrom').value,
                     to: document.getElementById('filterTo').value,
+                    granularity: document.getElementById('filterGranularity').value,
                 });
                 window.location.search = params.toString();
             });
@@ -317,6 +413,7 @@
 
             params.set('from', document.getElementById('filterFrom').value);
             params.set('to', document.getElementById('filterTo').value);
+            params.set('granularity', document.getElementById('filterGranularity').value);
 
             const videoVal = document.getElementById('filterVideo').value;
             if (videoVal) {
@@ -360,6 +457,7 @@
 
             params.set('from', document.getElementById('filterFrom').value);
             params.set('to', document.getElementById('filterTo').value);
+            params.set('granularity', document.getElementById('filterGranularity').value);
 
             const videoVal = document.getElementById('filterVideo').value;
             if (videoVal) {

@@ -140,7 +140,7 @@ class MktToolsController extends Controller
             'browser'       => $this->detectBrowser($agent),
             'platform'      => $this->detectPlatform($agent),
             'referer'       => $request->header('referer'),
-            'country'       => null, // TODO: brancher un service GeoIP si besoin
+            'country'       => $request->header('CF-IPCountry') ?: null,
             'is_bot'        => $this->looksLikeBot($agent),
         ]);
 
