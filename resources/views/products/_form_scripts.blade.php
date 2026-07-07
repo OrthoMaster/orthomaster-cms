@@ -14,7 +14,7 @@ $(document).ready(function () {
             +       '<i class="voyager-trash"></i>'
             +     '</button>'
             +   '</div>'
-            +   '<textarea name="tabs['+idx+'][content_markdown]" rows="6" class="form-control" placeholder="Markdown content..."></textarea>'
+            +   '<textarea name="tabs['+idx+'][content]" rows="6" class="form-control" placeholder="Markdown content..."></textarea>'
             + '</div>';
         return $(html);
     }
@@ -22,7 +22,7 @@ $(document).ready(function () {
     function reindexTabs() {
         $tabsContainer.find('.tab-row').each(function (i, row) {
             $(row).find('input[name^="tabs"]').attr('name', 'tabs['+i+'][title]');
-            $(row).find('textarea[name^="tabs"]').attr('name', 'tabs['+i+'][content_markdown]');
+            $(row).find('textarea[name^="tabs"]').attr('name', 'tabs['+i+'][content]');
         });
     }
 

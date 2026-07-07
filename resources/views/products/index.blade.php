@@ -83,6 +83,21 @@
             color: #94a3b8;
             font-weight: 600;
         }
+
+        /* Images column thumbnails */
+        .omp-thumbs {
+            display: flex;
+            gap: 4px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .omp-thumbs img {
+            height: 40px;
+            width: auto;
+            border-radius: 4px;
+            border: 1px solid #e2e8f0;
+            object-fit: cover;
+        }
     </style>
 
     <div class="page-content browse container-fluid">
@@ -154,10 +169,12 @@
                             <tr>
                                 <th style="width: 70px;">ID</th>
                                 <th>Nom</th>
+                                <th style="min-width: 200px;">Images</th>
                                 <th>Catégorie</th>
                                 <th>Fabricant</th>
                                 <th style="width: 100px; text-align: center;">Filtres</th>
-                                <th style="width: 110px;">Actions</th>
+                                <th style="width: 90px;">Source</th>
+                                <th style="width: 200px;">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -172,6 +189,20 @@
                                         </div>
                                     @endif
                                 </td>
+                                <td>
+                                    @php
+                                        $imgs = is_array($p->images) ? $p->images : [];
+                                    @endphp
+                                    @if (count($imgs) > 0)
+                                        <div class="omp-thumbs">
+                                            @foreach ($imgs as $img)
+                                                <img src="{{ $img }}" alt="">
+                                            @endforeach
+                                        </div>
+                                    @else
+                                        <span style="color:#cbd5e1;">—</span>
+                                    @endif
+                                </td>
                                 <td style="color: #5c6b7e;">{{ $p->category }}</td>
                                 <td>{{ optional($p->manufacturer)->name ?? '—' }}</td>
                                 <td style="text-align: center;">
@@ -180,14 +211,32 @@
                                     </span>
                                 </td>
                                 <td>
+                                    @if (!empty($p->source))
+                                        <a href="{{ $p->source }}" target="_blank" rel="noopener noreferrer">
+                                            <i class="voyager-external"></i> Lien
+                                        </a>
+                                    @else
+                                        <span style="color:#cbd5e1;">—</span>
+                                    @endif
+                                </td>
+                                <td>
                                     <a href="{{ route('products.edit', $p) }}" class="btn btn-sm btn-primary">
                                         <i class="voyager-edit"></i> Modifier
                                     </a>
+                                    <form action="{{ route('products.destroy', $p) }}" method="POST"
+                                          style="display:inline;"
+                                          onsubmit="return confirm('Supprimer ce produit ?');">
+                                        @csrf
+                                        @method('DELETE')
+                                        <button type="submit" class="btn btn-sm btn-danger">
+                                            <i class="voyager-trash"></i> Supprimer
+                                        </button>
+                                    </form>
                                 </td>
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="6" class="text-center text-muted" style="padding: 40px;">
+                                <td colspan="8" class="text-center text-muted" style="padding: 40px;">
                                     @if (request('search_name') || request('search_manufacturer'))
                                         Aucun produit ne correspond à votre recherche.
                                     @else

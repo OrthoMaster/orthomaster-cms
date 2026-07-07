@@ -57,6 +57,8 @@ return [
     'auth_url' => env('APP_ENV', 'production') == 'production' ? 'https://auth.orthomaster.fr' : 'http://localhost:8000',
     'cms_url' => env('APP_ENV', 'production') == 'production' ? 'https://cms.orthomaster.fr' : 'http://localhost:8000',
 
+    'short_link_domain' => env('SHORT_LINK_DOMAIN', 'https://go.orthomaster.fr'),
+
     /*
     |--------------------------------------------------------------------------
     | Application Timezone

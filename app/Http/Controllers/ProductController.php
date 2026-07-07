@@ -12,10 +12,23 @@ class ProductController extends Controller
     /**
      * GET admin/products — list (Voyager browses normally; this is a fallback).
      */
-    public function index()
+    public function index(Request $request)
     {
-        $products = Product::with('manufacturer')->orderBy('name')->paginate(20);
-        return view('products.index', compact('products'));
+        $query = Product::with('manufacturer');
+
+        if ($request->filled('search_name')) {
+            $query->where('name', 'like', '%' . $request->search_name . '%');
+        }
+
+        if ($request->filled('search_manufacturer')) {
+            $query->where('manufacturer_id', $request->search_manufacturer);
+        }
+
+        $products = $query->orderBy('name')->paginate(20);
+
+        return view('products.index', compact('products') + [
+            'manufacturers' => Manufacturer::orderBy('name')->get(),
+        ]);
     }
 
     /**
@@ -117,9 +130,8 @@ class ProductController extends Controller
             return abort(404);
         }
         $product->delete();
-        return redirect()
-            ->route('products.index')
-            ->with('message', 'Product deleted.')
+        return back()
+            ->with('message', 'Produit supprimé.')
             ->with('alert-type', 'success');
     }
 
@@ -272,7 +284,7 @@ class ProductController extends Controller
 
         $pathologyKeys = array_values(array_filter(
             array_unique($validated['filter_keys'] ?? []),
-            fn ($k) => is_string($k) && $k !== '' && !isset($bucketIdSet[$k]),
+            fn($k) => is_string($k) && $k !== '' && !isset($bucketIdSet[$k]),
         ));
 
         // Protocol groups — keep only ids that exist in protocols.json
@@ -283,7 +295,7 @@ class ProductController extends Controller
 
         $groups = array_values(array_filter(
             array_unique($validated['groups'] ?? []),
-            fn ($g) => is_string($g) && $g !== '' && isset($validGroupIdSet[$g]),
+            fn($g) => is_string($g) && $g !== '' && isset($validGroupIdSet[$g]),
         ));
 
         return [

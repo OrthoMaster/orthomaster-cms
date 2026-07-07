@@ -15,12 +15,11 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DashboardVideoAdsController;
 use App\Http\Controllers\DashboardVideoViewsController;
 use App\Http\Controllers\GenerateDocumentController;
-use App\Http\Controllers\GeneratePdfController;
 use App\Http\Controllers\IntEmpTrackerController;
 use App\Http\Controllers\MediaController;
-use App\Http\Controllers\MeetingController;
+use App\Http\Controllers\MktShortLinkController;
+use App\Http\Controllers\MktToolsController;
 use App\Http\Controllers\ProductController;
-use App\Http\Controllers\QrCodeController;
 use App\Http\Controllers\QuizController;
 use App\Http\Controllers\SaleAssignmentController;
 use App\Http\Controllers\TestingController;
@@ -44,7 +43,7 @@ Route::get('/', function () {
         return redirect('/register');
     }
 
-    return view('welcome');
+    return redirect()->away('https://orthomaster.fr', 301);
 });
 
 Route::get('/login', function () {
@@ -175,13 +174,13 @@ Route::group(['prefix' => 'admin', 'middleware' => ['cmsAdmin']], function () {
 
     // Videos views
     Route::prefix('reports/video-views')
-    ->group(function () {
-        Route::get('/', [DashboardVideoViewsController::class, 'index'])
-            ->name('dashboard.videos');
+        ->group(function () {
+            Route::get('/', [DashboardVideoViewsController::class, 'index'])
+                ->name('dashboard.videos');
 
-        Route::get('/data', [DashboardVideoViewsController::class, 'tableData'])
-            ->name('dashboard.videos.data');
-    });
+            Route::get('/data', [DashboardVideoViewsController::class, 'tableData'])
+                ->name('dashboard.videos.data');
+        });
 
     // Sales
     Route::group(['prefix' => 'dashboard/staffs'], function () {
@@ -224,6 +223,31 @@ Route::group(['prefix' => 'admin', 'middleware' => ['cmsAdmin']], function () {
         Route::post('contract', [GenerateDocumentController::class, 'generateContract'])->name('generate.document.contract.export');
         Route::post('invoice', [GenerateDocumentController::class, 'generateInvoice'])->name('generate.document.invoice.export');
     });
+
+
+    // Marketing Tools
+    Route::get('/tools', [MktToolsController::class, 'index'])->name('mkt.tools');
+    Route::post('/tools/short-link', [MktToolsController::class, 'storeShortLink'])->name('mkt.shortlink.store');
+
+    Route::group(['prefix' => 'dashboard/short-links'], function () {
+        // Liste des short links
+        Route::get('/', [MktShortLinkController::class, 'index'])
+            ->name('dashboard.short-links');
+
+        // Tableau de bord de tracking
+        Route::get('/tracking', [MktShortLinkController::class, 'tracking'])
+            ->name('dashboard.short-links.tracking');
+
+        // Endpoint JSON pour le fetch dynamique des filtres
+        Route::get('/tracking/data', [MktShortLinkController::class, 'trackingData'])
+            ->name('dashboard.short-links.tracking.data');
+
+        // Édition d'un short link (formulaire à créer selon vos besoins)
+        Route::get('/{shortLink}/edit', [MktShortLinkController::class, 'edit'])
+            ->name('dashboard.short-links.edit');
+        Route::put('/{shortLink}', [MktShortLinkController::class, 'update'])
+            ->name('dashboard.short-links.update');
+    });
 });
 
 
@@ -249,5 +273,7 @@ Route::get('/test-fifpl-cert', [TestingController::class, 'testFifplCert']);
 Route::get('/quiz/{slug}', [QuizController::class, 'show'])->name('quiz.show');
 Route::post('/quiz/{slug}/submit', [QuizController::class, 'submit'])->name('quiz.submit');
 Route::post('/submissions/{submission}/contact', [QuizController::class, 'contact'])->name('quiz.contact');
-// Qr Code
-Route::get('/qrcode', [QrCodeController::class, 'index'])->name('qrcode.index');
+
+
+// Redirection publique des short links (idéalement sur le domaine go.orthomaster.fr)
+Route::get('/sh/{code}', [MktToolsController::class, 'redirect'])->name('mkt.shortlink.redirect');

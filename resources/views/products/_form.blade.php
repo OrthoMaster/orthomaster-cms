@@ -17,6 +17,7 @@
     $tabs   = old('tabs',       $product->description_tabs ?? []);
     $sizes  = old('sizes',      $product->sizes ?? []);
     $name   = old('name',       $product->name ?? '');
+    $sub    = old('sub',        $product->sub ?? '');
     $mfgId  = old('manufacturer_id', $product->manufacturer_id ?? '');
     $cat    = old('category',   $product->category ?? '');
     $sel    = old('filter_keys', $selectedKeys ?? []);
@@ -39,6 +40,13 @@
             <label>Product name <span class="text-danger">*</span></label>
             <input type="text" name="name" value="{{ $name }}" class="form-control" required>
             @error('name')<small class="help-block">{{ $message }}</small>@enderror
+        </div>
+
+        <div class="form-group @error('sub') has-error @enderror">
+            <label>Subtitle</label>
+            <input type="text" name="sub" value="{{ $sub }}" class="form-control"
+                maxlength="255" placeholder="e.g. Ligamentaire">
+            @error('sub')<small class="help-block">{{ $message }}</small>@enderror
         </div>
 
         <div class="form-group @error('manufacturer_id') has-error @enderror">

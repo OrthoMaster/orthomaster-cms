@@ -23,6 +23,11 @@ class CustomExceptionHandler
             return null;
         }
 
+        // Short link domain
+        if (str_starts_with($host, 'go.')) {
+            return redirect()->away('https://orthomaster.fr');
+        }
+
         // With Auth
         return self::handleAuthPageException($statusCode, $message);
     }
