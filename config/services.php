@@ -68,6 +68,12 @@ return [
         'project_id' => env('GOOGLE_PROJECT_ID'),
         'agent_id'   => env('GOOGLE_AGENT_ID'),
         'location'   => 'global'
-    ]
+    ],
+
+    'brevo' => [
+        'key' => env('BREVO_API_KEY'),
+        'user_list_id' => 38,
+        'company_list_id' => 37,
+    ],
 
 ];
