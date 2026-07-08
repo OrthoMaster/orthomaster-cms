@@ -1,5 +1,6 @@
 <?php
 
+use Illuminate\Http\Request;
 use App\Http\Controllers\AccountController;
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\API\AiController;
@@ -277,3 +278,12 @@ Route::post('/submissions/{submission}/contact', [QuizController::class, 'contac
 
 // Redirection publique des short links (idéalement sur le domaine go.orthomaster.fr)
 Route::get('/sh/{code}', [MktToolsController::class, 'redirect'])->name('mkt.shortlink.redirect');
+Route::get('/open/{path?}', function (Request $request, ?string $path = null) {
+    $query = $request->getQueryString(); // ví dụ: screen=patient&id=123
+    $suffix = $path ?? '';
+    if ($query) {
+        $suffix .= '?' . $query;
+    }
+
+    return view('deeplink', ['suffix' => $suffix]);
+})->where('path', '.*');
