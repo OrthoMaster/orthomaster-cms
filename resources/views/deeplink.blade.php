@@ -189,8 +189,8 @@
         (function() {
             var suffix = @json($suffix);
 
-            var appUrl = "orthomaster://" + suffix;
-            var webFallback = "https://app.orthomaster.fr/" + suffix;
+            var appUrl = "orthomaster://open/" + suffix;
+            var webFallback = "https://app.orthomaster.fr/open/" + suffix;
 
             // Détection de l'appareil (même logique que l'écran RN)
             var ua = navigator.userAgent || navigator.vendor || window.opera;
