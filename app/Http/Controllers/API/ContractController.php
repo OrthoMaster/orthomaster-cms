@@ -87,7 +87,7 @@ class ContractController extends Controller
 
             // Sign to program
             $generatePdfController = new GeneratePdfController();
-            $pdfUrl = $generatePdfController->autoProgFilePdf(
+            $pdfUrls = $generatePdfController->autoProgFilePdf(
                 $cart->id,
                 $signatureUrl,
                 $company->name,
@@ -95,12 +95,12 @@ class ContractController extends Controller
                 $signData['location'],
                 now()->format('d/m/Y')
             );
-            if ($pdfUrl) {
+            foreach ($pdfUrls as $key => $pdfUrl) {
                 $cartNo = str_pad($cart->id, 3, '0', STR_PAD_LEFT);
 
                 Contract::updateOrCreate(
                     [
-                        'no' => 'Programme_' . now()->format('ym') . '-' . $cartNo,
+                        'no' => 'Programme_' . now()->format('ym') . '-' . $cartNo . (sizeof($pdfUrls) > 1 ? '_' . ($key + 1) : ''),
                         'cart_id' => $cart->id,
                     ],
                     [
@@ -210,7 +210,7 @@ class ContractController extends Controller
             }
 
             // Programme link
-            $progPdfLink = $generatePdfController->autoProgFilePdf($cart->id);
+            $progPdfLinks = $generatePdfController->autoProgFilePdf($cart->id);
 
             // OPCO-EP
             if ($cart->payment_type == '1') {
@@ -255,7 +255,7 @@ class ContractController extends Controller
                 // Add common program pdf 
                 array_push($reponseData, array(
                     'group' => 'Programme',
-                    'pdfLinks' => [$progPdfLink]
+                    'pdfLinks' => $progPdfLinks
                 ));
             }
 
@@ -307,7 +307,7 @@ class ContractController extends Controller
                 // Add common program pdf 
                 array_push($reponseData, array(
                     'group' => 'Programme',
-                    'pdfLinks' => [$progPdfLink]
+                    'pdfLinks' => $progPdfLinks
                 ));
             }
 
@@ -359,7 +359,7 @@ class ContractController extends Controller
                 // Add common program pdf 
                 array_push($reponseData, array(
                     'group' => 'Programme',
-                    'pdfLinks' => [$progPdfLink]
+                    'pdfLinks' => $progPdfLinks
                 ));
             }
 

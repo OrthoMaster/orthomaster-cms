@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="UTF-8">
-    <title>Programme de formation #{{ $cart->id }}</title>
+    <title>Programme de formation</title>
     <style>
         * {
             margin: 0;
@@ -241,7 +241,7 @@
         Médicaux de petit appareillage orthopédique (orthèses et attelles de série).
     </div>
 
-    <div class="section-title">Formation de {{ number_format($cart->duration_total / 60, 2, ',', ' ') }} heures
+    <div class="section-title">Formation de {{ number_format($duration / 60, 2, ',', ' ') }} heures
         Objectifs de la formation</div>
     <div class="section-content">Renforcer les connaissances des principes orthopédiques et améliorer le conseil et la
         prescription des
@@ -277,7 +277,7 @@
     <div class="section-content">
         On a donc la formation à portée de main : c’est le principe de l’Embed Learning (HAS, E-learning Guide de
         conception de formation ouverte et à distance dans le monde de la santé).
-        La formation de <b>{{ number_format($cart->duration_total / 60, 2, ',', ' ') }}</b> heures est répartie en <b>{{ $totalModules }}</b> modules (principales thématiques de l’orthopédie en
+        La formation de <b>{{ number_format($duration / 60, 2, ',', ' ') }}</b> heures est répartie en <b>{{ $totalModules }}</b> modules (principales thématiques de l’orthopédie en
         officine).
         Chaque module se divise en micro-leçons de 2 à 5 minutes chacune (microlearning).
         Un outil digital interactif inclut dans l’application de formation permet d’entrer directement avec l’un des
@@ -326,7 +326,7 @@
             </tr>
         </thead>
         <tbody>
-            @foreach ($cart->items as $item)
+            @foreach ($group as $item)
                 @foreach ($item->package->modules as $module)
                     <tr>
                         <td>{{ $module->name }}</td>

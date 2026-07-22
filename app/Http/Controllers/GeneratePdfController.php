@@ -7,6 +7,7 @@ use App\Models\Contract;
 use App\Models\Invoice;
 use App\Models\Package;
 use App\Models\User;
+use App\Organization;
 use App\Status;
 use Illuminate\Http\Request;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -147,48 +148,80 @@ class GeneratePdfController extends Controller
     {
         // Get training list with cartId
         $cart = Cart::with([
+            'members',
             'items',
             'items.package',
             'items.package.modules',
             'items.package.modules.lessons'
         ])->find($cartId);
+        $cartNo = str_pad($cart->id, 3, '0', STR_PAD_LEFT);
 
-        $totalModules = 0;
-        if ($cart) {
-            $totalModules = $cart->items->sum(function ($item) {
+        $itemGroups = null;
+        if ($cart->payment_type == '1') {
+            $itemGroups = $cart->groupItemsByDurationBestFit(Organization::OPCO_MAX_DURATION->value);
+        } elseif ($cart->payment_type == '2') {
+            $itemGroups = $cart->groupItemsByDurationBestFit(Organization::FIFPL_MAX_DURATION->value);
+        } else {
+            $itemGroups = $cart->groupItemsByDurationBestFit();
+        }
+        $contractTotal = sizeof($itemGroups);
+
+        // Groups
+        $pdfLinks = [];
+        $html = '';
+        foreach ($itemGroups as $key => $group) {
+            $totalModules = $group->sum(function ($item) {
                 return $item->package->modules->count();
             });
+
+            $data = [
+                'company' => $this::COMPANY,
+                'signatureLink' => $signatureLink,
+                'companyName' => $companyName,
+                'name' => $name,
+                'location' => $location,
+                'date' => $date,
+                'cardId' => $cartNo . ($contractTotal > 1 ? '_' . ($key + 1) : ''),
+                'group' => $group,
+                'duration' => $cart->calculateGroupDuration($group),
+                'totalModules' => $totalModules
+            ];
+
+            // Test
+            if ($exportPdf) {
+                if ($html !== '') {
+                    $html .= '<div style="page-break-before: always;"></div>';
+                }
+                $html .= view('pdf.auto_programme', $data)->render();
+            }
+
+            // Prod
+            if (!$exportPdf) {
+                $pdf = Pdf::loadView('pdf.auto_programme', $data);
+                $pdf->setOption('isPhpEnabled', true);
+                $pdf->setOption('isRemoteEnabled', true);
+                $pdf->setPaper('A4', 'portrait');
+
+                // Upload S3
+                $fileName = 'quotations_signed/' . $cartId . '/programme-' . $cartNo . ($contractTotal > 1 ? '_' . ($key + 1) : '') . now()->format('YmdHi') . '.pdf';
+                $path = Storage::disk('s3')->put($fileName, $pdf->output());
+                if ($path) {
+                    $url = Storage::disk('s3')->url($fileName);
+                    array_push($pdfLinks, $url);
+                }
+            }
         }
 
-        $data = [
-            'company' => $this::COMPANY,
-            'signatureLink' => $signatureLink,
-            'companyName' => $companyName,
-            'name' => $name,
-            'location' => $location,
-            'date' => $date,
-            'cart' => $cart,
-            'totalModules' => $totalModules
-        ];
-
-        $pdf = Pdf::loadView('pdf.auto_programme', $data);
-        $pdf->setOption('isPhpEnabled', true);
-        $pdf->setOption('isRemoteEnabled', true);
-        $pdf->setPaper('A4', 'portrait');
-
         if ($exportPdf) {
+            $pdf = Pdf::loadHTML($html);
+            $pdf->setOption('isPhpEnabled', true);
+            $pdf->setOption('isRemoteEnabled', true);
+            $pdf->setPaper('A4', 'portrait');
+
             return $pdf->stream('programme-' . now()->format('YmdHi') . '.pdf');
         }
 
-        // Upload S3
-        $fileName = 'quotations_signed/' . $cartId . '/programme-' . now()->format('YmdHi') . '.pdf';
-        $path = Storage::disk('s3')->put($fileName, $pdf->output());
-        if ($path) {
-            $url = Storage::disk('s3')->url($fileName);
-            return $url;
-        }
-
-        return false;
+        return $pdfLinks;
     }
 
     public function fifplPaymentInvoice(
@@ -454,16 +487,51 @@ class GeneratePdfController extends Controller
     // New program
     public function testAutotProgFilePdf()
     {
-        return $this->autoProgFilePdf(
-            400,
-            'https://content-orthomaster-prod.s3.eu-west-1.amazonaws.com/application-data/signatures/2026/04/14/28cd1fd1-bccc-4f8e-8fe3-9e61381cb094.png',
-            'CompanyName',
-            'Name',
-            'Strasbourg',
-            '11/01/2022',
-            true
-        );
+        // $cartId = 222;
+        // $contract = Contract::where('cart_id', $cartId)->where('type', 'programme')->first();
 
-        return $this->autoProgFilePdf(400);
+        // $signatureUrl = 'https://content-orthomaster-prod.s3.eu-west-1.amazonaws.com/application-data/signatures/2026/05/12/64ee2130-d9f5-4fc1-9dda-5e48779d4ed0.png';
+        // $companyName = 'Pharmacie de Woustviller'; 
+        // $signName = 'Pharmacie de Woustviller';
+        // $signLocation = 'Woustviller';
+        // $signDate = '12/05/2026';
+
+        // return $this->autoProgFilePdf(
+        //     $cartId,
+        //     $signatureUrl,
+        //     $companyName,
+        //     $signName,
+        //     $signLocation,
+        //     $signDate,
+        //     true
+        // );
+
+        // Insert db
+        // $pdfUrls = $this->autoProgFilePdf(
+        //     $cartId,
+        //     $signatureUrl,
+        //     $companyName,
+        //     $signName,
+        //     $signLocation,
+        //     $signDate
+        // );
+        // foreach ($pdfUrls as $key => $pdfUrl) {
+        //     $cartNo = str_pad($cartId, 3, '0', STR_PAD_LEFT);
+
+        //     Contract::updateOrCreate(
+        //         [
+        //             'no' => 'Programme_' . now()->format('ym') . '-' . $cartNo . (sizeof($pdfUrls) > 1 ? '_' . ($key + 1) : '') . '-' . now()->format('hi'),
+        //             'cart_id' => $cartId,
+        //         ],
+        //         [
+        //             'document' => $pdfUrl,
+        //             'company_id' => $contract->company_id,
+        //             'created_by' => $contract->created_by,
+        //             'beneficiary_id' => $contract->beneficiary_id,
+        //             'type' => 'programme',
+        //             'status' => Status::ACTIVE->value
+        //         ]
+        //     );
+        // }
     }
 }
