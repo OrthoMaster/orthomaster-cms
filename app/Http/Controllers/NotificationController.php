@@ -131,9 +131,6 @@ class NotificationController extends Controller
     );
   }
 
-
-
-
   /**
    * Test send notification
    */

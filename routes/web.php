@@ -16,11 +16,13 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DashboardVideoAdsController;
 use App\Http\Controllers\DashboardVideoViewsController;
 use App\Http\Controllers\GenerateDocumentController;
+use App\Http\Controllers\GeneratePdfController;
 use App\Http\Controllers\IntEmpTrackerController;
 use App\Http\Controllers\MediaController;
 use App\Http\Controllers\MktShortLinkController;
 use App\Http\Controllers\MktToolsController;
 use App\Http\Controllers\ProductController;
+use App\Http\Controllers\ProductPreDataController;
 use App\Http\Controllers\QuizController;
 use App\Http\Controllers\SaleAssignmentController;
 use App\Http\Controllers\TestingController;
@@ -93,8 +95,19 @@ Route::group(['prefix' => 'admin', 'middleware' => ['cmsAdmin']], function () {
     Route::delete('/delete-image-s3', [ImageController::class, 'deleteFromS3'])->name('delete.image.s3');
 
     // Videos
-    Route::get('/medias', [MediaController::class, 'index'])->name('medias.index');
+    Route::prefix('medias')
+        ->name('medias.')
+        ->group(function () {
+            Route::get('/', [MediaController::class, 'index'])->name('index');
+            Route::get('/data', [MediaController::class, 'chartData'])->name('data');
+            Route::get('/search-experts', [MediaController::class, 'searchExperts'])->name('search-experts');
+            Route::get('/search-videos', [MediaController::class, 'searchVideos'])->name('search-videos');
 
+            Route::get('/create', [MediaController::class, 'create'])->name('create');
+            Route::post('/', [MediaController::class, 'store'])->name('store');
+            Route::get('/{id}/edit', [MediaController::class, 'edit'])->name('edit');
+            Route::put('/{id}', [MediaController::class, 'update'])->name('update');
+        });
     // Route::get('/upload-video-s3', [VideoController::class, 'edit'])->name('edit.video.s3');
     // Route::post('/upload-video-s3', [VideoController::class, 'uploadToS3'])->name('upload.video.s3');
     // Route::delete('/delete-video-s3', [VideoController::class, 'delete'])->name('delete.video.s3');
@@ -162,6 +175,12 @@ Route::group(['prefix' => 'admin', 'middleware' => ['cmsAdmin']], function () {
     Route::get('/rules/products', [ProductController::class, 'viewRules'])->name('rules.products');
     Route::get('/rules/products/edit', [ProductController::class, 'editRules'])->name('rules.products.edit');
     Route::post('/rules/products/edit', [ProductController::class, 'updateRules'])->name('rules.products.update');
+
+    // Product predata
+    Route::get('/products-predata', [ProductPreDataController::class, 'index'])->name('products.predata.index');
+    Route::get('/products-predata/export', [ProductPreDataController::class, 'export'])->name('products.predata.export');
+    Route::post('/products-predata/import/preview', [ProductPreDataController::class, 'importPreview'])->name('products.predata.preview');
+    Route::post('/products-predata/import/apply', [ProductPreDataController::class, 'importApply'])->name('products.predata.apply');
 
     // Ads
     Route::prefix('dashboard/video-ads')
@@ -267,7 +286,7 @@ Route::get('/00e7eb2a475/chat', [AiController::class, 'view']);
 Route::post('/api/ask-notebook', [AiController::class, 'ask']);
 
 // Route::get('/test/auto-programme', [GeneratePdfController::class, 'testAutotProgFilePdf']);
-Route::get('/test-fifpl-cert', [TestingController::class, 'testFifplCert']);
+// Route::get('/test-fifpl-cert', [TestingController::class, 'testFifplCert']);
 // Route::get('/test-meeting', [MeetingController::class, 'createMeeting']);
 
 // Quizz

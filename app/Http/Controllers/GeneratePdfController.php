@@ -487,14 +487,14 @@ class GeneratePdfController extends Controller
     // New program
     public function testAutotProgFilePdf()
     {
-        // $cartId = 222;
-        // $contract = Contract::where('cart_id', $cartId)->where('type', 'programme')->first();
+        $cartId = 160;
+        $contract = Contract::where('cart_id', $cartId)->where('type', 'programme')->first();
 
-        // $signatureUrl = 'https://content-orthomaster-prod.s3.eu-west-1.amazonaws.com/application-data/signatures/2026/05/12/64ee2130-d9f5-4fc1-9dda-5e48779d4ed0.png';
-        // $companyName = 'Pharmacie de Woustviller'; 
-        // $signName = 'Pharmacie de Woustviller';
-        // $signLocation = 'Woustviller';
-        // $signDate = '12/05/2026';
+        $signatureUrl = 'https://content-orthomaster-prod.s3.eu-west-1.amazonaws.com/application-data/signatures/2026/04/16/6b8f108e-9455-4df0-b4e0-de9d26cc841f.png';
+        $companyName = 'Pharmacie Ruspini'; 
+        $signName = 'Tilly Etienne';
+        $signLocation = 'Gerbeviller';
+        $signDate = '16/04/2026';
 
         // return $this->autoProgFilePdf(
         //     $cartId,
@@ -507,31 +507,31 @@ class GeneratePdfController extends Controller
         // );
 
         // Insert db
-        // $pdfUrls = $this->autoProgFilePdf(
-        //     $cartId,
-        //     $signatureUrl,
-        //     $companyName,
-        //     $signName,
-        //     $signLocation,
-        //     $signDate
-        // );
-        // foreach ($pdfUrls as $key => $pdfUrl) {
-        //     $cartNo = str_pad($cartId, 3, '0', STR_PAD_LEFT);
+        $pdfUrls = $this->autoProgFilePdf(
+            $cartId,
+            $signatureUrl,
+            $companyName,
+            $signName,
+            $signLocation,
+            $signDate
+        );
+        foreach ($pdfUrls as $key => $pdfUrl) {
+            $cartNo = str_pad($cartId, 3, '0', STR_PAD_LEFT);
 
-        //     Contract::updateOrCreate(
-        //         [
-        //             'no' => 'Programme_' . now()->format('ym') . '-' . $cartNo . (sizeof($pdfUrls) > 1 ? '_' . ($key + 1) : '') . '-' . now()->format('hi'),
-        //             'cart_id' => $cartId,
-        //         ],
-        //         [
-        //             'document' => $pdfUrl,
-        //             'company_id' => $contract->company_id,
-        //             'created_by' => $contract->created_by,
-        //             'beneficiary_id' => $contract->beneficiary_id,
-        //             'type' => 'programme',
-        //             'status' => Status::ACTIVE->value
-        //         ]
-        //     );
-        // }
+            Contract::updateOrCreate(
+                [
+                    'no' => 'Programme_' . now()->format('ym') . '-' . $cartNo . (sizeof($pdfUrls) > 1 ? '_' . ($key + 1) : '') . '-' . now()->format('hi'),
+                    'cart_id' => $cartId,
+                ],
+                [
+                    'document' => $pdfUrl,
+                    'company_id' => $contract->company_id,
+                    'created_by' => $contract->created_by,
+                    'beneficiary_id' => $contract->beneficiary_id,
+                    'type' => 'programme',
+                    'status' => Status::ACTIVE->value
+                ]
+            );
+        }
     }
 }

@@ -15,6 +15,10 @@ class OldContent extends Model
 
     public $timestamps = false;
 
+    public function video()
+    {
+        return $this->hasOne(Video::class);
+    }
 
     public function getThumbnailAttribute()
     {

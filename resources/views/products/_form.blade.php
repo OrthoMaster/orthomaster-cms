@@ -32,6 +32,47 @@
 
 <div class="panel panel-bordered">
     <div class="panel-heading">
+        <h3 class="panel-title">Pathology filters</h3>
+        <p class="text-muted" style="margin: 4px 0 0; font-size: 12px;">
+            Tick the options this product is suitable for. Children appear when their parent option is checked.
+            Measurement buckets (Tour de poignet, Hauteur…) are NOT shown here — they're matched automatically via the product's size measurements.
+        </p>
+    </div>
+    <div class="panel-body">
+        @if (empty($filterTree))
+            <p class="text-warning">
+                <i class="voyager-warning"></i>
+                No filter tree found. Make sure <code>storage/product/rules.json</code> exists and is valid JSON.
+            </p>
+        @else
+            <div id="filter-tree"></div>
+            <p class="text-muted" style="margin-top: 10px;">
+                <span id="filter-count">{{ count($sel) }}</span> selection(s).
+                <a href="#" id="filter-clear" style="margin-left: 8px;">Clear all</a>
+            </p>
+
+            <div style="margin-top:12px;padding-top:12px;border-top:1px dashed #e0e6ee;">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+                    <label style="font-size:11px;color:#7d8a9c;text-transform:uppercase;letter-spacing:.5px;font-weight:700;margin:0;">
+                        Export — collez dans la colonne <code>keys</code> de l'onglet Groupes
+                    </label>
+                    <button type="button" class="btn btn-xs btn-info" id="filter-copy">
+                        <i class="voyager-file-text"></i> Copy
+                    </button>
+                </div>
+                <textarea id="filter-export" readonly rows="3" class="form-control"
+                          style="font-family:monospace;font-size:11.5px;background:#f7fafc;"></textarea>
+                <small class="text-muted" style="font-size:11px;">
+                    Copiez la liste <strong>entière</strong> — les options parentes sont nécessaires,
+                    sinon les pathologies seront rejetées à l'import.
+                </small>
+            </div>
+        @endif
+    </div>
+</div>
+
+<div class="panel panel-bordered">
+    <div class="panel-heading">
         <h3 class="panel-title">Basic info</h3>
     </div>
     <div class="panel-body">
@@ -96,7 +137,7 @@
             @forelse ($tabs as $idx => $tab)
                 @include('products._tab_row', ['idx' => $idx, 'tab' => $tab])
             @empty
-                @include('products._tab_row', ['idx' => 0, 'tab' => ['title' => '', 'content_markdown' => '']])
+                @include('products._tab_row', ['idx' => 0, 'tab' => ['title' => '', 'content' => '']])
             @endforelse
         </div>
         <button type="button" class="btn btn-default" id="btn-add-tab">
@@ -135,30 +176,6 @@
         <button type="button" class="btn btn-default" id="btn-add-option">
             <i class="voyager-plus"></i> Add option
         </button>
-    </div>
-</div>
-
-<div class="panel panel-bordered">
-    <div class="panel-heading">
-        <h3 class="panel-title">Pathology filters</h3>
-        <p class="text-muted" style="margin: 4px 0 0; font-size: 12px;">
-            Tick the options this product is suitable for. Children appear when their parent option is checked.
-            Measurement buckets (Tour de poignet, Hauteur…) are NOT shown here — they're matched automatically via the product's size measurements.
-        </p>
-    </div>
-    <div class="panel-body">
-        @if (empty($filterTree))
-            <p class="text-warning">
-                <i class="voyager-warning"></i>
-                No filter tree found. Make sure <code>storage/product/rules.json</code> exists and is valid JSON.
-            </p>
-        @else
-            <div id="filter-tree"></div>
-            <p class="text-muted" style="margin-top: 10px;">
-                <span id="filter-count">{{ count($sel) }}</span> selection(s).
-                <a href="#" id="filter-clear" style="margin-left: 8px;">Clear all</a>
-            </p>
-        @endif
     </div>
 </div>
 

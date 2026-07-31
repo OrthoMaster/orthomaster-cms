@@ -124,6 +124,7 @@ $(document).ready(function () {
 
         $tree.html(html);
         $('#filter-count').text(selected.size);
+        $('#filter-export').val(Array.from(selected).join(','));
     }
 
     function escapeHtml(s) { return String(s).replace(/[&<>"']/g, function (c) { return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]; }); }
@@ -678,6 +679,18 @@ $(document).ready(function () {
             selectedGroups.clear();
             $treeEl.find('.group-checkbox').prop('checked', false);
             updateCount();
+        });
+
+        $('#filter-copy').on('click', function () {
+            var el = document.getElementById('filter-export');
+            if (!el) return;
+            el.select();
+            el.setSelectionRange(0, 99999);
+            try { document.execCommand('copy'); } catch (e) {}
+            if (navigator.clipboard) { navigator.clipboard.writeText(el.value).catch(function(){}); }
+            var $b = $(this), t = $b.html();
+            $b.html('<i class="voyager-check"></i> Copié').addClass('btn-success').removeClass('btn-info');
+            setTimeout(function () { $b.html(t).removeClass('btn-success').addClass('btn-info'); }, 1200);
         });
 
         render();

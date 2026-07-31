@@ -20,6 +20,7 @@
         "laravel/sanctum": "^4.0",
         "laravel/tinker": "^2.9",
         "league/flysystem-aws-s3-v3": "^3.29",
+        "phpoffice/phpspreadsheet": "^5.9",
         "phpxmlrpc/phpxmlrpc": "^4.11",
         "setasign/fpdf": "^1.8",
         "setasign/fpdi": "^2.6",

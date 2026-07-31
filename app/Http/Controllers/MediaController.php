@@ -2,31 +2,694 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\OldContent;
-use App\Models\Video;
 use Illuminate\Http\Request;
-use Aws\CloudFront\CloudFrontClient;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 class MediaController extends Controller
 {
+    /** type dans `content` et `trk_content_views` */
+    private const CONTENT_TYPE = 'flash';
+
+    /** version des contenus gérés par ce dashboard */
+    private const CONTENT_VERSION = 'v2';
+
+    /** Colonne du nom dans `experts` — à adapter si différent */
+    private const EXPERT_NAME_COL = 'name';
+
+    /** Nb max de métiers affichés sur le chart 3 */
+    private const MAX_PROFESSIONS = 10;
+
+    /** Libellé pour les users sans profession */
+    private const PROFESSION_FALLBACK = 'Non renseigné';
+
+    /**
+     * Trang dashboard medias.
+     * GET /medias
+     */
     public function index(Request $request)
     {
-        $query = OldContent::where('type', 'flash');
+        $f = $this->resolveFilters($request);
 
-        if ($request->filled('title')) {
-            $query->where('title', 'LIKE', '%' . $request->title . '%');
+        return view('medias.index', [
+            'filters'        => $f,
+            'chart'          => $this->buildChartData($f),
+            'summary'        => $this->buildSummary($f),
+            'medias'         => $this->buildTableRows($f),
+            'selectedExpert' => $this->expertLabel($f['expert_id']),
+            'selectedVideo'  => $this->videoLabel($f['content_id']),
+        ]);
+    }
+
+    /**
+     * Endpoint JSON (fetch dynamique si besoin).
+     * GET /medias/data
+     */
+    public function chartData(Request $request)
+    {
+        $f = $this->resolveFilters($request);
+
+        return response()->json(
+            $this->buildChartData($f) + ['summary' => $this->buildSummary($f)]
+        );
+    }
+
+    /**
+     * Autocomplete auteurs (min 3 caractères).
+     * GET /medias/search-experts?q=...
+     */
+    public function searchExperts(Request $request)
+    {
+        $term = trim((string) $request->query('q', ''));
+
+        if (mb_strlen($term) < 3) {
+            return response()->json([]);
         }
-        if ($request->filled('author')) {
-            $query->where('author', 'LIKE', '%' . $request->author . '%');
+
+        $col = self::EXPERT_NAME_COL;
+
+        $items = DB::table('experts')
+            ->select('id', DB::raw("{$col} as text"))
+            ->where($col, 'like', '%' . $term . '%')
+            ->orderBy($col)
+            ->limit(20)
+            ->get();
+
+        return response()->json($items);
+    }
+
+    /**
+     * Autocomplete vidéos (min 3 caractères), filtré par auteur si fourni.
+     * GET /medias/search-videos?q=...&expert_id=...
+     */
+    public function searchVideos(Request $request)
+    {
+        $term     = trim((string) $request->query('q', ''));
+        $expertId = $request->integer('expert_id') ?: null;
+
+        if (mb_strlen($term) < 3) {
+            return response()->json([]);
         }
-        
-        $query->orderBy('views', 'desc')->orderBy('id_content', 'desc');
 
-        $medias = $query->paginate(10);
-        $medias->appends($request->query());
+        $items = $this->baseContentQuery($expertId, null)
+            ->select('content.id_content as id', 'content.title as text')
+            ->where('content.title', 'like', '%' . $term . '%')
+            ->orderBy('content.title')
+            ->limit(20)
+            ->get();
 
-        return view('medias.index', compact('medias'));
+        return response()->json($items);
+    }
+
+    /* ===================== CREATE / STORE ===================== */
+
+    /**
+     * Formulaire de création.
+     * GET /medias/create
+     */
+    public function create()
+    {
+        return view('medias.create', [
+            'categories'      => $this->mediaCategories(),
+            'pastEvents'      => $this->pastEventOptions(),
+            'selectedExperts' => collect(),
+            'media'           => null,
+            'video'           => null,
+        ]);
+    }
+
+    /**
+     * Enregistrement : videos -> content -> expert_video (transaction).
+     * POST /medias
+     */
+    public function store(Request $request)
+    {
+        $data = $this->validateMedia($request);
+
+        $contentId = DB::transaction(function () use ($data) {
+            // 1) La vidéo (code unique généré automatiquement)
+            $videoId = DB::table('videos')->insertGetId([
+                'code'       => $this->generateVideoCode(),
+                'title'      => $data['title'],
+                'thumbnail'  => $data['thumbnail'],
+                'highlights' => $data['highlights'],
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+
+            // 2) Le contenu (ancienne table, PK id_content)
+            $contentId = DB::table('content')->insertGetId(
+                $this->contentPayload($data) + [
+                    'type'     => self::CONTENT_TYPE,
+                    'version'  => self::CONTENT_VERSION,
+                    'views'    => 1,
+                    'creation' => now()->toDateTimeString(),
+                    'video_id' => $videoId,
+                ],
+                'id_content'
+            );
+
+            // 3) Les auteurs
+            $this->syncExperts($contentId, $data['experts']);
+
+            return $contentId;
+        });
+
+        return redirect()
+            ->route('medias.edit', $contentId)
+            ->with('message', 'Le média a bien été créé.')
+            ->with('alert-type', 'success');
+    }
+
+    /* ===================== EDIT / UPDATE ===================== */
+
+    /**
+     * Formulaire d'édition.
+     * GET /medias/{id}/edit
+     */
+    public function edit(int $id)
+    {
+        $media = $this->editableMediaOrFail($id);
+        $video = DB::table('videos')->where('id', $media->video_id)->first();
+
+        return view('medias.edit', [
+            'categories'      => $this->mediaCategories(),
+            'pastEvents'      => $this->pastEventOptions(),
+            'selectedExperts' => $this->selectedExperts($media->id_content),
+            'media'           => $media,
+            'video'           => $video,
+        ]);
+    }
+
+    /**
+     * Mise à jour : videos + content + expert_video (transaction).
+     * PUT /medias/{id}
+     */
+    public function update(Request $request, int $id)
+    {
+        $media = $this->editableMediaOrFail($id);
+        $data  = $this->validateMedia($request);
+
+        DB::transaction(function () use ($media, $data) {
+            DB::table('videos')
+                ->where('id', $media->video_id)
+                ->update([
+                    'title'      => $data['title'],
+                    'thumbnail'  => $data['thumbnail'],
+                    'highlights' => $data['highlights'],
+                    'updated_at' => now(),
+                ]);
+
+            DB::table('content')
+                ->where('id_content', $media->id_content)
+                ->update($this->contentPayload($data));
+
+            $this->syncExperts($media->id_content, $data['experts']);
+        });
+
+        return redirect()
+            ->route('medias.edit', $media->id_content)
+            ->with('message', 'Le média a bien été mis à jour.')
+            ->with('alert-type', 'success');
+    }
+
+    /* ===================== HELPERS FORMULAIRE ===================== */
+
+    /**
+     * Règles communes création / édition.
+     */
+    private function validateMedia(Request $request): array
+    {
+        $v = $request->validate([
+            'title'             => ['required', 'string', 'max:255'],
+            'thumbnail'         => ['nullable', 'string', 'max:1000'],
+            'aws_object_path'   => ['required', 'string', 'max:1000'],
+            'duration'          => ['nullable', 'string', 'max:50'],
+            'highlights'        => ['nullable', 'string'],
+            'id_media_category' => ['nullable', 'integer', 'exists:media_categories,id'],
+            'id_past_event'     => ['nullable', 'integer', 'exists:past_events,id'],
+            'experts'           => ['nullable', 'array'],
+            'experts.*'         => ['integer', 'exists:experts,id'],
+        ], [], [
+            'aws_object_path'   => 'lien vidéo',
+            'thumbnail'         => 'lien thumbnail',
+            'id_media_category' => 'catégorie',
+            'id_past_event'     => 'événement',
+        ]);
+
+        $v['experts']    = array_values(array_unique($v['experts'] ?? []));
+        $v['highlights'] = $v['highlights'] ?? '';
+        $v['thumbnail']  = $v['thumbnail'] ?? '';
+
+        return $v;
+    }
+
+    /**
+     * Colonnes de `content` communes à l'insert et à l'update.
+     * `event_id` est déduit du past_event choisi.
+     */
+    private function contentPayload(array $data): array
+    {
+        return [
+            'title'             => $data['title'],
+            'duration'          => $data['duration'],
+            'aws_object_path'   => $data['aws_object_path'],
+            'id_media_category' => $data['id_media_category'],
+            'id_past_event'     => $data['id_past_event'],
+            'event_id'          => $this->eventIdFromPastEvent($data['id_past_event']),
+        ];
+    }
+
+    /**
+     * Remplace les auteurs liés au contenu.
+     * NB : la colonne `video_id` de expert_video reste vide (cohérent avec l'existant).
+     */
+    private function syncExperts(int $contentId, array $expertIds): void
+    {
+        DB::table('expert_video')->where('content_id', $contentId)->delete();
+
+        if (empty($expertIds)) {
+            return;
+        }
+
+        DB::table('expert_video')->insert(
+            array_map(fn ($eid) => [
+                'expert_id'  => $eid,
+                'content_id' => $contentId,
+            ], $expertIds)
+        );
+    }
+
+    /**
+     * event_id correspondant au past_event sélectionné.
+     */
+    private function eventIdFromPastEvent(?int $pastEventId): ?int
+    {
+        if (!$pastEventId) {
+            return null;
+        }
+
+        $id = DB::table('past_events')->where('id', $pastEventId)->value('id_event');
+
+        return $id ? (int) $id : null;
+    }
+
+    /**
+     * Code vidéo type UUID, garanti non utilisé.
+     */
+    private function generateVideoCode(): string
+    {
+        do {
+            $code = (string) Str::uuid();
+        } while (DB::table('videos')->where('code', $code)->exists());
+
+        return $code;
+    }
+
+    /**
+     * Contenu éditable uniquement si version v2 ET vidéo liée.
+     */
+    private function editableMediaOrFail(int $id)
+    {
+        $media = DB::table('content')
+            ->where('id_content', $id)
+            ->where('type', self::CONTENT_TYPE)
+            ->where('version', self::CONTENT_VERSION)
+            ->whereNotNull('video_id')
+            ->first();
+
+        abort_if(!$media, 404);
+
+        return $media;
+    }
+
+    private function mediaCategories()
+    {
+        return DB::table('media_categories')->orderBy('name')->get(['id', 'name']);
+    }
+
+    /**
+     * Options "événement" : nom de l'événement + année d'édition.
+     */
+    private function pastEventOptions()
+    {
+        return DB::table('past_events as pe')
+            ->join('events as e', 'e.id', '=', 'pe.id_event')
+            ->select('pe.id', 'pe.edition_year', 'e.name')
+            ->orderBy('e.name')
+            ->orderByDesc('pe.edition_year')
+            ->get()
+            ->map(fn ($r) => (object) [
+                'id'   => $r->id,
+                'text' => trim($r->name . ' — ' . $r->edition_year),
+            ]);
+    }
+
+    /**
+     * Auteurs déjà liés (pour préremplir le select2).
+     */
+    private function selectedExperts(int $contentId)
+    {
+        $col = self::EXPERT_NAME_COL;
+
+        return DB::table('expert_video as ev')
+            ->join('experts as e', 'e.id', '=', 'ev.expert_id')
+            ->where('ev.content_id', $contentId)
+            ->select('e.id', DB::raw("e.{$col} as text"))
+            ->orderBy("e.{$col}")
+            ->get();
+    }
+
+    /* ===================== FILTRES ===================== */
+
+    /**
+     * Tous les filtres normalisés en un seul tableau.
+     */
+    private function resolveFilters(Request $request): array
+    {
+        [$from, $to] = $this->resolveDateRange($request);
+
+        return [
+            'from'        => $from,
+            'to'          => $to,
+            'expert_id'   => $request->integer('expert_id') ?: null,
+            'content_id'  => $request->integer('content_id') ?: null,
+            'granularity' => $this->resolveGranularity($request),
+        ];
+    }
+
+    /**
+     * Granularité valide : day (défaut) / month / year.
+     */
+    private function resolveGranularity(Request $request): string
+    {
+        return in_array($request->query('granularity'), ['day', 'month', 'year'], true)
+            ? $request->query('granularity')
+            : 'day';
+    }
+
+    /**
+     * Khoảng ngày, mặc định 7 ngày gần nhất (to = hôm nay).
+     */
+    private function resolveDateRange(Request $request): array
+    {
+        $to   = $request->date('to')   ?: Carbon::today($this->displayTz());
+        $from = $request->date('from') ?: (clone $to)->subDays(6);
+
+        if ($from->gt($to)) {
+            [$from, $to] = [$to, $from];
+        }
+
+        return [$from->toDateString(), $to->toDateString()];
+    }
+
+    /* ===================== TIMEZONE ===================== */
+
+    private function displayTz(): string
+    {
+        return config('app.display_timezone', 'Asia/Ho_Chi_Minh');
+    }
+
+    /**
+     * Décalage (minutes) entre le TZ de stockage (app.timezone) et le TZ
+     * d'affichage. Nécessaire car `created_at` est stocké en UTC.
+     */
+    private function tzOffsetMinutes(): int
+    {
+        $app  = config('app.timezone', 'UTC');
+        $disp = $this->displayTz();
+
+        return (int) round(Carbon::now($disp)->utcOffset() - Carbon::now($app)->utcOffset());
+    }
+
+    /**
+     * Expression SQL : colonne datetime convertie en heure locale.
+     */
+    private function localExpr(string $column): string
+    {
+        $m = $this->tzOffsetMinutes();
+
+        return $m === 0 ? $column : "DATE_ADD({$column}, INTERVAL {$m} MINUTE)";
+    }
+
+    /**
+     * Bornes [début, fin] en heure de stockage à partir de dates locales.
+     */
+    private function storageBounds(string $from, string $to): array
+    {
+        $disp = $this->displayTz();
+        $app  = config('app.timezone', 'UTC');
+
+        return [
+            Carbon::parse($from . ' 00:00:00', $disp)->setTimezone($app)->format('Y-m-d H:i:s'),
+            Carbon::parse($to . ' 23:59:59', $disp)->setTimezone($app)->format('Y-m-d H:i:s'),
+        ];
+    }
+
+    /* ===================== QUERIES DE BASE ===================== */
+
+    /**
+     * Contenus de type flash, filtrés par auteur / vidéo.
+     */
+    private function baseContentQuery(?int $expertId, ?int $contentId)
+    {
+        return DB::table('content')
+            ->where('content.type', self::CONTENT_TYPE)
+            ->when($contentId, fn ($q) => $q->where('content.id_content', $contentId))
+            ->when($expertId, fn ($q) => $q->whereIn('content.id_content', function ($sub) use ($expertId) {
+                $sub->from('expert_video')
+                    ->select('content_id')
+                    ->where('expert_id', $expertId);
+            }));
+    }
+
+    /**
+     * Vues (log brut) filtrées par période + auteur + vidéo.
+     */
+    private function viewsQuery(array $f)
+    {
+        [$start, $end] = $this->storageBounds($f['from'], $f['to']);
+
+        return DB::table('trk_content_views as v')
+            ->where('v.type', self::CONTENT_TYPE)
+            ->whereBetween('v.created_at', [$start, $end])
+            ->when($f['content_id'], fn ($q) => $q->where('v.content_id', $f['content_id']))
+            ->when($f['expert_id'], fn ($q) => $q->whereIn('v.content_id', function ($sub) use ($f) {
+                $sub->from('expert_video')
+                    ->select('content_id')
+                    ->where('expert_id', $f['expert_id']);
+            }));
+    }
+
+    /**
+     * Sous-requête : vues agrégées par content_id sur la période.
+     */
+    private function periodViewsSub(array $f)
+    {
+        [$start, $end] = $this->storageBounds($f['from'], $f['to']);
+
+        return DB::table('trk_content_views')
+            ->select('content_id')
+            ->selectRaw('COUNT(*) as period_views')
+            ->selectRaw('COUNT(DISTINCT user_id) as period_viewers')
+            ->where('type', self::CONTENT_TYPE)
+            ->whereBetween('created_at', [$start, $end])
+            ->groupBy('content_id');
+    }
+
+    /* ===================== SUMMARY ===================== */
+
+    /**
+     * 4 KPI : nb vidéos, total views historique (content.views),
+     * total vues sur la période, nb spectateurs uniques.
+     */
+    private function buildSummary(array $f): array
+    {
+        $agg = $this->baseContentQuery($f['expert_id'], $f['content_id'])
+            ->joinSub($this->periodViewsSub($f), 'pv', 'pv.content_id', '=', 'content.id_content')
+            ->selectRaw('COUNT(*) as total_videos')
+            ->selectRaw('COALESCE(SUM(content.views), 0) as total_views_all')
+            ->first();
+
+        $period = $this->viewsQuery($f)
+            ->selectRaw('COUNT(*) as total_views_period')
+            ->selectRaw('COUNT(DISTINCT v.user_id) as total_viewers')
+            ->first();
+
+        return [
+            'total_videos'       => (int) ($agg->total_videos ?? 0),
+            'total_views_all'    => (int) ($agg->total_views_all ?? 0),
+            'total_views_period' => (int) ($period->total_views_period ?? 0),
+            'total_viewers'      => (int) ($period->total_viewers ?? 0),
+        ];
+    }
+
+    /* ===================== CHARTS ===================== */
+
+    /**
+     * 3 séries : temporelle (bucket day/month/year), horaire (0-23), métiers.
+     */
+    private function buildChartData(array $f): array
+    {
+        return [
+            'timeline'    => $this->timelineSeries($f),
+            'hours'       => $this->hoursSeries($f),
+            'professions' => $this->professionsSeries($f),
+            'granularity' => $f['granularity'],
+            'from'        => $f['from'],
+            'to'          => $f['to'],
+        ];
+    }
+
+    /**
+     * Chart 1 : vues par bucket temporel, sans trou de date.
+     */
+    private function timelineSeries(array $f): array
+    {
+        $expr = $this->localExpr('v.created_at');
+
+        $rows = $this->viewsQuery($f)
+            ->selectRaw("DATE({$expr}) as stat_date")
+            ->selectRaw('COUNT(*) as views')
+            ->groupBy('stat_date')
+            ->orderBy('stat_date')
+            ->get()
+            ->keyBy(fn ($r) => Carbon::parse($r->stat_date)->toDateString());
+
+        $buckets = [];
+        $cursor  = Carbon::parse($f['from']);
+        $end     = Carbon::parse($f['to']);
+
+        while ($cursor->lte($end)) {
+            $row = $rows->get($cursor->toDateString());
+
+            [$key, $label] = $this->bucketFor($cursor, $f['granularity']);
+
+            if (!isset($buckets[$key])) {
+                $buckets[$key] = ['label' => $label, 'views' => 0];
+            }
+
+            $buckets[$key]['views'] += (int) ($row->views ?? 0);
+
+            $cursor->addDay();
+        }
+
+        return [
+            'labels' => array_column($buckets, 'label'),
+            'views'  => array_column($buckets, 'views'),
+        ];
+    }
+
+    /**
+     * Chart 2 : répartition des vues sur les 24 heures (heure locale).
+     */
+    private function hoursSeries(array $f): array
+    {
+        $expr = $this->localExpr('v.created_at');
+
+        $rows = $this->viewsQuery($f)
+            ->selectRaw("HOUR({$expr}) as h")
+            ->selectRaw('COUNT(*) as views')
+            ->groupBy('h')
+            ->get()
+            ->keyBy('h');
+
+        $labels = [];
+        $views  = [];
+
+        for ($h = 0; $h < 24; $h++) {
+            $labels[] = sprintf('%02dh', $h);
+            $views[]  = (int) (optional($rows->get($h))->views ?? 0);
+        }
+
+        return ['labels' => $labels, 'views' => $views];
+    }
+
+    /**
+     * Chart 3 : vues + spectateurs uniques par métier.
+     */
+    private function professionsSeries(array $f): array
+    {
+        $rows = $this->viewsQuery($f)
+            ->leftJoin('users as u', 'u.id', '=', 'v.user_id')
+            ->leftJoin('professions as p', 'p.id', '=', 'u.profession_id')
+            ->selectRaw('COALESCE(p.name, ?) as profession', [self::PROFESSION_FALLBACK])
+            ->selectRaw('COUNT(*) as views')
+            ->selectRaw('COUNT(DISTINCT v.user_id) as viewers')
+            ->groupBy('profession')
+            ->orderByDesc('views')
+            ->limit(self::MAX_PROFESSIONS)
+            ->get();
+
+        return [
+            'labels'  => $rows->pluck('profession')->all(),
+            'views'   => $rows->pluck('views')->map(fn ($n) => (int) $n)->all(),
+            'viewers' => $rows->pluck('viewers')->map(fn ($n) => (int) $n)->all(),
+        ];
+    }
+
+    /**
+     * [clé_bucket, label_affiché] selon la granularité.
+     */
+    private function bucketFor(Carbon $date, string $granularity): array
+    {
+        return match ($granularity) {
+            'year'  => [$date->format('Y'), $date->format('Y')],
+            'month' => [$date->format('Y-m'), $date->translatedFormat('M Y')],
+            default => [$date->toDateString(), $date->format('d/m')],
+        };
+    }
+
+    /* ===================== TABLE ===================== */
+
+    /**
+     * Liste paginée des vidéos vues sur la période (selon filtres).
+     * `author` = noms des experts concaténés par " - ".
+     */
+    private function buildTableRows(array $f)
+    {
+        $col = self::EXPERT_NAME_COL;
+
+        $authorSub = "(SELECT GROUP_CONCAT(e.{$col} ORDER BY e.{$col} SEPARATOR ' - ')
+                       FROM expert_video ev
+                       JOIN experts e ON e.id = ev.expert_id
+                       WHERE ev.content_id = content.id_content)";
+
+        return $this->baseContentQuery($f['expert_id'], $f['content_id'])
+            ->joinSub($this->periodViewsSub($f), 'pv', 'pv.content_id', '=', 'content.id_content')
+            ->select(
+                'content.id_content',
+                'content.title',
+                'content.views',
+                'content.version',
+                'content.video_id',
+                'pv.period_views',
+                'pv.period_viewers'
+            )
+            ->selectRaw("{$authorSub} as author")
+            ->orderByDesc('pv.period_views')
+            ->paginate(25)
+            ->withQueryString();
+    }
+
+    /* ===================== LABELS SÉLECTION ===================== */
+
+    private function expertLabel(?int $expertId): ?string
+    {
+        if (!$expertId) {
+            return null;
+        }
+
+        return DB::table('experts')->where('id', $expertId)->value(self::EXPERT_NAME_COL);
+    }
+
+    private function videoLabel(?int $contentId): ?string
+    {
+        if (!$contentId) {
+            return null;
+        }
+
+        return DB::table('content')->where('id_content', $contentId)->value('title');
     }
 }
