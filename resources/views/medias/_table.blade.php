@@ -25,7 +25,7 @@
                 <table class="table table-striped database-tables">
                     <thead>
                         <tr>
-                            <th>Cont ID</th>
+                            <th>#</th>
                             <th>Titre</th>
                             <th>Auteur</th>
                             <th>Vues (période)</th>
@@ -36,9 +36,9 @@
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach ($medias as $media)
+                        @foreach ($medias as $key => $media)
                             <tr>
-                                <td>{{ $media->id_content }}</td>
+                                <td>{{ $key + 1 }}</td>
                                 <td><b>{{ $media->title }}</b></td>
                                 <td>{{ $media->author ?: '—' }}</td>
                                 <td>{{ number_format($media->period_views, 0, ',', ' ') }}</td>

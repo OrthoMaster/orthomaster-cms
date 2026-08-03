@@ -171,6 +171,7 @@ class MediaController extends Controller
             // 2) Le contenu (ancienne table, PK id_content)
             $contentId = DB::table('content')->insertGetId(
                 $this->contentPayload($data) + [
+                    'title'    => $data['title'],
                     'type'     => self::CONTENT_TYPE,
                     'version'  => self::CONTENT_VERSION,
                     'views'    => 1,
@@ -200,8 +201,11 @@ class MediaController extends Controller
      */
     public function edit(int $id)
     {
-        $media = $this->editableMediaOrFail($id);
-        $video = DB::table('videos')->where('id', $media->video_id)->first();
+        $media = $this->mediaOrFail($id);
+
+        $video = $media->video_id
+            ? DB::table('videos')->where('id', $media->video_id)->first()
+            : null;
 
         return view('medias.edit', [
             'categories'      => $this->mediaCategories(),
@@ -213,27 +217,35 @@ class MediaController extends Controller
     }
 
     /**
-     * Mise à jour : videos + content + expert_video (transaction).
+     * Mise à jour : content (+ videos si le média est lié à une vidéo).
+     * Sans vidéo liée, le titre reste inchangé.
      * PUT /medias/{id}
      */
     public function update(Request $request, int $id)
     {
-        $media = $this->editableMediaOrFail($id);
-        $data  = $this->validateMedia($request);
+        $media    = $this->mediaOrFail($id);
+        $hasVideo = (bool) $media->video_id;
+        $data     = $this->validateMedia($request, $hasVideo);
 
-        DB::transaction(function () use ($media, $data) {
-            DB::table('videos')
-                ->where('id', $media->video_id)
-                ->update([
-                    'title'      => $data['title'],
-                    'thumbnail'  => $data['thumbnail'],
-                    'highlights' => $data['highlights'],
-                    'updated_at' => now(),
-                ]);
+        DB::transaction(function () use ($media, $data, $hasVideo) {
+            $payload = $this->contentPayload($data);
+
+            if ($hasVideo) {
+                $payload['title'] = $data['title'];
+
+                DB::table('videos')
+                    ->where('id', $media->video_id)
+                    ->update([
+                        'title'      => $data['title'],
+                        'thumbnail'  => $data['thumbnail'],
+                        'highlights' => $data['highlights'],
+                        'updated_at' => now(),
+                    ]);
+            }
 
             DB::table('content')
                 ->where('id_content', $media->id_content)
-                ->update($this->contentPayload($data));
+                ->update($payload);
 
             $this->syncExperts($media->id_content, $data['experts']);
         });
@@ -248,22 +260,30 @@ class MediaController extends Controller
 
     /**
      * Règles communes création / édition.
+     * Les champs thumbnail / highlights n'existent que si une vidéo est liée.
      */
-    private function validateMedia(Request $request): array
+    private function validateMedia(Request $request, bool $withVideo = true): array
     {
-        $v = $request->validate([
-            'title'             => ['required', 'string', 'max:255'],
-            'thumbnail'         => ['nullable', 'string', 'max:1000'],
-            'aws_object_path'   => ['required', 'string', 'max:1000'],
+        $rules = [
+            'title'             => ['nullable', 'string', 'max:255'],
+            'aws_object_path'   => ['nullable', 'string', 'max:1000'],
             'duration'          => ['nullable', 'string', 'max:50'],
-            'highlights'        => ['nullable', 'string'],
+            'tags'              => ['nullable', 'string'],
             'id_media_category' => ['nullable', 'integer', 'exists:media_categories,id'],
             'id_past_event'     => ['nullable', 'integer', 'exists:past_events,id'],
             'experts'           => ['nullable', 'array'],
             'experts.*'         => ['integer', 'exists:experts,id'],
-        ], [], [
+        ];
+
+        if ($withVideo) {
+            $rules['thumbnail']  = ['nullable', 'string', 'max:1000'];
+            $rules['highlights'] = ['nullable', 'string'];
+        }
+
+        $v = $request->validate($rules, [], [
             'aws_object_path'   => 'lien vidéo',
             'thumbnail'         => 'lien thumbnail',
+            'tags'              => 'metadata',
             'id_media_category' => 'catégorie',
             'id_past_event'     => 'événement',
         ]);
@@ -271,20 +291,38 @@ class MediaController extends Controller
         $v['experts']    = array_values(array_unique($v['experts'] ?? []));
         $v['highlights'] = $v['highlights'] ?? '';
         $v['thumbnail']  = $v['thumbnail'] ?? '';
+        $v['tags']       = $v['tags'] ?? '';
+        $v['aws_object_path'] = $v['aws_object_path'] ?? '';
 
         return $v;
     }
 
     /**
+     * Contenu de type flash, quelle que soit sa version.
+     */
+    private function mediaOrFail(int $id)
+    {
+        $media = DB::table('content')
+            ->where('id_content', $id)
+            ->where('type', self::CONTENT_TYPE)
+            ->first();
+
+        abort_if(!$media, 404);
+
+        return $media;
+    }
+
+    /**
      * Colonnes de `content` communes à l'insert et à l'update.
+     * `title` est géré à part (non modifiable sans vidéo liée).
      * `event_id` est déduit du past_event choisi.
      */
     private function contentPayload(array $data): array
     {
         return [
-            'title'             => $data['title'],
             'duration'          => $data['duration'],
             'aws_object_path'   => $data['aws_object_path'],
+            'tags'              => $data['tags'],
             'id_media_category' => $data['id_media_category'],
             'id_past_event'     => $data['id_past_event'],
             'event_id'          => $this->eventIdFromPastEvent($data['id_past_event']),

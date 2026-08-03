@@ -25,48 +25,51 @@
         $('#id_media_category, #id_past_event').select2({ width: '100%' });
 
         /* ---------- Aperçu des chapitres (même parsing que le back) ---------- */
-        function renderHighlights() {
-            var lines = $('#highlights').val().split(/\r\n|\r|\n/);
-            var re = /^(\d+):(\d+)(?::(\d+))?\s+(.+)$/;
-            var ok = [], ko = 0;
+        if ($('#highlights').length) {
 
-            lines.forEach(function (raw) {
-                var line = raw.trim();
-                if (!line) return;
+            function renderHighlights() {
+                var lines = $('#highlights').val().split(/\r\n|\r|\n/);
+                var re = /^(\d+):(\d+)(?::(\d+))?\s+(.+)$/;
+                var ok = [], ko = 0;
 
-                var m = line.match(re);
-                if (!m) { ko++; return; }
+                lines.forEach(function (raw) {
+                    var line = raw.trim();
+                    if (!line) return;
 
-                var sec = m[3] !== undefined && m[3] !== ''
-                    ? (+m[1]) * 3600 + (+m[2]) * 60 + (+m[3])
-                    : (+m[1]) * 60 + (+m[2]);
+                    var m = line.match(re);
+                    if (!m) { ko++; return; }
 
-                ok.push({ time: sec, label: m[4].trim() });
-            });
+                    var sec = m[3] !== undefined && m[3] !== ''
+                        ? (+m[1]) * 3600 + (+m[2]) * 60 + (+m[3])
+                        : (+m[1]) * 60 + (+m[2]);
 
-            var html = '';
-
-            if (ok.length) {
-                html += '<ul class="list-unstyled" style="margin-top:8px">';
-                ok.forEach(function (h) {
-                    var hh = Math.floor(h.time / 3600),
-                        mm = Math.floor((h.time % 3600) / 60),
-                        ss = h.time % 60,
-                        t  = (hh ? hh + ':' + String(mm).padStart(2, '0') : mm) + ':' + String(ss).padStart(2, '0');
-                    html += '<li><span class="label label-info">' + t + '</span> ' + $('<div>').text(h.label).html() + '</li>';
+                    ok.push({ time: sec, label: m[4].trim() });
                 });
-                html += '</ul>';
+
+                var html = '';
+
+                if (ok.length) {
+                    html += '<ul class="list-unstyled" style="margin-top:8px">';
+                    ok.forEach(function (h) {
+                        var hh = Math.floor(h.time / 3600),
+                            mm = Math.floor((h.time % 3600) / 60),
+                            ss = h.time % 60,
+                            t  = (hh ? hh + ':' + String(mm).padStart(2, '0') : mm) + ':' + String(ss).padStart(2, '0');
+                        html += '<li><span class="label label-info">' + t + '</span> ' + $('<div>').text(h.label).html() + '</li>';
+                    });
+                    html += '</ul>';
+                }
+
+                if (ko > 0) {
+                    html += '<div class="text-danger" style="margin-top:6px">'
+                         +  ko + ' ligne(s) au mauvais format seront ignorée(s).</div>';
+                }
+
+                $('#highlights-preview').html(html);
             }
 
-            if (ko > 0) {
-                html += '<div class="text-danger" style="margin-top:6px">'
-                     +  ko + ' ligne(s) au mauvais format seront ignorée(s).</div>';
-            }
-
-            $('#highlights-preview').html(html);
+            $('#highlights').on('input', renderHighlights);
+            renderHighlights();
         }
-
-        $('#highlights').on('input', renderHighlights);
-        renderHighlights();
     });
 </script>
