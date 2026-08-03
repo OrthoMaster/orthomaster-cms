@@ -185,6 +185,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     // Product
     Route::get('/protocols/products', [ProductController::class, 'getProtocols']);
     Route::get('/rules/products', [ProductController::class, 'getRules']);
+    Route::get('/rules/pathology-summary/{id}', [ProductController::class, 'getPathologySummary']);
     Route::prefix('products')->group(function () {
         Route::get('/', [ProductController::class, 'index']);
         Route::get('/count', [ProductController::class, 'count']);

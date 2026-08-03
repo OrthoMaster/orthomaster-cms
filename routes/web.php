@@ -294,6 +294,13 @@ Route::get('/quiz/{slug}', [QuizController::class, 'show'])->name('quiz.show');
 Route::post('/quiz/{slug}/submit', [QuizController::class, 'submit'])->name('quiz.submit');
 Route::post('/submissions/{submission}/contact', [QuizController::class, 'contact'])->name('quiz.contact');
 
+// ---- Rapport partagé : HORS de tout middleware admin/auth ----
+Route::get('medias/shared/{code}', [MediaController::class, 'shared'])
+    ->name('medias.shared');
+Route::get('medias/shared/{code}/search-experts', [MediaController::class, 'sharedSearchExperts'])
+    ->name('medias.shared.search-experts');
+Route::get('medias/shared/{code}/search-videos', [MediaController::class, 'sharedSearchVideos'])
+    ->name('medias.shared.search-videos');
 
 // Redirection publique des short links (idéalement sur le domaine go.orthomaster.fr)
 Route::get('/sh/{code}', [MktToolsController::class, 'redirect'])->name('mkt.shortlink.redirect');

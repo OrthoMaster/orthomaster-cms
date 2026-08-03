@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
+use App\Models\PathologySummary;
 use App\Models\Product;
 use App\Services\FilterRulesService;
 use Illuminate\Http\JsonResponse;
@@ -29,8 +30,6 @@ class ProductController extends Controller
     }
 
     /**
-     * GET /api/products/protocols
-     *
      * Returns the protocols list (protocols.json). One entry per
      * treatment protocol: title + phases + groups (filter and info).
      * RN uses this to render the ProtocolScreen when the user's
@@ -41,6 +40,15 @@ class ProductController extends Controller
     public function getProtocols(): JsonResponse
     {
         return response()->json($this->rules->loadProtocols());
+    }
+
+    /**
+     * Returns the pathology summary
+     */
+    public function getPathologySummary(string $id): JsonResponse
+    {
+        $pathSum = PathologySummary::find($id);
+        return response()->json($pathSum);
     }
 
     /**
