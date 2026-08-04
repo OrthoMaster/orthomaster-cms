@@ -142,7 +142,7 @@ class MediaController extends Controller
     {
         return view('medias.create', [
             'categories'      => $this->mediaCategories(),
-            'pastEvents'      => $this->pastEventOptions(),
+            'pastEvents'      => $this->pastEventOptions(null, true),
             'selectedExperts' => collect(),
             'media'           => null,
             'video'           => null,
@@ -209,7 +209,7 @@ class MediaController extends Controller
 
         return view('medias.edit', [
             'categories'      => $this->mediaCategories(),
-            'pastEvents'      => $this->pastEventOptions(),
+            'pastEvents'      => $this->pastEventOptions(null, true),
             'selectedExperts' => $this->selectedExperts($media->id_content),
             'media'           => $media,
             'video'           => $video,
@@ -265,9 +265,9 @@ class MediaController extends Controller
     private function validateMedia(Request $request, bool $withVideo = true): array
     {
         $rules = [
-            'title'             => ['nullable', 'string', 'max:255'],
             'aws_object_path'   => ['nullable', 'string', 'max:1000'],
             'duration'          => ['nullable', 'string', 'max:50'],
+            'description'       => ['nullable', 'string'],
             'tags'              => ['nullable', 'string'],
             'id_media_category' => ['nullable', 'integer', 'exists:media_categories,id'],
             'id_past_event'     => ['nullable', 'integer', 'exists:past_events,id'],
@@ -283,15 +283,16 @@ class MediaController extends Controller
         $v = $request->validate($rules, [], [
             'aws_object_path'   => 'lien vidéo',
             'thumbnail'         => 'lien thumbnail',
-            'tags'              => 'metadata',
+            'tags'              => 'mots-clés',
             'id_media_category' => 'catégorie',
             'id_past_event'     => 'événement',
         ]);
 
-        $v['experts']    = array_values(array_unique($v['experts'] ?? []));
-        $v['highlights'] = $v['highlights'] ?? '';
-        $v['thumbnail']  = $v['thumbnail'] ?? '';
-        $v['tags']       = $v['tags'] ?? '';
+        $v['experts']         = array_values(array_unique($v['experts'] ?? []));
+        $v['highlights']      = $v['highlights'] ?? '';
+        $v['thumbnail']       = $v['thumbnail'] ?? '';
+        $v['tags']            = $v['tags'] ?? '';
+        $v['description']     = $v['description'] ?? '';
         $v['aws_object_path'] = $v['aws_object_path'] ?? '';
 
         return $v;
@@ -322,6 +323,7 @@ class MediaController extends Controller
         return [
             'duration'          => $data['duration'],
             'aws_object_path'   => $data['aws_object_path'],
+            'description'       => $data['description'],
             'tags'              => $data['tags'],
             'id_media_category' => $data['id_media_category'],
             'id_past_event'     => $data['id_past_event'],
@@ -405,7 +407,7 @@ class MediaController extends Controller
     /**
      * Options "édition" : année seule. `event_id` sert au filtrage en cascade.
      */
-    private function pastEventOptions(?int $eventId = null)
+    private function pastEventOptions(?int $eventId = null, bool $withEventName = false)
     {
         return DB::table('past_events as pe')
             ->join('events as e', 'e.id', '=', 'pe.id_event')
@@ -417,7 +419,9 @@ class MediaController extends Controller
             ->map(fn ($r) => (object) [
                 'id'       => $r->id,
                 'event_id' => $r->id_event,
-                'text'     => (string) $r->edition_year,
+                'text'     => $withEventName
+                    ? $r->edition_year . ' — ' . $r->name
+                    : (string) $r->edition_year,
             ]);
     }
 

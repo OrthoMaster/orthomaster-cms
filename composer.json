@@ -18,6 +18,7 @@
         "kreait/laravel-firebase": "^6.2",
         "laravel/framework": "^11.31",
         "laravel/sanctum": "^4.0",
+        "laravel/scout": "^11.4",
         "laravel/tinker": "^2.9",
         "league/flysystem-aws-s3-v3": "^3.29",
         "phpoffice/phpspreadsheet": "^5.9",

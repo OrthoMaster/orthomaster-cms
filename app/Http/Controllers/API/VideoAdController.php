@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\VideoAds;
 use App\Services\VideoAdService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 
 class VideoAdController extends Controller
 {
@@ -53,10 +54,12 @@ class VideoAdController extends Controller
             'user_id' => ['nullable', 'integer'],
         ]);
 
-        $this->service->recordImpression(
-            $videoAd,
-            userId: $validated['user_id'] ?? $request->user()?->id
-        );
+        if (Auth::check() && Auth::user()->role->name == 'user') {
+            $this->service->recordImpression(
+                $videoAd,
+                userId: $validated['user_id'] ?? $request->user()?->id
+            );
+        }
 
         return response()->json([
             'video_ads_id'       => $videoAd->id,
@@ -70,11 +73,13 @@ class VideoAdController extends Controller
 
         $data = $request->all();
 
-        $this->service->recordView(
-            $videoAd,
-            isCompleted: $data['is_completed'] ?? false,
-            userId: $data['user_id'] ?? $request->user()?->id
-        );
+        if (Auth::check() && Auth::user()->role->name == 'user') {
+            $this->service->recordView(
+                $videoAd,
+                isCompleted: $data['is_completed'] ?? false,
+                userId: $data['user_id'] ?? $request->user()?->id
+            );
+        }
 
         return response()->json([
             'video_ads_id' => $videoAd->id,
@@ -88,12 +93,14 @@ class VideoAdController extends Controller
 
         $data = $request->all();
 
-        $this->service->recordView(
-            $videoAd,
-            isCompleted: true,
-            userId: $data['user_id'] ?? $request->user()?->id,
-            isContacted: $data['is_contacted'] ?? false,
-        );
+        if (Auth::check() && Auth::user()->role->name == 'user') {
+            $this->service->recordView(
+                $videoAd,
+                isCompleted: true,
+                userId: $data['user_id'] ?? $request->user()?->id,
+                isContacted: $data['is_contacted'] ?? false,
+            );
+        }
 
         return response()->json([
             'video_ads_id' => $videoAd->id,

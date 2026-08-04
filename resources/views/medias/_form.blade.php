@@ -68,8 +68,13 @@
                 </div>
 
                 <div class="form-group">
-                    <label for="tags">Metadata</label>
-                    <textarea class="form-control" id="tags" name="tags" rows="4">{{ $val('tags', $media->tags ?? '') }}</textarea>
+                    <label for="description">Description</label>
+                    <textarea class="form-control" id="description" name="description" rows="4">{{ $val('description', $media->description ?? '') }}</textarea>
+                </div>
+
+                <div class="form-group">
+                    <label for="tags">Tags / Mots-clés</label>
+                    <textarea class="form-control" id="tags" name="tags" rows="2">{{ $val('tags', $media->tags ?? '') }}</textarea>
                 </div>
 
                 @if ($hasVideo)

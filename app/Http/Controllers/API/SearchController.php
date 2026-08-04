@@ -134,21 +134,30 @@ class SearchController extends Controller
 
             // Search Videos
             if (!$category || $category === 'all' || $category === 'video') {
-                $events = Event::where('name', 'LIKE', '%' . $keyword . '%')->get()->pluck('id')->toArray();
 
-                $videosQuery = OldContent::where('type', 'flash')
-                    ->where(function ($query) use ($keyword, $events) {
-                        $query->where('title', 'LIKE', '%' . $keyword . '%')
-                            ->orWhere('author', 'LIKE', '%' . $keyword . '%')
-                            ->orWhere('tags', 'LIKE', '%' . $keyword . '%');
+                $eventIds = Event::search($keyword)->keys()->toArray();
 
-                        if (!empty($events)) {
-                            $query->orWhereIn('event_id', $events);
-                        }
-                    })
+                $videoIdsFromKeyword = OldContent::search($keyword)
+                    ->where('type', 'flash')
+                    ->keys()
+                    ->toArray();
+
+                // Video thuộc các event khớp keyword
+                $videoIdsFromEvents = [];
+                if (!empty($eventIds)) {
+                    $videoIdsFromEvents = OldContent::where('type', 'flash')
+                        ->whereIn('event_id', $eventIds)
+                        ->pluck('id_content')
+                        ->toArray();
+                }
+
+                $allVideoIds = array_unique(array_merge($videoIdsFromKeyword, $videoIdsFromEvents));
+
+                $videosQuery = OldContent::whereIn('id_content', $allVideoIds)
                     ->orderBy('id_content', 'desc');
 
                 $videos = $videosQuery->paginate($perPage, ['*'], 'videos_page', $videosPage);
+
                 $results['videos'] = [
                     'data' => $videos->items(),
                     'current_page' => $videos->currentPage(),

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Event;
 use App\Models\TrkContentViews;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -51,11 +52,13 @@ class MediaController extends Controller
                     ->where('id_content', $request->contentId)
                     ->increment('views');
 
-                TrkContentViews::create([
-                    'user_id' => $request->user()->id,
-                    'content_id' => $request->contentId,
-                    'type' => 'flash'
-                ]);
+                if (Auth::check() && Auth::user()->role->name == 'user') {
+                    TrkContentViews::create([
+                        'user_id' => $request->user()->id,
+                        'content_id' => $request->contentId,
+                        'type' => 'flash'
+                    ]);
+                }
             }
 
             if ($content->s3_path) {
