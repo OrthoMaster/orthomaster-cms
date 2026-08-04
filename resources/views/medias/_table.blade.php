@@ -28,6 +28,7 @@
                             <th>#</th>
                             <th>Titre</th>
                             <th>Auteur</th>
+                            <th>Événement</th>
                             <th>Vues (période)</th>
                             <th>Spectateurs (période)</th>
                             <th>Vues (total)</th>
@@ -42,6 +43,7 @@
                                 <td>{{ $medias->firstItem() + $key }}</td>
                                 <td><b>{{ $media->title }}</b></td>
                                 <td>{{ $media->author ?: '—' }}</td>
+                                <td>{{ $media->edition_year ? $media->edition_year . ' — ' . $media->event_name : '—' }}</td>
                                 <td>{{ number_format($media->period_views, 0, ',', ' ') }}</td>
                                 <td>{{ number_format($media->period_viewers, 0, ',', ' ') }}</td>
                                 <td>{{ number_format($media->views, 0, ',', ' ') }}</td>

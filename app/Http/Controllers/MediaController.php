@@ -754,6 +754,7 @@ class MediaController extends Controller
     /**
      * Liste paginée des médias (toutes, même sans vue sur la période).
      * `author` = noms des experts concaténés par " - ".
+     * `event_label` = année d'édition — nom de l'événement.
      */
     private function buildTableRows(array $f)
     {
@@ -766,12 +767,16 @@ class MediaController extends Controller
 
         return $this->baseContentQuery($f)
             ->leftJoinSub($this->periodViewsSub($f), 'pv', 'pv.content_id', '=', 'content.id_content')
+            ->leftJoin('past_events as pe', 'pe.id', '=', 'content.id_past_event')
+            ->leftJoin('events as ev2', 'ev2.id', '=', 'pe.id_event')
             ->select(
                 'content.id_content',
                 'content.title',
                 'content.views',
                 'content.version',
-                'content.video_id'
+                'content.video_id',
+                'pe.edition_year',
+                'ev2.name as event_name'
             )
             ->selectRaw('COALESCE(pv.period_views, 0) as period_views')
             ->selectRaw('COALESCE(pv.period_viewers, 0) as period_viewers')
