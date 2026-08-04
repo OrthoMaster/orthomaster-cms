@@ -31,4 +31,16 @@
     .kpi-purple .kpi-value, .kpi-purple .kpi-icon { color: #955BA5; }
     .kpi-green  .kpi-value, .kpi-green  .kpi-icon { color: #2ECC71; }
     .kpi-red    .kpi-value, .kpi-red    .kpi-icon { color: #E74C3C; }
+
+    /* --- KPI à deux chiffres --- */
+    .kpi-split { display: flex; }
+    .kpi-part { flex: 1 1 50%; }
+    .kpi-part + .kpi-part { border-left: 1px solid #eceff3; padding-left: 14px; }
+
+    .kpi-sub {
+        font-size: 11px; text-transform: uppercase; letter-spacing: .03em;
+        color: #a4abb3; margin-bottom: 2px;
+    }
+
+    .kpi-split .kpi-value { font-size: 24px; }
 </style>

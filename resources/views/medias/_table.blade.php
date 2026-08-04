@@ -29,6 +29,7 @@
                             <th>Titre</th>
                             <th>Auteur</th>
                             <th>Vues (période)</th>
+                            <th>Spectateurs (période)</th>
                             <th>Vues (total)</th>
                             @if ($canEdit)
                                 <th class="actions text-right">Actions</th>
@@ -38,10 +39,11 @@
                     <tbody>
                         @foreach ($medias as $key => $media)
                             <tr>
-                                <td>{{ $key + 1 }}</td>
+                                <td>{{ $medias->firstItem() + $key }}</td>
                                 <td><b>{{ $media->title }}</b></td>
                                 <td>{{ $media->author ?: '—' }}</td>
                                 <td>{{ number_format($media->period_views, 0, ',', ' ') }}</td>
+                                <td>{{ number_format($media->period_viewers, 0, ',', ' ') }}</td>
                                 <td>{{ number_format($media->views, 0, ',', ' ') }}</td>
                                 @if ($canEdit)
                                     <td class="no-sort no-click text-right">

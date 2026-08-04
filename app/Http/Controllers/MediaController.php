@@ -596,15 +596,21 @@ class MediaController extends Controller
     /* ===================== SUMMARY ===================== */
 
     /**
-     * 4 KPI : nb vidéos, total views historique (content.views),
-     * total vues sur la période, nb spectateurs uniques.
+     * KPI : vidéos (total / période), vues (total historique / période),
+     * spectateurs uniques sur la période.
      */
     private function buildSummary(array $f): array
     {
-        $agg = $this->baseContentQuery($f)
-            ->joinSub($this->periodViewsSub($f), 'pv', 'pv.content_id', '=', 'content.id_content')
+        // Tous les médias correspondant aux filtres, période exclue
+        $all = $this->baseContentQuery($f)
             ->selectRaw('COUNT(*) as total_videos')
             ->selectRaw('COALESCE(SUM(content.views), 0) as total_views_all')
+            ->first();
+
+        // Uniquement ceux qui ont été vus sur la période
+        $seen = $this->baseContentQuery($f)
+            ->joinSub($this->periodViewsSub($f), 'pv', 'pv.content_id', '=', 'content.id_content')
+            ->selectRaw('COUNT(*) as period_videos')
             ->first();
 
         $period = $this->viewsQuery($f)
@@ -613,8 +619,9 @@ class MediaController extends Controller
             ->first();
 
         return [
-            'total_videos'       => (int) ($agg->total_videos ?? 0),
-            'total_views_all'    => (int) ($agg->total_views_all ?? 0),
+            'total_videos'       => (int) ($all->total_videos ?? 0),
+            'period_videos'      => (int) ($seen->period_videos ?? 0),
+            'total_views_all'    => (int) ($all->total_views_all ?? 0),
             'total_views_period' => (int) ($period->total_views_period ?? 0),
             'total_viewers'      => (int) ($period->total_viewers ?? 0),
         ];

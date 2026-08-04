@@ -36,7 +36,7 @@ class SyncBrevoController extends Controller
         });
 
         return response()->json([
-            'message'   => 'Đã đẩy job vào queue, đang xử lý nền.',
+            'message'   => 'Job pushed to the queue; currently processing in the background.',
             'dispatched' => $count,
         ]);
     }
