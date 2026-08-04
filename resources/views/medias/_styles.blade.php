@@ -39,7 +39,8 @@
 
     .kpi-sub {
         font-size: 11px; text-transform: uppercase; letter-spacing: .03em;
-        color: #a4abb3; margin-bottom: 2px;
+        color: #a4abb3; margin-bottom: 4px; line-height: 1.35;
+        min-height: 30px; padding-right: 8px;
     }
 
     .kpi-split .kpi-value { font-size: 24px; }

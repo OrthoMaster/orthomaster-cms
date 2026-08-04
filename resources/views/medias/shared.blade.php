@@ -105,7 +105,7 @@
             </div>
 
             {{-- ============ KPI ============ --}}
-            @include('medias._kpis')
+            @include('medias._kpis', ['showViewers' => false])
 
             {{-- ============ CHART 1 ============ --}}
             <div class="panel panel-bordered">
@@ -118,7 +118,7 @@
             </div>
 
             {{-- ============ TABLE ============ --}}
-            @include('medias._table', ['canEdit' => false])
+            @include('medias._table', ['canEdit' => false, 'showViewers' => false])
 
         </div>
     </div>

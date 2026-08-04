@@ -1,4 +1,7 @@
-@php $canEdit = $canEdit ?? true; @endphp
+@php
+    $canEdit     = $canEdit ?? true;
+    $showViewers = $showViewers ?? true;
+@endphp
 
 @if (!$medias->count() > 0)
     <div class="alert alert-warning">
@@ -30,7 +33,9 @@
                             <th>Auteur</th>
                             <th>Événement</th>
                             <th>Vues (période)</th>
-                            <th>Spectateurs (période)</th>
+                            @if ($showViewers)
+                                <th>Utilisateurs (période)</th>
+                            @endif
                             <th>Vues (total)</th>
                             @if ($canEdit)
                                 <th class="actions text-right">Actions</th>
@@ -45,7 +50,9 @@
                                 <td>{{ $media->author ?: '—' }}</td>
                                 <td>{{ $media->edition_year ? $media->edition_year . ' — ' . $media->event_name : '—' }}</td>
                                 <td>{{ number_format($media->period_views, 0, ',', ' ') }}</td>
-                                <td>{{ number_format($media->period_viewers, 0, ',', ' ') }}</td>
+                                @if ($showViewers)
+                                    <td>{{ number_format($media->period_viewers, 0, ',', ' ') }}</td>
+                                @endif
                                 <td>{{ number_format($media->views, 0, ',', ' ') }}</td>
                                 @if ($canEdit)
                                     <td class="no-sort no-click text-right">
