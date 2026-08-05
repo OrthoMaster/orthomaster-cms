@@ -81,6 +81,7 @@ Route::group(['prefix' => 'admin', 'middleware' => ['cmsAdmin']], function () {
         ->group(function () {
             Route::get('/', [DashboardUserController::class, 'index'])->name('index');
             Route::get('/data', [DashboardUserController::class, 'chartData'])->name('data');
+            Route::get('/export', [DashboardUserController::class, 'export'])->name('export');
         });
 
     // Lessons

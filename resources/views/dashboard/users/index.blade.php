@@ -102,11 +102,14 @@
                                     value="{{ $filters['to'] }}">
                             </div>
 
-                            <div class="col-md-2" style="padding-top:18px">
+                            <div class="col-md-3" style="padding-top:18px">
                                 <button type="submit" class="btn btn-primary">Appliquer</button>
+                                <button type="button" id="btn-export" class="btn btn-success">
+                                    <i class="voyager-file-text"></i> Excel
+                                </button>
                             </div>
 
-                            <div class="col-md-4" style="padding-top:14px">
+                            <div class="col-md-3" style="padding-top:14px">
                                 <div class="panel-stats pull-right">
                                     <div class="panel-stat is-opens">
                                         <span>Connexions</span>
@@ -363,6 +366,11 @@
                     .always(function () {
                         $btn.prop('disabled', false).text('Appliquer');
                     });
+            });
+
+            /* ---------- Export Excel : reprend les filtres courants ---------- */
+            $('#btn-export').on('click', function () {
+                window.location = '{{ route('dashboard.users.export') }}?' + $form.serialize();
             });
         });
     </script>
