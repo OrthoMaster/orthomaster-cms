@@ -16,11 +16,11 @@
 
         <form action="{{ route('medias.store') }}" method="POST">
             @csrf
-            @include('medias._form', ['submitLabel' => 'Créer'])
+            @include('dashboard.medias._form', ['submitLabel' => 'Créer'])
         </form>
     </div>
 @stop
 
 @section('javascript')
-    @include('medias._form_scripts')
+    @include('dashboard.medias._form_scripts')
 @stop

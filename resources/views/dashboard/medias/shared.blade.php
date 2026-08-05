@@ -7,7 +7,7 @@
 
     <link rel="stylesheet" href="{{ voyager_asset('css/app.css') }}">
     <link rel="stylesheet" href="{{ asset('css/custom-pagination.css') }}">
-    @include('medias._styles')
+    @include('dashboard.medias._styles')
 
     <style>
         body { background: #f8f8f8; padding-bottom: 40px; }
@@ -105,7 +105,7 @@
             </div>
 
             {{-- ============ KPI ============ --}}
-            @include('medias._kpis', ['showViewers' => false])
+            @include('dashboard.medias._kpis', ['showViewers' => false])
 
             {{-- ============ CHART 1 ============ --}}
             <div class="panel panel-bordered">
@@ -118,7 +118,7 @@
             </div>
 
             {{-- ============ TABLE ============ --}}
-            @include('medias._table', ['canEdit' => false, 'showViewers' => false])
+            @include('dashboard.medias._table', ['canEdit' => false, 'showViewers' => false])
 
         </div>
     </div>

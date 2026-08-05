@@ -32,7 +32,7 @@ class MediaController extends Controller
     {
         $f = $this->resolveFilters($request);
 
-        return view('medias.index', [
+        return view('dashboard.medias.index', [
             'filters'           => $f,
             'chart'             => $this->buildChartData($f),
             'summary'           => $this->buildSummary($f),
@@ -140,7 +140,7 @@ class MediaController extends Controller
      */
     public function create()
     {
-        return view('medias.create', [
+        return view('dashboard.medias.create', [
             'categories'      => $this->mediaCategories(),
             'pastEvents'      => $this->pastEventOptions(null, true),
             'selectedExperts' => collect(),
@@ -188,7 +188,7 @@ class MediaController extends Controller
         });
 
         return redirect()
-            ->route('medias.edit', $contentId)
+            ->route('dashboard.medias.edit', $contentId)
             ->with('message', 'Le média a bien été créé.')
             ->with('alert-type', 'success');
     }
@@ -207,7 +207,7 @@ class MediaController extends Controller
             ? DB::table('videos')->where('id', $media->video_id)->first()
             : null;
 
-        return view('medias.edit', [
+        return view('dashboard.medias.edit', [
             'categories'      => $this->mediaCategories(),
             'pastEvents'      => $this->pastEventOptions(null, true),
             'selectedExperts' => $this->selectedExperts($media->id_content),
@@ -251,7 +251,7 @@ class MediaController extends Controller
         });
 
         return redirect()
-            ->route('medias.edit', $media->id_content)
+            ->route('dashboard.medias.edit', $media->id_content)
             ->with('message', 'Le média a bien été mis à jour.')
             ->with('alert-type', 'success');
     }
@@ -644,6 +644,7 @@ class MediaController extends Controller
 
         if ($full) {
             $data['hours']       = $this->hoursSeries($f);
+            $data['weekdays']    = $this->weekdaysSeries($f);
             $data['professions'] = $this->professionsSeries($f);
         }
 
@@ -709,6 +710,36 @@ class MediaController extends Controller
         for ($h = 0; $h < 24; $h++) {
             $labels[] = sprintf('%02dh', $h);
             $views[]  = (int) (optional($rows->get($h))->views ?? 0);
+        }
+
+        return ['labels' => $labels, 'views' => $views];
+    }
+
+    /**
+     * Chart 2 bis : répartition des vues par jour de la semaine (heure locale),
+     * de lundi à dimanche.
+     */
+    private function weekdaysSeries(array $f): array
+    {
+        $expr = $this->localExpr('v.created_at');
+
+        // WEEKDAY() : 0 = lundi ... 6 = dimanche
+        $rows = $this->viewsQuery($f)
+            ->selectRaw("WEEKDAY({$expr}) as d")
+            ->selectRaw('COUNT(*) as views')
+            ->groupBy('d')
+            ->get()
+            ->keyBy('d');
+
+        $labels = [];
+        $views  = [];
+
+        // Lundi de référence, pour obtenir les libellés traduits
+        $monday = Carbon::parse('2024-01-01');
+
+        for ($d = 0; $d < 7; $d++) {
+            $labels[] = ucfirst((clone $monday)->addDays($d)->translatedFormat('l'));
+            $views[]  = (int) (optional($rows->get($d))->views ?? 0);
         }
 
         return ['labels' => $labels, 'views' => $views];
@@ -822,7 +853,7 @@ class MediaController extends Controller
         $f['event_id']      = (int) $event->id;
         $f['past_event_id'] = $this->restrictPastEvent($f['past_event_id'], (int) $event->id);
 
-        return view('medias.shared', [
+        return view('dashboard.medias.shared', [
             'event'          => $event,
             'code'           => $code,
             'filters'        => $f,

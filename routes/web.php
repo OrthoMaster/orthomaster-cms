@@ -13,6 +13,8 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CompanyController;
 use App\Http\Controllers\ContentViewReportController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\DashboardLessonController;
+use App\Http\Controllers\DashboardUserController;
 use App\Http\Controllers\DashboardVideoAdsController;
 use App\Http\Controllers\DashboardVideoViewsController;
 use App\Http\Controllers\GenerateDocumentController;
@@ -72,7 +74,40 @@ Route::get('/group/members', [AuthCompanyRequestController::class, 'redirectRegi
 Route::get('/legal-notice', [WebController::class, 'legalNotice'])->name('web.legal-notice');
 
 Route::group(['prefix' => 'admin', 'middleware' => ['cmsAdmin']], function () {
-    Route::get('/', [DashboardController::class, 'index'])->name('voyager.dashboard');
+    Route::get('/', [DashboardUserController::class, 'index'])->name('voyager.dashboard');
+
+    Route::prefix('dashboard/users')
+        ->name('dashboard.users.')
+        ->group(function () {
+            Route::get('/', [DashboardUserController::class, 'index'])->name('index');
+            Route::get('/data', [DashboardUserController::class, 'chartData'])->name('data');
+        });
+
+    // Lessons
+    Route::prefix('dashboard/lessons')
+        ->name('dashboard.lessons.')
+        ->group(function () {
+            Route::get('/', [DashboardLessonController::class, 'index'])->name('index');
+            Route::get('/data', [DashboardLessonController::class, 'chartData'])->name('data');
+            Route::get('/search-lessons', [DashboardLessonController::class, 'searchLessons'])->name('search-lessons');
+        });
+
+    // Videos
+    Route::prefix('dashboard/medias')
+        ->name('medias.')
+        ->group(function () {
+            Route::get('/', [MediaController::class, 'index'])->name('index');
+            Route::get('/data', [MediaController::class, 'chartData'])->name('data');
+            Route::get('/search-experts', [MediaController::class, 'searchExperts'])->name('search-experts');
+            Route::get('/search-videos', [MediaController::class, 'searchVideos'])->name('search-videos');
+
+            Route::get('/create', [MediaController::class, 'create'])->name('create');
+            Route::post('/', [MediaController::class, 'store'])->name('store');
+            Route::get('/{id}/edit', [MediaController::class, 'edit'])->name('edit');
+            Route::put('/{id}', [MediaController::class, 'update'])->name('update');
+        });
+
+
     Route::get('/dashboard/staffs/kpi', [DashboardController::class, 'staffIndex'])->name('voyager.dashboard.staff');
     Route::post('/dashboard/staffs/kpi', [DashboardController::class, 'syncStaff']);
     Route::post('/dashboard/staffs/log/{id}', [DashboardController::class, 'confirmStaffLog'])->name('kpi.log.confirm');
@@ -86,28 +121,12 @@ Route::group(['prefix' => 'admin', 'middleware' => ['cmsAdmin']], function () {
     Route::get('/dashboard/charts/app-opens', [DashboardController::class, 'getAppOpensChartData'])->name('dashboard.app-opens-chart-data');
     Route::get('/dashboard/charts/media-views', [DashboardController::class, 'getMediaViewsByHourChartData'])->name('dashboard.media-views-chart-data');
 
-    // Reports
-    Route::get('reports/content/profession', [ContentViewReportController::class, 'viewsByProfession'])->name('reports.content.profession');
-
     // Images
     Route::post('/upload-image-s3/lesson', [ImageController::class, 'uploadLessonImageToS3'])->name('upload.image.s3.lesson');
     Route::post('/upload-image-s3/student-certificate', [ImageController::class, 'uploadStudentCertificateToS3'])->name('upload.image.s3.student');
     Route::delete('/delete-image-s3', [ImageController::class, 'deleteFromS3'])->name('delete.image.s3');
 
-    // Videos
-    Route::prefix('medias')
-        ->name('medias.')
-        ->group(function () {
-            Route::get('/', [MediaController::class, 'index'])->name('index');
-            Route::get('/data', [MediaController::class, 'chartData'])->name('data');
-            Route::get('/search-experts', [MediaController::class, 'searchExperts'])->name('search-experts');
-            Route::get('/search-videos', [MediaController::class, 'searchVideos'])->name('search-videos');
 
-            Route::get('/create', [MediaController::class, 'create'])->name('create');
-            Route::post('/', [MediaController::class, 'store'])->name('store');
-            Route::get('/{id}/edit', [MediaController::class, 'edit'])->name('edit');
-            Route::put('/{id}', [MediaController::class, 'update'])->name('update');
-        });
     // Route::get('/upload-video-s3', [VideoController::class, 'edit'])->name('edit.video.s3');
     // Route::post('/upload-video-s3', [VideoController::class, 'uploadToS3'])->name('upload.video.s3');
     // Route::delete('/delete-video-s3', [VideoController::class, 'delete'])->name('delete.video.s3');

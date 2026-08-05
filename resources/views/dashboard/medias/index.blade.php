@@ -108,7 +108,7 @@
                 </div>
 
                 {{-- ============ KPI ============ --}}
-                @include('medias._kpis')
+                @include('dashboard.medias._kpis')
 
                 {{-- ============ CHART 1 ============ --}}
                 <div class="panel panel-bordered">
@@ -120,7 +120,7 @@
                     </div>
                 </div>
 
-                {{-- ============ CHART 2 + 3 ============ --}}
+                {{-- ============ CHART 2 + 2bis ============ --}}
                 <div class="row row-eq-height">
                     <div class="col-md-6">
                         <div class="panel panel-bordered">
@@ -135,17 +135,27 @@
                     <div class="col-md-6">
                         <div class="panel panel-bordered">
                             <div class="panel-heading">
-                                <h3 class="panel-title"><i class="voyager-people"></i> Vues par profession</h3>
+                                <h3 class="panel-title"><i class="voyager-calendar"></i> Répartition par jour de la semaine</h3>
                             </div>
                             <div class="panel-body">
-                                <div style="height:320px"><canvas id="chartProfessions"></canvas></div>
+                                <div style="height:320px"><canvas id="chartWeekdays"></canvas></div>
                             </div>
                         </div>
                     </div>
                 </div>
 
+                {{-- ============ CHART 3 ============ --}}
+                <div class="panel panel-bordered">
+                    <div class="panel-heading">
+                        <h3 class="panel-title"><i class="voyager-people"></i> Vues par profession</h3>
+                    </div>
+                    <div class="panel-body">
+                        <div style="height:320px"><canvas id="chartProfessions"></canvas></div>
+                    </div>
+                </div>
+
                 {{-- ============ TABLE ============ --}}
-                @include('medias._table', ['canEdit' => true])
+                @include('dashboard.medias._table', ['canEdit' => true])
 
             </div>
         </div>
@@ -154,7 +164,7 @@
 
 @section('css')
     <link rel="stylesheet" href="{{ asset('css/custom-pagination.css') }}" />
-    @include('medias._styles')
+    @include('dashboard.medias._styles')
 @stop
 
 @section('javascript')
@@ -346,13 +356,26 @@
                 }
             });
 
+            new Chart(document.getElementById('chartWeekdays'), {
+                type: 'bar',
+                data: {
+                    labels: CHART.weekdays.labels,
+                    datasets: [{ label: 'Vues', data: CHART.weekdays.views, backgroundColor: '#F39C12' }]
+                },
+                options: {
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
+                }
+            });
+
             new Chart(document.getElementById('chartProfessions'), {
                 type: 'bar',
                 data: {
                     labels: CHART.professions.labels,
                     datasets: [
                         { label: 'Vues',        data: CHART.professions.views,   backgroundColor: '#2ECC71' },
-                        { label: 'Spectateurs', data: CHART.professions.viewers, backgroundColor: '#E74C3C' }
+                        { label: 'Utilisateurs', data: CHART.professions.viewers, backgroundColor: '#E74C3C' }
                     ]
                 },
                 options: {

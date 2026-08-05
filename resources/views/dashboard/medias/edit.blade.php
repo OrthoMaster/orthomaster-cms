@@ -17,11 +17,11 @@
         <form action="{{ route('medias.update', $media->id_content) }}" method="POST">
             @csrf
             @method('PUT')
-            @include('medias._form', ['submitLabel' => 'Enregistrer'])
+            @include('dashboard.medias._form', ['submitLabel' => 'Enregistrer'])
         </form>
     </div>
 @stop
 
 @section('javascript')
-    @include('medias._form_scripts')
+    @include('dashboard.medias._form_scripts')
 @stop
