@@ -3,9 +3,12 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 
 class MediaController extends Controller
 {
@@ -18,11 +21,17 @@ class MediaController extends Controller
     /** Colonne du nom dans `experts` — à adapter si différent */
     private const EXPERT_NAME_COL = 'name';
 
-    /** Nb max de métiers affichés sur le chart 3 */
+    /** Nb max de métiers affichés sur le graphique */
     private const MAX_PROFESSIONS = 10;
 
     /** Libellé pour les users sans profession */
     private const PROFESSION_FALLBACK = 'Non renseigné';
+
+    /** Dossier S3 des vignettes */
+    private const THUMBNAIL_FOLDER = 'thumbnails';
+
+    /** Versions possibles d'un contenu */
+    private const CONTENT_VERSIONS = ['v1', 'v2'];
 
     /**
      * Trang dashboard medias.
@@ -33,14 +42,14 @@ class MediaController extends Controller
         $f = $this->resolveFilters($request);
 
         return view('dashboard.medias.index', [
-            'filters'           => $f,
-            'chart'             => $this->buildChartData($f),
-            'summary'           => $this->buildSummary($f),
-            'medias'            => $this->buildTableRows($f),
-            'events'            => $this->eventOptions(),
-            'pastEvents'        => $this->pastEventOptions(),
-            'selectedExpert'    => $this->expertLabel($f['expert_id']),
-            'selectedVideo'     => $this->videoLabel($f['content_id']),
+            'filters'        => $f,
+            'chart'          => $this->buildChartData($f),
+            'summary'        => $this->buildSummary($f),
+            'medias'         => $this->buildTableRows($f),
+            'events'         => $this->eventOptions(),
+            'pastEvents'     => $this->pastEventOptions(),
+            'selectedExpert' => $this->expertLabel($f['expert_id']),
+            'selectedVideo'  => $this->videoLabel($f['content_id']),
         ]);
     }
 
@@ -132,6 +141,86 @@ class MediaController extends Controller
             ->get();
     }
 
+    /* ===================== RAPPORT PARTAGÉ ===================== */
+
+    /**
+     * Rapport en lecture seule pour l'organisateur d'un événement.
+     * L'événement est imposé par le code présent dans l'URL.
+     * GET /medias/shared/{code}
+     */
+    public function shared(Request $request, string $code)
+    {
+        $event = $this->eventByCodeOrFail($code);
+
+        $f = $this->resolveFilters($request);
+        $f['event_id']      = (int) $event->id;
+        $f['past_event_id'] = $this->restrictPastEvent($f['past_event_id'], (int) $event->id);
+
+        return view('dashboard.medias.shared', [
+            'event'          => $event,
+            'code'           => $code,
+            'filters'        => $f,
+            'chart'          => $this->buildChartData($f, false),
+            'summary'        => $this->buildSummary($f),
+            'medias'         => $this->buildTableRows($f),
+            'pastEvents'     => $this->pastEventOptions((int) $event->id),
+            'selectedExpert' => $this->expertLabel($f['expert_id']),
+            'selectedVideo'  => $this->videoLabel($f['content_id']),
+        ]);
+    }
+
+    /**
+     * Autocomplete auteurs, version partagée (événement imposé).
+     * GET /medias/shared/{code}/search-experts
+     */
+    public function sharedSearchExperts(Request $request, string $code)
+    {
+        $event = $this->eventByCodeOrFail($code);
+
+        return response()->json(
+            $this->expertItems($request, (int) $event->id)
+        );
+    }
+
+    /**
+     * Autocomplete vidéos, version partagée (événement imposé).
+     * GET /medias/shared/{code}/search-videos
+     */
+    public function sharedSearchVideos(Request $request, string $code)
+    {
+        $event = $this->eventByCodeOrFail($code);
+
+        return response()->json(
+            $this->videoItems($request, (int) $event->id)
+        );
+    }
+
+    private function eventByCodeOrFail(string $code)
+    {
+        $event = DB::table('events')->where('code', $code)->first();
+
+        abort_if(!$event, 404);
+
+        return $event;
+    }
+
+    /**
+     * Ignore une édition qui n'appartient pas à l'événement partagé.
+     */
+    private function restrictPastEvent(?int $pastEventId, int $eventId): ?int
+    {
+        if (!$pastEventId) {
+            return null;
+        }
+
+        $ok = DB::table('past_events')
+            ->where('id', $pastEventId)
+            ->where('id_event', $eventId)
+            ->exists();
+
+        return $ok ? $pastEventId : null;
+    }
+
     /* ===================== CREATE / STORE ===================== */
 
     /**
@@ -144,8 +233,13 @@ class MediaController extends Controller
             'categories'      => $this->mediaCategories(),
             'pastEvents'      => $this->pastEventOptions(null, true),
             'selectedExperts' => collect(),
+            'topics'          => $this->topicOptions(),
+            'selectedTopics'  => [],
             'media'           => null,
             'video'           => null,
+            'thumbnailUrl'    => null,
+            'block' => null,
+            'chapters' => []
         ]);
     }
 
@@ -157,15 +251,20 @@ class MediaController extends Controller
     {
         $data = $this->validateMedia($request);
 
-        $contentId = DB::transaction(function () use ($data) {
-            // 1) La vidéo (code unique généré automatiquement)
+        // Upload hors transaction : une écriture S3 ne se rollback pas
+        $thumbnailPath = $this->storeThumbnail($request->file('thumbnail_file'));
+
+        $contentId = DB::transaction(function () use ($data, $thumbnailPath) {
+            // 1) La vidéo
             $videoId = DB::table('videos')->insertGetId([
-                'code'       => $this->generateVideoCode(),
-                'title'      => $data['title'],
-                'thumbnail'  => $data['thumbnail'],
-                'highlights' => $data['highlights'],
-                'created_at' => now(),
-                'updated_at' => now(),
+                'code'         => $data['code'] ?: null,
+                'title'        => $data['title'],
+                'thumbnail'    => $thumbnailPath,
+                'subtitles'    => $data['subtitles'],
+                'highlights'   => $data['highlights'],
+                'published_at' => $data['published_at'],
+                'created_at'   => now(),
+                'updated_at'   => now(),
             ]);
 
             // 2) Le contenu (ancienne table, PK id_content)
@@ -173,7 +272,6 @@ class MediaController extends Controller
                 $this->contentPayload($data) + [
                     'title'    => $data['title'],
                     'type'     => self::CONTENT_TYPE,
-                    'version'  => self::CONTENT_VERSION,
                     'views'    => 1,
                     'creation' => now()->toDateTimeString(),
                     'video_id' => $videoId,
@@ -181,14 +279,15 @@ class MediaController extends Controller
                 'id_content'
             );
 
-            // 3) Les auteurs
+            // 3) Les auteurs et centres d'intérêt
             $this->syncExperts($contentId, $data['experts']);
+            $this->syncTopics($contentId, $videoId, $data['topics']);
 
             return $contentId;
         });
 
         return redirect()
-            ->route('dashboard.medias.edit', $contentId)
+            ->route('medias.edit', $contentId)
             ->with('message', 'Le média a bien été créé.')
             ->with('alert-type', 'success');
     }
@@ -211,8 +310,15 @@ class MediaController extends Controller
             'categories'      => $this->mediaCategories(),
             'pastEvents'      => $this->pastEventOptions(null, true),
             'selectedExperts' => $this->selectedExperts($media->id_content),
+            'topics'          => $this->topicOptions(),
+            'selectedTopics'  => $this->selectedTopicIds($media->id_content),
             'media'           => $media,
             'video'           => $video,
+            'thumbnailUrl'    => $this->thumbnailUrl($video->thumbnail ?? null),
+            'block'           => $video
+                ? DB::table('blocks')->where('video_id', $video->id)->first()
+                : null,
+            'chapters'        => $this->parsedChapters($video->highlights ?? null),
         ]);
     }
 
@@ -224,23 +330,52 @@ class MediaController extends Controller
     public function update(Request $request, int $id)
     {
         $media    = $this->mediaOrFail($id);
-        $hasVideo = (bool) $media->video_id;
-        $data     = $this->validateMedia($request, $hasVideo);
 
-        DB::transaction(function () use ($media, $data, $hasVideo) {
+        // Bascule de version : action distincte, aucun autre champ n'est traité
+        if ($request->input('_action') === 'upgrade') {
+            return $this->upgradeVersion($media);
+        }
+
+
+        $hasVideo = (bool) $media->video_id;
+        $data     = $this->validateMedia($request, $hasVideo, $media->video_id);
+
+        $video = $hasVideo
+            ? DB::table('videos')->where('id', $media->video_id)->first()
+            : null;
+
+        // Upload hors transaction : une écriture S3 ne se rollback pas
+        $newThumbnail = $hasVideo
+            ? $this->storeThumbnail($request->file('thumbnail_file'))
+            : null;
+
+        DB::transaction(function () use ($request, $media, $data, $hasVideo, $newThumbnail) {
             $payload = $this->contentPayload($data);
 
             if ($hasVideo) {
                 $payload['title'] = $data['title'];
 
+                $videoPayload = [
+                    'code'         => $data['code'] ?: null,
+                    'title'        => $data['title'],
+                    'subtitles'    => $data['subtitles'],
+                    'highlights'   => $data['highlights'],
+                    'published_at' => $data['published_at'],
+                    'updated_at'   => now(),
+                ];
+
+                if ($newThumbnail) {
+                    $videoPayload['thumbnail'] = $newThumbnail;
+                }
+
                 DB::table('videos')
                     ->where('id', $media->video_id)
-                    ->update([
-                        'title'      => $data['title'],
-                        'thumbnail'  => $data['thumbnail'],
-                        'highlights' => $data['highlights'],
-                        'updated_at' => now(),
-                    ]);
+                    ->update($videoPayload);
+
+                $this->saveContentBlock(
+                    (int) $media->video_id,
+                    $request->input('content_blocks')
+                );
             }
 
             DB::table('content')
@@ -248,11 +383,78 @@ class MediaController extends Controller
                 ->update($payload);
 
             $this->syncExperts($media->id_content, $data['experts']);
+            $this->syncTopics($media->id_content, $media->video_id, $data['topics']);
+        });
+
+        // L'ancienne image n'est supprimée qu'une fois la base à jour
+        if ($newThumbnail && !empty($video->thumbnail)) {
+            $this->deleteThumbnail($video->thumbnail);
+        }
+
+        return redirect()
+            ->route('medias.edit', $media->id_content)
+            ->with('message', 'Le média a bien été mis à jour.')
+            ->with('alert-type', 'success');
+    }
+
+    /**
+     * Crée une vidéo vide et la rattache au contenu, pour les médias
+     * hérités qui n'en possèdent pas encore.
+     * POST /medias/{id}/create-version
+     */
+    public function createVersion(int $id)
+    {
+        $media = $this->mediaOrFail($id);
+
+        if ($media->video_id) {
+            return redirect()
+                ->route('medias.edit', $media->id_content)
+                ->with('message', 'Ce média est déjà lié à une vidéo.')
+                ->with('alert-type', 'warning');
+        }
+
+        DB::transaction(function () use ($media) {
+            $videoId = DB::table('videos')->insertGetId([
+                'code'         => null,
+                'title'        => $media->title,
+                'thumbnail'    => null,
+                'subtitles'    => null,
+                'highlights'   => null,
+                'published_at' => null,
+                'created_at'   => now(),
+                'updated_at'   => now(),
+            ]);
+
+            DB::table('content')
+                ->where('id_content', $media->id_content)
+                ->update(['video_id' => $videoId]);
         });
 
         return redirect()
-            ->route('dashboard.medias.edit', $media->id_content)
-            ->with('message', 'Le média a bien été mis à jour.')
+            ->route('medias.edit', $media->id_content)
+            ->with('message', 'Nouvelle version créée. Complétez le code et la vignette.')
+            ->with('alert-type', 'success');
+    }
+
+    /**
+     * Bascule un contenu hérité en version 2.
+     */
+    private function upgradeVersion($media)
+    {
+        if ($media->version === self::CONTENT_VERSION) {
+            return redirect()
+                ->route('medias.edit', $media->id_content)
+                ->with('message', 'Ce média est déjà en version 2.')
+                ->with('alert-type', 'warning');
+        }
+
+        DB::table('content')
+            ->where('id_content', $media->id_content)
+            ->update(['version' => self::CONTENT_VERSION]);
+
+        return redirect()
+            ->route('medias.edit', $media->id_content)
+            ->with('message', 'Le média est désormais en version 2.')
             ->with('alert-type', 'success');
     }
 
@@ -260,69 +462,83 @@ class MediaController extends Controller
 
     /**
      * Règles communes création / édition.
-     * Les champs thumbnail / highlights n'existent que si une vidéo est liée.
+     * Sans vidéo liée : le titre et les champs de `videos` ne sont pas soumis.
      */
-    private function validateMedia(Request $request, bool $withVideo = true): array
+    private function validateMedia(Request $request, bool $withVideo = true, ?int $videoId = null): array
     {
         $rules = [
-            'aws_object_path'   => ['nullable', 'string', 'max:1000'],
             'duration'          => ['nullable', 'string', 'max:50'],
             'description'       => ['nullable', 'string'],
             'tags'              => ['nullable', 'string'],
+            'published'         => ['nullable', 'boolean'],
             'id_media_category' => ['nullable', 'integer', 'exists:media_categories,id'],
             'id_past_event'     => ['nullable', 'integer', 'exists:past_events,id'],
             'experts'           => ['nullable', 'array'],
             'experts.*'         => ['integer', 'exists:experts,id'],
+            'version'           => ['nullable', 'string', Rule::in(self::CONTENT_VERSIONS)],
+            'topics'            => ['nullable', 'array'],
+            'topics.*'          => ['integer', 'exists:topics,id'],
+            'trend_flg'         => ['nullable', 'boolean'],
         ];
 
         if ($withVideo) {
-            $rules['thumbnail']  = ['nullable', 'string', 'max:1000'];
-            $rules['highlights'] = ['nullable', 'string'];
+            $codeUnique = Rule::unique('videos', 'code');
+
+            if ($videoId) {
+                $codeUnique = $codeUnique->ignore($videoId);
+            }
+
+            $rules['title']          = ['required', 'string', 'max:255'];
+            $rules['code']           = ['nullable', 'string', 'max:50', $codeUnique];
+            $rules['subtitles']      = ['nullable', 'string', 'max:100'];
+            $rules['published_at']   = ['nullable', 'date'];
+            $rules['highlights']     = ['nullable', 'string'];
+            $rules['thumbnail_file'] = ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'];
+            $rules['content_blocks'] = ['nullable', 'string'];
         }
 
-        $v = $request->validate($rules, [], [
-            'aws_object_path'   => 'lien vidéo',
-            'thumbnail'         => 'lien thumbnail',
+        $v = $request->validate($rules, [
+            'code.unique'          => 'Ce code vidéo est déjà utilisé par un autre média.',
+            'thumbnail_file.max'   => 'La vignette ne doit pas dépasser 5 Mo.',
+            'thumbnail_file.image' => 'Le fichier doit être une image.',
+        ], [
+            'code'              => 'code vidéo',
+            'published_at'      => 'date de publication',
+            'thumbnail_file'    => 'vignette',
             'tags'              => 'mots-clés',
             'id_media_category' => 'catégorie',
             'id_past_event'     => 'événement',
         ]);
 
-        $v['experts']         = array_values(array_unique($v['experts'] ?? []));
-        $v['highlights']      = $v['highlights'] ?? '';
-        $v['thumbnail']       = $v['thumbnail'] ?? '';
-        $v['tags']            = $v['tags'] ?? '';
-        $v['description']     = $v['description'] ?? '';
-        $v['aws_object_path'] = $v['aws_object_path'] ?? '';
+        $v['experts'] = array_values(array_unique($v['experts'] ?? []));
+        $v['topics']  = array_values(array_unique($v['topics'] ?? []));
+        $v['highlights']   = $v['highlights'] ?? '';
+        $v['tags']         = $v['tags'] ?? '';
+        $v['published'] = $request->boolean('published') ? 1 : 0;
+        $v['trend_flg'] = $request->boolean('trend_flg') ? 1 : 0;
+        $v['description']  = $v['description'] ?? '';
+        $v['code']         = trim((string) ($v['code'] ?? ''));
+        $v['subtitles'] = trim((string) ($v['subtitles'] ?? '')) ?: null;
+        $v['version'] = $v['version'] ?? self::CONTENT_VERSION;
+        $v['published_at'] = !empty($v['published_at'])
+            ? Carbon::parse($v['published_at'])->toDateTimeString()
+            : null;
 
         return $v;
     }
 
     /**
-     * Contenu de type flash, quelle que soit sa version.
-     */
-    private function mediaOrFail(int $id)
-    {
-        $media = DB::table('content')
-            ->where('id_content', $id)
-            ->where('type', self::CONTENT_TYPE)
-            ->first();
-
-        abort_if(!$media, 404);
-
-        return $media;
-    }
-
-    /**
      * Colonnes de `content` communes à l'insert et à l'update.
      * `title` est géré à part (non modifiable sans vidéo liée).
-     * `event_id` est déduit du past_event choisi.
+     * `s3_path` et `aws_object_path` sont hérités : lecture seule.
      */
     private function contentPayload(array $data): array
     {
         return [
+            'version'           => $data['version'],
+            'published'         => $data['published'],
+            'trend_flg'         => $data['trend_flg'],
             'duration'          => $data['duration'],
-            'aws_object_path'   => $data['aws_object_path'],
             'description'       => $data['description'],
             'tags'              => $data['tags'],
             'id_media_category' => $data['id_media_category'],
@@ -348,6 +564,28 @@ class MediaController extends Controller
                 'expert_id'  => $eid,
                 'content_id' => $contentId,
             ], $expertIds)
+        );
+    }
+
+    /**
+     * Remplace les centres d'intérêt liés au contenu.
+     * `video_id` est renseigné quand une vidéo existe, mais la lecture
+     * se fait toujours par `content_id`.
+     */
+    private function syncTopics(int $contentId, ?int $videoId, array $topicIds): void
+    {
+        DB::table('topic_video')->where('content_id', $contentId)->delete();
+
+        if (empty($topicIds)) {
+            return;
+        }
+
+        DB::table('topic_video')->insert(
+            array_map(fn ($tid) => [
+                'topic_id'   => $tid,
+                'content_id' => $contentId,
+                'video_id'   => $videoId,
+            ], $topicIds)
         );
     }
 
@@ -378,15 +616,13 @@ class MediaController extends Controller
     }
 
     /**
-     * Contenu éditable uniquement si version v2 ET vidéo liée.
+     * Contenu de type flash, quelle que soit sa version.
      */
-    private function editableMediaOrFail(int $id)
+    private function mediaOrFail(int $id)
     {
         $media = DB::table('content')
             ->where('id_content', $id)
             ->where('type', self::CONTENT_TYPE)
-            ->where('version', self::CONTENT_VERSION)
-            ->whereNotNull('video_id')
             ->first();
 
         abort_if(!$media, 404);
@@ -397,32 +633,6 @@ class MediaController extends Controller
     private function mediaCategories()
     {
         return DB::table('media_categories')->orderBy('name')->get(['id', 'name']);
-    }
-
-    private function eventOptions()
-    {
-        return DB::table('events')->orderBy('name')->get(['id', 'name', 'code']);
-    }
-
-    /**
-     * Options "édition" : année seule. `event_id` sert au filtrage en cascade.
-     */
-    private function pastEventOptions(?int $eventId = null, bool $withEventName = false)
-    {
-        return DB::table('past_events as pe')
-            ->join('events as e', 'e.id', '=', 'pe.id_event')
-            ->when($eventId, fn ($q) => $q->where('pe.id_event', $eventId))
-            ->select('pe.id', 'pe.id_event', 'pe.edition_year', 'e.name')
-            ->orderByDesc('pe.edition_year')
-            ->orderBy('e.name')
-            ->get()
-            ->map(fn ($r) => (object) [
-                'id'       => $r->id,
-                'event_id' => $r->id_event,
-                'text'     => $withEventName
-                    ? $r->edition_year . ' — ' . $r->name
-                    : (string) $r->edition_year,
-            ]);
     }
 
     /**
@@ -438,6 +648,68 @@ class MediaController extends Controller
             ->select('e.id', DB::raw("e.{$col} as text"))
             ->orderBy("e.{$col}")
             ->get();
+    }
+
+    /**
+     * Centres d'intérêt déjà liés (pour préremplir le select2).
+     */
+    private function topicOptions()
+    {
+        return DB::table('topics')->orderBy('name')->get(['id', 'name']);
+    }
+
+    /**
+     * Ids des centres d'intérêt déjà liés au contenu.
+     */
+    private function selectedTopicIds(int $contentId): array
+    {
+        return DB::table('topic_video')
+            ->where('content_id', $contentId)
+            ->pluck('topic_id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+    }
+
+    /* ===================== VIGNETTE ===================== */
+
+    /**
+     * Envoie la vignette sur S3 et renvoie son chemin relatif.
+     */
+    private function storeThumbnail(?UploadedFile $file): ?string
+    {
+        if (!$file) {
+            return null;
+        }
+
+        return Storage::disk('s3')->putFile(self::THUMBNAIL_FOLDER, $file);
+    }
+
+    /**
+     * Supprime une vignette obsolète, sans bloquer si le fichier a disparu.
+     */
+    private function deleteThumbnail(?string $path): void
+    {
+        if (!$path) {
+            return;
+        }
+
+        try {
+            Storage::disk('s3')->delete($path);
+        } catch (\Throwable $e) {
+            report($e);
+        }
+    }
+
+    /**
+     * URL publique d'une vignette stockée en relatif.
+     */
+    private function thumbnailUrl(?string $path): ?string
+    {
+        if (!$path) {
+            return null;
+        }
+
+        return Storage::disk('s3')->url($path);
     }
 
     /* ===================== FILTRES ===================== */
@@ -597,7 +869,7 @@ class MediaController extends Controller
 
     /**
      * KPI : vidéos (total / période), vues (total historique / période),
-     * spectateurs uniques sur la période.
+     * utilisateurs uniques sur la période.
      */
     private function buildSummary(array $f): array
     {
@@ -734,7 +1006,6 @@ class MediaController extends Controller
         $labels = [];
         $views  = [];
 
-        // Lundi de référence, pour obtenir les libellés traduits
         $monday = Carbon::parse('2024-01-01');
 
         for ($d = 0; $d < 7; $d++) {
@@ -746,7 +1017,7 @@ class MediaController extends Controller
     }
 
     /**
-     * Chart 3 : vues + spectateurs uniques par métier.
+     * Chart 3 : vues + utilisateurs uniques par métier.
      */
     private function professionsSeries(array $f): array
     {
@@ -783,7 +1054,7 @@ class MediaController extends Controller
     /* ===================== TABLE ===================== */
 
     /**
-     * Liste paginée des médias (toutes, même sans vue sur la période).
+     * Liste paginée des médias (tous, même sans vue sur la période).
      * `author` = noms des experts concaténés par " - ".
      * `event_label` = année d'édition — nom de l'événement.
      */
@@ -818,7 +1089,35 @@ class MediaController extends Controller
             ->withQueryString();
     }
 
-    /* ===================== LABELS SÉLECTION ===================== */
+    /* ===================== OPTIONS / LABELS ===================== */
+
+    private function eventOptions()
+    {
+        return DB::table('events')->orderBy('name')->get(['id', 'name', 'code']);
+    }
+
+    /**
+     * Options "édition". $withEventName : affiche le nom de l'événement
+     * après l'année (formulaire), sinon l'année seule (filtres).
+     * `event_id` sert au filtrage en cascade.
+     */
+    private function pastEventOptions(?int $eventId = null, bool $withEventName = false)
+    {
+        return DB::table('past_events as pe')
+            ->join('events as e', 'e.id', '=', 'pe.id_event')
+            ->when($eventId, fn ($q) => $q->where('pe.id_event', $eventId))
+            ->select('pe.id', 'pe.id_event', 'pe.edition_year', 'e.name')
+            ->orderByDesc('pe.edition_year')
+            ->orderBy('e.name')
+            ->get()
+            ->map(fn ($r) => (object) [
+                'id'       => $r->id,
+                'event_id' => $r->id_event,
+                'text'     => $withEventName
+                    ? $r->edition_year . ' — ' . $r->name
+                    : (string) $r->edition_year,
+            ]);
+    }
 
     private function expertLabel(?int $expertId): ?string
     {
@@ -838,83 +1137,167 @@ class MediaController extends Controller
         return DB::table('content')->where('id_content', $contentId)->value('title');
     }
 
-    /* ===================== RAPPORT PARTAGÉ ===================== */
+    /* ===================== CONTENU (EDITOR.JS) ===================== */
 
     /**
-     * Rapport en lecture seule pour l'organisateur d'un événement.
-     * L'événement est imposé par le code présent dans l'URL.
-     * GET /medias/shared/{code}
+     * Bloc de contenu associé à la vidéo, créé à la volée si absent.
      */
-    public function shared(Request $request, string $code)
+    private function contentBlock(?int $videoId)
     {
-        $event = $this->eventByCodeOrFail($code);
+        if (!$videoId) {
+            return null;
+        }
 
-        $f = $this->resolveFilters($request);
-        $f['event_id']      = (int) $event->id;
-        $f['past_event_id'] = $this->restrictPastEvent($f['past_event_id'], (int) $event->id);
+        return DB::table('blocks')->where('video_id', $videoId)->first();
+    }
 
-        return view('dashboard.medias.shared', [
-            'event'          => $event,
-            'code'           => $code,
-            'filters'        => $f,
-            'chart'          => $this->buildChartData($f, false),
-            'summary'        => $this->buildSummary($f),
-            'medias'         => $this->buildTableRows($f),
-            'pastEvents'     => $this->pastEventOptions((int) $event->id),
-            'selectedExpert' => $this->expertLabel($f['expert_id']),
-            'selectedVideo'  => $this->videoLabel($f['content_id']),
+    /**
+     * Enregistre le contenu de l'éditeur, en créant la ligne `blocks`
+     * uniquement s'il y a réellement quelque chose à stocker.
+     */
+    private function saveContentBlock(int $videoId, ?string $json): void
+    {
+        if ($json === null || $json === '') {
+            return;
+        }
+
+        $decoded = json_decode($json, true);
+
+        if (!is_array($decoded)) {
+            return;
+        }
+
+        $blocks   = $decoded['blocks'] ?? [];
+        $existing = DB::table('blocks')->where('video_id', $videoId)->first();
+
+        // Rien à enregistrer et rien en base : on n'écrit pas de ligne vide
+        if (empty($blocks) && !$existing) {
+            return;
+        }
+
+        if ($existing) {
+            DB::table('blocks')
+                ->where('id', $existing->id)
+                ->update([
+                    'content'    => json_encode($decoded),
+                    'updated_at' => now(),
+                ]);
+
+            return;
+        }
+
+        DB::table('blocks')->insert([
+            'video_id'   => $videoId,
+            'lesson_id'  => null,
+            'content'    => json_encode($decoded),
+            'created_at' => now(),
+            'updated_at' => now(),
         ]);
     }
 
     /**
-     * Autocomplete auteurs, version partagée (événement imposé).
-     * GET /medias/shared/{code}/search-experts
+     * Chapitres issus de `videos.highlights`, au format attendu par l'éditeur.
+     * Même parsing que VideoController::parseVideoHighlights().
      */
-    public function sharedSearchExperts(Request $request, string $code)
+    private function parsedChapters(?string $text): array
     {
-        $event = $this->eventByCodeOrFail($code);
-
-        return response()->json(
-            $this->expertItems($request, (int) $event->id)
-        );
-    }
-
-    /**
-     * Autocomplete vidéos, version partagée (événement imposé).
-     * GET /medias/shared/{code}/search-videos
-     */
-    public function sharedSearchVideos(Request $request, string $code)
-    {
-        $event = $this->eventByCodeOrFail($code);
-
-        return response()->json(
-            $this->videoItems($request, (int) $event->id)
-        );
-    }
-
-    private function eventByCodeOrFail(string $code)
-    {
-        $event = DB::table('events')->where('code', $code)->first();
-
-        abort_if(!$event, 404);
-
-        return $event;
-    }
-
-    /**
-     * Ignore une édition qui n'appartient pas à l'événement partagé.
-     */
-    private function restrictPastEvent(?int $pastEventId, int $eventId): ?int
-    {
-        if (!$pastEventId) {
-            return null;
+        if (!$text) {
+            return [];
         }
 
-        $ok = DB::table('past_events')
-            ->where('id', $pastEventId)
-            ->where('id_event', $eventId)
-            ->exists();
+        $lines  = preg_split('/\r\n|\r|\n/', trim($text));
+        $result = [];
 
-        return $ok ? $pastEventId : null;
+        foreach ($lines as $line) {
+            $line = trim($line);
+
+            if ($line === '') {
+                continue;
+            }
+
+            if (!preg_match('/^(\d+):(\d+)(?::(\d+))?\s+(.+)$/', $line, $m)) {
+                continue;
+            }
+
+            $seconds = isset($m[3]) && $m[3] !== ''
+                ? (int) $m[1] * 3600 + (int) $m[2] * 60 + (int) $m[3]
+                : (int) $m[1] * 60 + (int) $m[2];
+
+            $result[] = [
+                'time' => sprintf(
+                    '%02d:%02d:%02d',
+                    intdiv($seconds, 3600),
+                    intdiv($seconds % 3600, 60),
+                    $seconds % 60
+                ),
+                'seconds' => $seconds,
+                'text'    => trim($m[4]),
+            ];
+        }
+
+        usort($result, fn ($a, $b) => $a['seconds'] <=> $b['seconds']);
+
+        return $result;
+    }
+
+    /**
+     * Enregistre le contenu de l'éditeur.
+     * POST /medias/{id}/content
+     */
+    public function updateContent(Request $request, int $id)
+    {
+        $media = $this->mediaOrFail($id);
+
+        if (!$media->video_id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Ce média n\'est lié à aucune vidéo.',
+            ], 422);
+        }
+
+        if (!$request->has('content')) {
+            return response()->json(['success' => false], 422);
+        }
+
+        $block = $this->contentBlock((int) $media->video_id);
+
+        DB::table('blocks')
+            ->where('id', $block->id)
+            ->update([
+                'content'    => json_encode($request->input('content')),
+                'updated_at' => now(),
+            ]);
+
+        return response()->json(['success' => true]);
+    }
+
+    /**
+     * Upload d'une image depuis l'éditeur, vers medias/{video_id}.
+     * POST /medias/{id}/content/image
+     */
+    public function uploadContentImage(Request $request, int $id)
+    {
+        $media = $this->mediaOrFail($id);
+
+        if (!$media->video_id) {
+            return response()->json(['success' => 0, 'message' => 'Vidéo manquante.'], 422);
+        }
+
+        $request->validate([
+            'image' => ['required', 'image', 'mimes:jpg,jpeg,png,webp,gif', 'max:5120'],
+        ]);
+
+        $path = Storage::disk('s3')->putFile(
+            'medias/' . $media->video_id,
+            $request->file('image')
+        );
+
+        return response()->json([
+            'success' => 1,
+            'file'    => [
+                'url'  => Storage::disk('s3')->url($path),
+                'name' => $request->file('image')->getClientOriginalName(),
+            ],
+        ]);
     }
 }

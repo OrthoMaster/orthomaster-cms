@@ -54,7 +54,7 @@ class VideoAdController extends Controller
             'user_id' => ['nullable', 'integer'],
         ]);
 
-        if (Auth::check() && Auth::user()->role->name == 'user') {
+        if (Auth::check() && in_array(Auth::user()->role->name, ['user', 'user-manager'])) {
             $this->service->recordImpression(
                 $videoAd,
                 userId: $validated['user_id'] ?? $request->user()?->id
@@ -73,7 +73,7 @@ class VideoAdController extends Controller
 
         $data = $request->all();
 
-        if (Auth::check() && Auth::user()->role->name == 'user') {
+        if (Auth::check() && in_array(Auth::user()->role->name, ['user', 'user-manager'])) {
             $this->service->recordView(
                 $videoAd,
                 isCompleted: $data['is_completed'] ?? false,
@@ -93,7 +93,7 @@ class VideoAdController extends Controller
 
         $data = $request->all();
 
-        if (Auth::check() && Auth::user()->role->name == 'user') {
+        if (Auth::check() && in_array(Auth::user()->role->name, ['user', 'user-manager'])) {
             $this->service->recordView(
                 $videoAd,
                 isCompleted: true,

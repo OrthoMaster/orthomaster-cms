@@ -35,7 +35,16 @@ class OldContent extends Model
 
     public function getThumbnailAttribute()
     {
-        $originalPath = $this->s3_path . "/" . $this->title . "/logo.png";
-        return Storage::disk('s3_root')->url($originalPath);
+        if ($this->version !== 'v2') {
+            $originalPath = $this->s3_path . "/" . $this->title . "/logo.png";
+            return Storage::disk('s3_root')->url($originalPath);
+        }
+        
+        if ($this->video->thumbnail) {
+            $s3ImagePath = 'https://content-orthomaster-prod.s3.eu-west-1.amazonaws.com/application-data/';
+            return $s3ImagePath . $this->video->thumbnail;
+        }
+        
+        return null;
     }
 }

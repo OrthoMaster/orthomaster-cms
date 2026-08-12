@@ -97,16 +97,19 @@ Route::group(['prefix' => 'admin', 'middleware' => ['cmsAdmin']], function () {
     Route::prefix('dashboard/medias')
         ->name('medias.')
         ->group(function () {
-            Route::get('/', [MediaController::class, 'index'])->name('index');
-            Route::get('/data', [MediaController::class, 'chartData'])->name('data');
-            Route::get('/search-experts', [MediaController::class, 'searchExperts'])->name('search-experts');
-            Route::get('/search-videos', [MediaController::class, 'searchVideos'])->name('search-videos');
+        Route::get('/', [MediaController::class, 'index'])->name('index');
+        Route::get('/data', [MediaController::class, 'chartData'])->name('data');
+        Route::get('/search-experts', [MediaController::class, 'searchExperts'])->name('search-experts');
+        Route::get('/search-videos', [MediaController::class, 'searchVideos'])->name('search-videos');
 
-            Route::get('/create', [MediaController::class, 'create'])->name('create');
-            Route::post('/', [MediaController::class, 'store'])->name('store');
-            Route::get('/{id}/edit', [MediaController::class, 'edit'])->name('edit');
-            Route::put('/{id}', [MediaController::class, 'update'])->name('update');
-        });
+        Route::get('/create', [MediaController::class, 'create'])->name('create');
+        Route::post('/', [MediaController::class, 'store'])->name('store');
+        Route::get('/{id}/edit', [MediaController::class, 'edit'])->name('edit');
+        Route::put('/{id}', [MediaController::class, 'update'])->name('update');
+        Route::post('/{id}/create-version', [MediaController::class, 'createVersion'])->name('create-version');
+        
+        Route::post('/{id}/content/image', [MediaController::class, 'uploadContentImage'])->name('content.image');
+    });
 
 
     Route::get('/dashboard/staffs/kpi', [DashboardController::class, 'staffIndex'])->name('voyager.dashboard.staff');

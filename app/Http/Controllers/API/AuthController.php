@@ -26,7 +26,9 @@ class AuthController extends Controller
 {
     public function login(Request $request)
     {
-        $user = User::where('email', $request->email)->first();
+        $user = User::where('email', $request->email)
+            ->with('role')
+            ->first();
 
         // Copy if email exists old version
         if (!$user) {
@@ -574,7 +576,7 @@ class AuthController extends Controller
                 'has_company' => sizeof($user->companiesUserIsManager) > 0,
                 'belongs_to_company' => sizeof($user->companiesUserIsMember) > 0,
 
-                'closable_ads' => Auth::check() ? Auth::user()->hasPermission('edit_videos') : false,
+                'closable_ads' => in_array($user->role->name, ['admin', 'directeur', 'manager']),
 
                 // Subscription
                 'has_subscription' => $user->hasSubscription(),

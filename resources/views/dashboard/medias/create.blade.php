@@ -14,7 +14,8 @@
     <div class="page-content edit-add container-fluid">
         @include('voyager::alerts')
 
-        <form action="{{ route('medias.store') }}" method="POST">
+        <form action="{{ route('medias.store') }}" method="POST"
+              enctype="multipart/form-data" id="media-form">
             @csrf
             @include('dashboard.medias._form', ['submitLabel' => 'Créer'])
         </form>

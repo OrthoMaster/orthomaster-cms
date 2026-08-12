@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\Storage;
 
 class VideoController extends Controller
 {
-    public function getSignedCookies(Request $request, $videoCode)
+    public function getSignedCookies(Request $request, string $videoCode)
     {
         $video = Video::findByCode($videoCode);
         if (!$video) {

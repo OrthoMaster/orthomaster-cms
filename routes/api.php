@@ -160,7 +160,20 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
     // Media
     Route::prefix('media')->group(function () {
+        // Related
+        Route::get('/{id}/related', [MediaController::class, 'getRelateds']);
+
+        // Tracking
+        Route::post('/{id}/track', [MediaController::class, 'trackMedia']);
+        Route::post('/track/{trackId}/progress', [MediaController::class, 'trackProgress']);
+
+        // Data
         Route::get('/events', [MediaController::class, 'getEvents']);
+        Route::get('/newests', [MediaController::class, 'getNewests']);
+        Route::get('/trends', [MediaController::class, 'getTrends']);
+        Route::get('/categories', [MediaController::class, 'getCategories']);
+        Route::get('/events/{id}/content', [MediaController::class, 'getEventMedias']);
+
         Route::get('/content', [MediaController::class, 'getContent']);
         Route::get('/tool/content', [MediaController::class, 'getToolContent']);
     });
