@@ -264,15 +264,6 @@
 
 <div class="action-wrapper-absolute">
     <a href="{{ route('medias.index') }}" class="btn btn-default">Annuler</a>
-
-    <div class="action-wrapper-absolute">
-        <a href="{{ route('medias.index') }}" class="btn btn-default">Annuler</a>
-        <button type="submit" class="btn btn-primary">
-            <i class="voyager-check"></i>
-            <span>{{ $submitLabel ?? 'Enregistrer' }}</span>
-        </button>
-    </div>
-
     <button type="submit" class="btn btn-primary">
         <i class="voyager-check"></i>
         <span>{{ $submitLabel ?? 'Enregistrer' }}</span>
