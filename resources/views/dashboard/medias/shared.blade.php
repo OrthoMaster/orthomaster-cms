@@ -118,7 +118,11 @@
             </div>
 
             {{-- ============ TABLE ============ --}}
-            @include('dashboard.medias._table', ['canEdit' => false, 'showViewers' => false])
+            @include('dashboard.medias._table', [
+                'canEdit'     => false,
+                'showViewers' => false,
+                'showWatched' => false,
+            ])
 
         </div>
     </div>

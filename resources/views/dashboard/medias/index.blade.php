@@ -68,7 +68,8 @@
                                 <select class="form-control" name="content_id" id="content_id">
                                     <option value=""></option>
                                     @if ($filters['content_id'])
-                                        <option value="{{ $filters['content_id'] }}" selected>{{ $selectedVideo }}</option>
+                                        <option value="{{ $filters['content_id'] }}" selected>{{ $selectedVideo }}
+                                        </option>
                                     @endif
                                 </select>
                             </div>
@@ -84,14 +85,14 @@
 
                             <div class="col-md-2" style="margin-top:10px">
                                 <label for="from">Du</label>
-                                <input type="date" class="form-control" name="from" id="from"
-                                    min="2026-01-01" value="{{ $filters['from'] }}">
+                                <input type="date" class="form-control" name="from" id="from" min="2026-01-01"
+                                    value="{{ $filters['from'] }}">
                             </div>
 
                             <div class="col-md-2" style="margin-top:10px">
                                 <label for="to">Au</label>
-                                <input type="date" class="form-control" name="to" id="to"
-                                    min="2026-01-01" value="{{ $filters['to'] }}">
+                                <input type="date" class="form-control" name="to" id="to" min="2026-01-01"
+                                    value="{{ $filters['to'] }}">
                             </div>
 
                             <div class="col-md-12" style="margin-top: 15px; margin-bottom: 0">
@@ -99,7 +100,7 @@
                                     Appliquer
                                 </button>
                                 <button type="button" id="btn-share" class="btn btn-warning pull-right"
-                                        style="margin-right:8px; display:none">
+                                    style="margin-right:8px; display:none">
                                     <i class="voyager-share"></i> <span>Copier le lien de partage</span>
                                 </button>
                             </div>
@@ -135,7 +136,8 @@
                     <div class="col-md-6">
                         <div class="panel panel-bordered">
                             <div class="panel-heading">
-                                <h3 class="panel-title"><i class="voyager-calendar"></i> Répartition par jour de la semaine</h3>
+                                <h3 class="panel-title"><i class="voyager-calendar"></i> Répartition par jour de la
+                                    semaine</h3>
                             </div>
                             <div class="panel-body">
                                 <div style="height:320px"><canvas id="chartWeekdays"></canvas></div>
@@ -155,8 +157,11 @@
                 </div>
 
                 {{-- ============ TABLE ============ --}}
-                @include('dashboard.medias._table', ['canEdit' => true])
-
+                @include('dashboard.medias._table', [
+                    'canEdit' => true,
+                    'showViewers' => true,
+                    'showWatched' => true,
+                ])
             </div>
         </div>
     </div>
@@ -170,23 +175,35 @@
 @section('javascript')
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <script>
-        var CHART       = @json($chart);
-        var SHARE_BASE  = '{{ url('medias/shared') }}';
+        var CHART = @json($chart);
+        var SHARE_BASE = '{{ url('medias/shared') }}';
 
-        $(document).ready(function () {
+        $(document).ready(function() {
+            /* ---------- Secondes -> mm:ss ---------- */
+            function hms(seconds) {
+                var s = Math.round(seconds || 0),
+                    h = Math.floor(s / 3600),
+                    m = Math.floor((s % 3600) / 60),
+                    r = s % 60,
+                    pad = function(n) {
+                        return String(n).padStart(2, '0');
+                    };
+
+                return h > 0 ? h + ':' + pad(m) + ':' + pad(r) : m + ':' + pad(r);
+            }
 
             /* ---------- Événement + édition (cascade) ---------- */
-            var $event      = $('#event_id'),
-                $pastEvent  = $('#past_event_id'),
+            var $event = $('#event_id'),
+                $pastEvent = $('#past_event_id'),
                 allEditions = $pastEvent.find('option[data-event]').clone();
 
             function refreshEditions() {
-                var eid     = $event.val(),
+                var eid = $event.val(),
                     current = $pastEvent.val();
 
                 $pastEvent.find('option[data-event]').remove();
 
-                allEditions.each(function () {
+                allEditions.each(function() {
                     if (!eid || $(this).data('event') == eid) {
                         $pastEvent.append($(this).clone());
                     }
@@ -207,21 +224,26 @@
                 }
             }
 
-            $('#btn-share').on('click', function () {
-                var url  = $(this).data('url'),
+            $('#btn-share').on('click', function() {
+                var url = $(this).data('url'),
                     $btn = $(this),
                     $lbl = $btn.find('span'),
-                    old  = $lbl.text();
+                    old = $lbl.text();
 
                 function done() {
                     $lbl.text('Lien copié !');
-                    setTimeout(function () { $lbl.text(old); }, 2000);
+                    setTimeout(function() {
+                        $lbl.text(old);
+                    }, 2000);
                 }
 
                 if (navigator.clipboard && window.isSecureContext) {
                     navigator.clipboard.writeText(url).then(done);
                 } else {
-                    var $tmp = $('<textarea>').val(url).css({ position: 'fixed', opacity: 0 }).appendTo('body');
+                    var $tmp = $('<textarea>').val(url).css({
+                        position: 'fixed',
+                        opacity: 0
+                    }).appendTo('body');
                     $tmp[0].select();
                     document.execCommand('copy');
                     $tmp.remove();
@@ -229,10 +251,14 @@
                 }
             });
 
-            $event.select2({ width: '100%' });
-            $pastEvent.select2({ width: '100%' });
+            $event.select2({
+                width: '100%'
+            });
+            $pastEvent.select2({
+                width: '100%'
+            });
 
-            $event.on('change', function () {
+            $event.on('change', function() {
                 refreshEditions();
                 refreshShareButton();
                 resetDependents();
@@ -254,18 +280,30 @@
                 allowClear: true,
                 minimumInputLength: 3,
                 language: {
-                    inputTooShort: function () { return 'Saisissez au moins 3 caractères'; },
-                    noResults: function () { return 'Aucun résultat'; },
-                    searching: function () { return 'Recherche…'; }
+                    inputTooShort: function() {
+                        return 'Saisissez au moins 3 caractères';
+                    },
+                    noResults: function() {
+                        return 'Aucun résultat';
+                    },
+                    searching: function() {
+                        return 'Recherche…';
+                    }
                 },
                 ajax: {
                     url: '{{ route('medias.search-experts') }}',
                     dataType: 'json',
                     delay: 250,
-                    data: function (params) {
-                        return $.extend({ q: params.term }, eventParams());
+                    data: function(params) {
+                        return $.extend({
+                            q: params.term
+                        }, eventParams());
                     },
-                    processResults: function (data) { return { results: data }; },
+                    processResults: function(data) {
+                        return {
+                            results: data
+                        };
+                    },
                     cache: true
                 }
             });
@@ -287,18 +325,31 @@
                     allowClear: true,
                     minimumInputLength: 3,
                     language: {
-                        inputTooShort: function () { return 'Saisissez au moins 3 caractères'; },
-                        noResults: function () { return 'Aucun résultat'; },
-                        searching: function () { return 'Recherche…'; }
+                        inputTooShort: function() {
+                            return 'Saisissez au moins 3 caractères';
+                        },
+                        noResults: function() {
+                            return 'Aucun résultat';
+                        },
+                        searching: function() {
+                            return 'Recherche…';
+                        }
                     },
                     ajax: {
                         url: '{{ route('medias.search-videos') }}',
                         dataType: 'json',
                         delay: 250,
-                        data: function (params) {
-                            return $.extend({ q: params.term, expert_id: $('#expert_id').val() }, eventParams());
+                        data: function(params) {
+                            return $.extend({
+                                q: params.term,
+                                expert_id: $('#expert_id').val()
+                            }, eventParams());
                         },
-                        processResults: function (data) { return { results: data }; },
+                        processResults: function(data) {
+                            return {
+                                results: data
+                            };
+                        },
                         cache: true
                     }
                 });
@@ -313,7 +364,7 @@
 
             initVideoSelect();
 
-            $('#expert_id').on('change', function () {
+            $('#expert_id').on('change', function() {
                 $('#content_id').val(null).find('option[value!=""]').remove();
                 initVideoSelect();
             });
@@ -323,23 +374,74 @@
 
             /* ---------- Charts ---------- */
             new Chart(document.getElementById('chartTimeline'), {
-                type: 'line',
+                type: 'bar',
                 data: {
                     labels: CHART.timeline.labels,
-                    datasets: [{
-                        label: 'Vues',
-                        data: CHART.timeline.views,
-                        borderColor: '#22A7F0',
-                        backgroundColor: 'rgba(34,167,240,.15)',
-                        fill: true,
-                        tension: .3,
-                        pointRadius: 3
-                    }]
+                    datasets: [
+                        {
+                            type: 'line',
+                            label: 'Vues',
+                            data: CHART.timeline.views,
+                            borderColor: '#22A7F0',
+                            backgroundColor: 'rgba(34,167,240,.15)',
+                            fill: true,
+                            tension: .3,
+                            pointRadius: 3,
+                            yAxisID: 'yViews',
+                            order: 0
+                        },
+                        {
+                            type: 'bar',
+                            label: 'Temps de visionnage moyen',
+                            data: CHART.timeline.avg_watched,
+                            backgroundColor: 'rgba(149,91,165,.55)',
+                            borderColor: '#955BA5',
+                            borderWidth: 1,
+                            barPercentage: 0.2,
+                            yAxisID: 'yWatched',
+                            order: 1
+                        }
+                    ]
                 },
                 options: {
                     maintainAspectRatio: false,
-                    plugins: { legend: { display: false } },
-                    scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
+                    interaction: { mode: 'index', intersect: false },
+                    plugins: {
+                        legend: { position: 'bottom' },
+                        tooltip: {
+                            callbacks: {
+                                label: function (ctx) {
+                                    if (ctx.dataset.yAxisID !== 'yWatched') {
+                                        return ctx.dataset.label + ' : ' + ctx.parsed.y;
+                                    }
+
+                                    if (ctx.parsed.y === null) return null;
+
+                                    return ctx.dataset.label + ' : ' + hms(ctx.parsed.y);
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        yViews: {
+                            type: 'linear',
+                            position: 'left',
+                            beginAtZero: true,
+                            ticks: { precision: 0, color: '#22A7F0' },
+                            title: { display: true, text: 'Vues', color: '#22A7F0' }
+                        },
+                        yWatched: {
+                            type: 'linear',
+                            position: 'right',
+                            beginAtZero: true,
+                            ticks: {
+                                color: '#955BA5',
+                                callback: function (value) { return hms(value); }
+                            },
+                            title: { display: true, text: 'Temps moyen', color: '#955BA5' },
+                            grid: { drawOnChartArea: false }
+                        }
+                    }
                 }
             });
 
@@ -347,12 +449,27 @@
                 type: 'bar',
                 data: {
                     labels: CHART.hours.labels,
-                    datasets: [{ label: 'Vues', data: CHART.hours.views, backgroundColor: '#E74C3C' }]
+                    datasets: [{
+                        label: 'Vues',
+                        data: CHART.hours.views,
+                        backgroundColor: '#E74C3C'
+                    }]
                 },
                 options: {
                     maintainAspectRatio: false,
-                    plugins: { legend: { display: false } },
-                    scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                precision: 0
+                            }
+                        }
+                    }
                 }
             });
 
@@ -360,12 +477,27 @@
                 type: 'bar',
                 data: {
                     labels: CHART.weekdays.labels,
-                    datasets: [{ label: 'Vues', data: CHART.weekdays.views, backgroundColor: '#F39C12' }]
+                    datasets: [{
+                        label: 'Vues',
+                        data: CHART.weekdays.views,
+                        backgroundColor: '#F39C12'
+                    }]
                 },
                 options: {
                     maintainAspectRatio: false,
-                    plugins: { legend: { display: false } },
-                    scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                precision: 0
+                            }
+                        }
+                    }
                 }
             });
 
@@ -373,17 +505,39 @@
                 type: 'bar',
                 data: {
                     labels: CHART.professions.labels,
-                    datasets: [
-                        { label: 'Vues',        data: CHART.professions.views,   backgroundColor: '#2ECC71' },
-                        { label: 'Utilisateurs', data: CHART.professions.viewers, backgroundColor: '#E74C3C' }
+                    datasets: [{
+                            label: 'Vues',
+                            data: CHART.professions.views,
+                            backgroundColor: '#2ECC71'
+                        },
+                        {
+                            label: 'Utilisateurs',
+                            data: CHART.professions.viewers,
+                            backgroundColor: '#E74C3C'
+                        }
                     ]
                 },
                 options: {
                     maintainAspectRatio: false,
-                    plugins: { legend: { position: 'bottom' } },
+                    plugins: {
+                        legend: {
+                            position: 'bottom'
+                        }
+                    },
                     scales: {
-                        x: { ticks: { autoSkip: false, maxRotation: 45, minRotation: 0 } },
-                        y: { beginAtZero: true, ticks: { precision: 0 } }
+                        x: {
+                            ticks: {
+                                autoSkip: false,
+                                maxRotation: 45,
+                                minRotation: 0
+                            }
+                        },
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                precision: 0
+                            }
+                        }
                     }
                 }
             });

@@ -1,6 +1,19 @@
 @php
     $canEdit     = $canEdit ?? true;
     $showViewers = $showViewers ?? true;
+    $showWatched = $showWatched ?? true;
+
+    // Secondes -> mm:ss ou h:mm:ss
+    $hms = function ($seconds) {
+        $s = (int) $seconds;
+        $h = intdiv($s, 3600);
+        $m = intdiv($s % 3600, 60);
+        $r = $s % 60;
+
+        return $h > 0
+            ? sprintf('%d:%02d:%02d', $h, $m, $r)
+            : sprintf('%d:%02d', $m, $r);
+    };
 @endphp
 
 @if (!$medias->count() > 0)
@@ -33,13 +46,14 @@
                             <th>Auteur</th>
                             <th>Événement</th>
                             <th>Vues (période)</th>
+                            @if ($showWatched)
+                                <th>Temps moyen (période)</th>
+                            @endif
                             @if ($showViewers)
                                 <th>Utilisateurs (période)</th>
                             @endif
                             <th>Vues (total)</th>
-                            @if ($canEdit)
-                                <th class="actions text-right">Actions</th>
-                            @endif
+                            <th>Action</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -50,6 +64,20 @@
                                 <td>{{ $media->author ?: '—' }}</td>
                                 <td>{{ $media->edition_year ? $media->edition_year . ' — ' . $media->event_name : '—' }}</td>
                                 <td>{{ number_format($media->period_views, 0, ',', ' ') }}</td>
+                                @if ($showWatched)
+                                    <td>
+                                        @if (!is_null($media->avg_watched))
+                                            {{ $hms($media->avg_watched) }}
+                                            @if (!empty($media->avg_duration) && $media->avg_duration > 0)
+                                                <small class="text-muted">
+                                                    ({{ round($media->avg_watched / $media->avg_duration * 100) }} %)
+                                                </small>
+                                            @endif
+                                        @else
+                                            —
+                                        @endif
+                                    </td>
+                                @endif
                                 @if ($showViewers)
                                     <td>{{ number_format($media->period_viewers, 0, ',', ' ') }}</td>
                                 @endif

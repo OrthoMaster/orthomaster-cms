@@ -860,6 +860,9 @@ class MediaController extends Controller
             ->select('content_id')
             ->selectRaw('COUNT(*) as period_views')
             ->selectRaw('COUNT(DISTINCT user_id) as period_viewers')
+            ->selectRaw('SUM(CASE WHEN watched_seconds > 0 THEN watched_seconds ELSE 0 END) as watched_total')
+            ->selectRaw('SUM(CASE WHEN watched_seconds > 0 THEN 1 ELSE 0 END) as watched_count')
+            ->selectRaw('AVG(CASE WHEN video_duration > 0 THEN video_duration END) as avg_duration')
             ->where('type', self::CONTENT_TYPE)
             ->whereBetween('created_at', [$start, $end])
             ->groupBy('content_id');
@@ -924,7 +927,8 @@ class MediaController extends Controller
     }
 
     /**
-     * Chart 1 : vues par bucket temporel, sans trou de date.
+     * Chart 1 : vues et temps de visionnage moyen par bucket temporel,
+     * sans trou de date.
      */
     private function timelineSeries(array $f): array
     {
@@ -933,6 +937,8 @@ class MediaController extends Controller
         $rows = $this->viewsQuery($f)
             ->selectRaw("DATE({$expr}) as stat_date")
             ->selectRaw('COUNT(*) as views')
+            ->selectRaw('SUM(CASE WHEN v.watched_seconds > 0 THEN v.watched_seconds ELSE 0 END) as watched_total')
+            ->selectRaw('SUM(CASE WHEN v.watched_seconds > 0 THEN 1 ELSE 0 END) as watched_count')
             ->groupBy('stat_date')
             ->orderBy('stat_date')
             ->get()
@@ -948,17 +954,34 @@ class MediaController extends Controller
             [$key, $label] = $this->bucketFor($cursor, $f['granularity']);
 
             if (!isset($buckets[$key])) {
-                $buckets[$key] = ['label' => $label, 'views' => 0];
+                $buckets[$key] = [
+                    'label'         => $label,
+                    'views'         => 0,
+                    'watched_total' => 0,
+                    'watched_count' => 0,
+                ];
             }
 
-            $buckets[$key]['views'] += (int) ($row->views ?? 0);
+            $buckets[$key]['views']         += (int) ($row->views ?? 0);
+            $buckets[$key]['watched_total'] += (int) ($row->watched_total ?? 0);
+            $buckets[$key]['watched_count'] += (int) ($row->watched_count ?? 0);
 
             $cursor->addDay();
         }
 
+        // Moyenne par bucket : null quand personne n'a visionné, pour laisser
+        // un trou dans la courbe plutôt qu'un zéro trompeur
+        $avgWatched = array_map(
+            fn ($b) => $b['watched_count'] > 0
+                ? round($b['watched_total'] / $b['watched_count'])
+                : null,
+            $buckets
+        );
+
         return [
-            'labels' => array_column($buckets, 'label'),
-            'views'  => array_column($buckets, 'views'),
+            'labels'      => array_column($buckets, 'label'),
+            'views'       => array_column($buckets, 'views'),
+            'avg_watched' => array_values($avgWatched),
         ];
     }
 
@@ -1082,6 +1105,10 @@ class MediaController extends Controller
             )
             ->selectRaw('COALESCE(pv.period_views, 0) as period_views')
             ->selectRaw('COALESCE(pv.period_viewers, 0) as period_viewers')
+            ->selectRaw('CASE WHEN COALESCE(pv.watched_count, 0) > 0
+                              THEN ROUND(pv.watched_total / pv.watched_count)
+                              ELSE NULL END as avg_watched')
+            ->selectRaw('ROUND(pv.avg_duration) as avg_duration')
             ->selectRaw("{$authorSub} as author")
             ->orderByDesc(DB::raw('COALESCE(pv.period_views, 0)'))
             ->orderBy('content.title')

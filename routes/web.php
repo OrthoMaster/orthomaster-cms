@@ -19,6 +19,7 @@ use App\Http\Controllers\DashboardVideoAdsController;
 use App\Http\Controllers\DashboardVideoViewsController;
 use App\Http\Controllers\GenerateDocumentController;
 use App\Http\Controllers\GeneratePdfController;
+use App\Http\Controllers\GuideController;
 use App\Http\Controllers\IntEmpTrackerController;
 use App\Http\Controllers\MediaController;
 use App\Http\Controllers\MktShortLinkController;
@@ -225,6 +226,8 @@ Route::group(['prefix' => 'admin', 'middleware' => ['cmsAdmin']], function () {
                 ->name('dashboard.videos.data');
         });
 
+    
+    
     // Sales
     Route::group(['prefix' => 'dashboard/staffs'], function () {
         Route::get('/', [IntEmpTrackerController::class, 'dashboard'])->name('telesales.dashboard');
@@ -291,6 +294,10 @@ Route::group(['prefix' => 'admin', 'middleware' => ['cmsAdmin']], function () {
         Route::put('/{shortLink}', [MktShortLinkController::class, 'update'])
             ->name('dashboard.short-links.update');
     });
+
+    // Guide
+    Route::get('guides/create-media', [GuideController::class, 'createMedia'])
+        ->name('guides.create-media');
 });
 
 
