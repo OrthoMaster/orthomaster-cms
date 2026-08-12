@@ -30,7 +30,7 @@ class OldContent extends Model
 
     public function video()
     {
-        return $this->hasOne(Video::class);
+        return $this->hasOne(Video::class, 'id', 'video_id');
     }
 
     public function getThumbnailAttribute()

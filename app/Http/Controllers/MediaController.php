@@ -1116,6 +1116,37 @@ class MediaController extends Controller
             ->withQueryString();
     }
 
+    /**
+     * Liste paginée des médias, sans agrégat de vues.
+     * Les plus récents d'abord, puis par titre.
+     */
+    private function buildListRows(array $f)
+    {
+        $col = self::EXPERT_NAME_COL;
+
+        $authorSub = "(SELECT GROUP_CONCAT(e.{$col} ORDER BY e.{$col} SEPARATOR ' - ')
+                       FROM expert_video ev
+                       JOIN experts e ON e.id = ev.expert_id
+                       WHERE ev.content_id = content.id_content)";
+
+        return $this->baseContentQuery($f)
+            ->leftJoin('past_events as pe', 'pe.id', '=', 'content.id_past_event')
+            ->leftJoin('events as ev2', 'ev2.id', '=', 'pe.id_event')
+            ->select(
+                'content.id_content',
+                'content.title',
+                'content.version',
+                'content.video_id',
+                'pe.edition_year',
+                'ev2.name as event_name'
+            )
+            ->selectRaw("{$authorSub} as author")
+            ->orderByDesc('content.id_content')
+            ->orderBy('content.title')
+            ->paginate(25)
+            ->withQueryString();
+    }
+
     /* ===================== OPTIONS / LABELS ===================== */
 
     private function eventOptions()
@@ -1325,6 +1356,29 @@ class MediaController extends Controller
                 'url'  => Storage::disk('s3')->url($path),
                 'name' => $request->file('image')->getClientOriginalName(),
             ],
+        ]);
+    }
+
+    /**
+     * Liste simple des médias, sans statistiques.
+     * GET /medias/list
+     */
+    public function list(Request $request)
+    {
+        $f = [
+            'event_id'      => $request->integer('event_id') ?: null,
+            'past_event_id' => $request->integer('past_event_id') ?: null,
+            'expert_id'     => $request->integer('expert_id') ?: null,
+            'content_id'    => $request->integer('content_id') ?: null,
+        ];
+
+        return view('dashboard.medias.list', [
+            'filters'        => $f,
+            'medias'         => $this->buildListRows($f),
+            'events'         => $this->eventOptions(),
+            'pastEvents'     => $this->pastEventOptions(),
+            'selectedExpert' => $this->expertLabel($f['expert_id']),
+            'selectedVideo'  => $this->videoLabel($f['content_id']),
         ]);
     }
 }

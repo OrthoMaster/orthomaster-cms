@@ -111,6 +111,7 @@ Route::group(['prefix' => 'admin', 'middleware' => ['cmsAdmin']], function () {
         
         Route::post('/{id}/content/image', [MediaController::class, 'uploadContentImage'])->name('content.image');
     });
+    Route::get('medias/list', [MediaController::class, 'list'])->name('medias.list');
 
 
     Route::get('/dashboard/staffs/kpi', [DashboardController::class, 'staffIndex'])->name('voyager.dashboard.staff');

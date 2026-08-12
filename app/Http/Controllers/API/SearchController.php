@@ -139,7 +139,7 @@ class SearchController extends Controller
                 $eventIds = Event::search($keyword)->keys()->toArray();
 
                 // Admin
-                if (in_array(Auth::user()->role->name, ['admin', 'directeur', 'manager'])) {
+                if (in_array($request->user()->role->name, ['admin', 'directeur', 'manager'])) {
                     $videoIdsFromKeyword = OldContent::search($keyword)
                         ->where('type', 'flash')
                         ->keys()
