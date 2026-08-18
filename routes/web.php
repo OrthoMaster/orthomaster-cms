@@ -12,6 +12,7 @@ use App\Http\Controllers\LessonController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CompanyController;
 use App\Http\Controllers\ContentViewReportController;
+use App\Http\Controllers\DailyQuestionController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DashboardLessonController;
 use App\Http\Controllers\DashboardUserController;
@@ -24,6 +25,7 @@ use App\Http\Controllers\IntEmpTrackerController;
 use App\Http\Controllers\MediaController;
 use App\Http\Controllers\MktShortLinkController;
 use App\Http\Controllers\MktToolsController;
+use App\Http\Controllers\PodcastController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProductPreDataController;
 use App\Http\Controllers\QuizController;
@@ -98,19 +100,19 @@ Route::group(['prefix' => 'admin', 'middleware' => ['cmsAdmin']], function () {
     Route::prefix('dashboard/medias')
         ->name('medias.')
         ->group(function () {
-        Route::get('/', [MediaController::class, 'index'])->name('index');
-        Route::get('/data', [MediaController::class, 'chartData'])->name('data');
-        Route::get('/search-experts', [MediaController::class, 'searchExperts'])->name('search-experts');
-        Route::get('/search-videos', [MediaController::class, 'searchVideos'])->name('search-videos');
+            Route::get('/', [MediaController::class, 'index'])->name('index');
+            Route::get('/data', [MediaController::class, 'chartData'])->name('data');
+            Route::get('/search-experts', [MediaController::class, 'searchExperts'])->name('search-experts');
+            Route::get('/search-videos', [MediaController::class, 'searchVideos'])->name('search-videos');
 
-        Route::get('/create', [MediaController::class, 'create'])->name('create');
-        Route::post('/', [MediaController::class, 'store'])->name('store');
-        Route::get('/{id}/edit', [MediaController::class, 'edit'])->name('edit');
-        Route::put('/{id}', [MediaController::class, 'update'])->name('update');
-        Route::post('/{id}/create-version', [MediaController::class, 'createVersion'])->name('create-version');
-        
-        Route::post('/{id}/content/image', [MediaController::class, 'uploadContentImage'])->name('content.image');
-    });
+            Route::get('/create', [MediaController::class, 'create'])->name('create');
+            Route::post('/', [MediaController::class, 'store'])->name('store');
+            Route::get('/{id}/edit', [MediaController::class, 'edit'])->name('edit');
+            Route::put('/{id}', [MediaController::class, 'update'])->name('update');
+            Route::post('/{id}/create-version', [MediaController::class, 'createVersion'])->name('create-version');
+
+            Route::post('/{id}/content/image', [MediaController::class, 'uploadContentImage'])->name('content.image');
+        });
     Route::get('medias/list', [MediaController::class, 'list'])->name('medias.list');
 
 
@@ -227,8 +229,8 @@ Route::group(['prefix' => 'admin', 'middleware' => ['cmsAdmin']], function () {
                 ->name('dashboard.videos.data');
         });
 
-    
-    
+
+
     // Sales
     Route::group(['prefix' => 'dashboard/staffs'], function () {
         Route::get('/', [IntEmpTrackerController::class, 'dashboard'])->name('telesales.dashboard');
@@ -299,6 +301,17 @@ Route::group(['prefix' => 'admin', 'middleware' => ['cmsAdmin']], function () {
     // Guide
     Route::get('guides/create-media', [GuideController::class, 'createMedia'])
         ->name('guides.create-media');
+
+    // Daily question
+    Route::prefix('daily-questions')
+        ->name('voyager.daily-questions.')
+        ->group(function () {
+            Route::get('/', [DailyQuestionController::class, 'index'])->name('index');
+            Route::get('/create', [DailyQuestionController::class, 'create'])->name('create');
+            Route::post('/', [DailyQuestionController::class, 'store'])->name('store');
+            Route::get('/{id}/edit', [DailyQuestionController::class, 'edit'])->name('edit');
+            Route::put('/{id}', [DailyQuestionController::class, 'update'])->name('update');
+        });
 });
 
 
