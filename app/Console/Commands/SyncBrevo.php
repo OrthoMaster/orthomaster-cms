@@ -32,7 +32,6 @@ class SyncBrevo extends Command
     {
         $syncBrevoController = new SyncBrevoController();
         $syncBrevoController->syncUsers();
-
         return Command::SUCCESS;
     }
 }

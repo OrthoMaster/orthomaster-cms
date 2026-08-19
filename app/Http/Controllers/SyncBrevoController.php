@@ -7,25 +7,23 @@ use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Carbon;
 
 class SyncBrevoController extends Controller
 {
     private const BASE_URL = 'https://api.brevo.com/v3';
 
     /**
-     * Sync tất cả user lên Brevo.
-     * Route: GET /sync-brevo/users
+     * Sync user lên Brevo, lọc theo created_at >= from_date.
      */
     public function syncUsers(): JsonResponse
     {
-        $query = User::query()->select('id'); // chỉ cần id để dispatch
+        $date = '2026-08-19';
+        $from = Carbon::parse($date)->startOfDay();
 
-        // $query->whereNull('brevo_id');
-        // if ($request->filled('id')) {
-        //     $query->where('id', $request->input('id'));
-        // } else {
-        //     $query->whereNull('brevo_id');
-        // }
+        $query = User::query()
+            ->select('id')
+            ->where('created_at', '>=', $from);
 
         $count = 0;
         $query->chunkById(500, function ($users) use (&$count) {

@@ -16,7 +16,7 @@ class SyncUserToBrevo implements ShouldQueue
 
     private const BASE_URL = 'https://api.brevo.com/v3';
 
-    public int $tries = 3;          // thử lại tối đa 3 lần nếu lỗi
+    public int $tries = 1;          // thử lại tối đa 3 lần nếu lỗi
     public int $backoff = 10;       // chờ 10s giữa các lần thử lại
 
     public function __construct(public int $userId) {}

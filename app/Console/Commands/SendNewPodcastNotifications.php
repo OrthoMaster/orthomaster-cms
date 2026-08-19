@@ -54,10 +54,13 @@ class SendNewPodcastNotifications extends Command
         $query->chunk(100, function ($users) use ($podcast) {
             SendExpoNotificationJob::dispatch(
                 userIds: $users->pluck('id')->toArray(),
-                title: $podcast->notification_title ?? 'Nouveau podcast 🎧',
+                title: $podcast->notification_title ?? 'Podcast 🎧',
                 body: $podcast->notification_body ?? $podcast->title,
-                data: ['action' => 'podcast'],
-                options: ['badge' => 1]
+                data: [
+                    'action' => 'podcast',
+                    'id' => $podcast->id,
+                ],
+                // options: ['badge' => 1]
             );
         });
 

@@ -30,8 +30,8 @@ class SendDailyQuestionNotifications extends Command
     public function handle()
     {
         $dailyQuestion = DailyQuestion::whereDate('published_at', today())
-                ->with(['topic', 'answers'])
-                ->first();
+            ->with(['topic', 'answers'])
+            ->first();
 
         if (!$dailyQuestion) {
             Log::channel('tracking')->warning('No job to run.', ['daily-question']);
@@ -44,20 +44,23 @@ class SendDailyQuestionNotifications extends Command
 
         $totalUsers = $query->count();
         if ($totalUsers === 0) {
-            Log::channel('tracking')->warning('No users to push noti.', ['daily-question', 'topic: '.$dailyQuestion->topic_id]);
+            Log::channel('tracking')->warning('No users to push noti.', ['daily-question', 'topic: ' . $dailyQuestion->topic_id]);
             $this->info('No users for this topic.');
             return Command::SUCCESS;
         }
 
         $this->info("Sending to {$totalUsers} users...");
-        Log::channel('tracking')->info('Sending to users.', ['daily-question', 'user_total: '.$totalUsers, 'topic: '.$dailyQuestion->topic_id]);
+        Log::channel('tracking')->info('Sending to users.', ['daily-question', 'user_total: ' . $totalUsers, 'topic: ' . $dailyQuestion->topic_id]);
         $query->chunk(100, function ($users) use ($dailyQuestion) {
             SendExpoNotificationJob::dispatch(
                 userIds: $users->pluck('id')->toArray(),
                 title: $dailyQuestion->notification_title ?? 'Question du jour',
                 body: $dailyQuestion->notification_body ?? $dailyQuestion->question,
-                data: ['action' => 'daily-question'],
-                options: ['badge' => 1]
+                data: [
+                    'action' => 'daily-question',
+                    'id' => $dailyQuestion->id,
+                ],
+                // options: ['badge' => 1]
             );
         });
 

@@ -108,7 +108,6 @@ class DailyActionController extends Controller
     {
         try {
             $podcast = Podcast::where('id', $id)
-                ->whereDate('published_at', '<=', today())
                 ->whereDate('expired_at', '>=', today())
                 ->with('topic')
                 ->first();
@@ -146,8 +145,7 @@ class DailyActionController extends Controller
             $user = $request->user();
 
             // Daily questions
-            $question = DailyQuestion::whereDate('published_at', '<=', today())
-                ->whereDate('expired_at', '>=', today())
+            $question = DailyQuestion::whereDate('expired_at', '>=', today())
                 ->with([
                     'topic',
                     'answers',

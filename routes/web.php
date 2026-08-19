@@ -25,6 +25,7 @@ use App\Http\Controllers\IntEmpTrackerController;
 use App\Http\Controllers\MediaController;
 use App\Http\Controllers\MktShortLinkController;
 use App\Http\Controllers\MktToolsController;
+use App\Http\Controllers\NotificationTestController;
 use App\Http\Controllers\PodcastController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProductPreDataController;
@@ -310,7 +311,17 @@ Route::group(['prefix' => 'admin', 'middleware' => ['cmsAdmin']], function () {
             Route::get('/create', [DailyQuestionController::class, 'create'])->name('create');
             Route::post('/', [DailyQuestionController::class, 'store'])->name('store');
             Route::get('/{id}/edit', [DailyQuestionController::class, 'edit'])->name('edit');
-            Route::put('/{id}', [DailyQuestionController::class, 'update'])->name('update');
+            Route::match(['put', 'patch'], '/{id}', [DailyQuestionController::class, 'update'])->name('update');
+        });
+
+    // Test notification
+    Route::prefix('notifications')
+        ->name('notifications.')
+        ->group(function () {
+            Route::get('/test', [NotificationTestController::class, 'index'])->name('test');
+            Route::get('/test/devices/{userId}', [NotificationTestController::class, 'devices'])->name('test.devices');
+            Route::get('/test/targets/{type}', [NotificationTestController::class, 'targets'])->name('test.targets');
+            Route::post('/test', [NotificationTestController::class, 'send'])->name('test.send');
         });
 });
 
@@ -349,7 +360,7 @@ Route::get('medias/shared/{code}/search-videos', [MediaController::class, 'share
 // Redirection publique des short links (idéalement sur le domaine go.orthomaster.fr)
 Route::get('/sh/{code}', [MktToolsController::class, 'redirect'])->name('mkt.shortlink.redirect');
 Route::get('/open/{path?}', function (Request $request, ?string $path = null) {
-    $query = $request->getQueryString(); // ví dụ: screen=patient&id=123
+    $query = $request->getQueryString(); // Ex: screen=patient&id=123
     $suffix = $path ?? '';
     if ($query) {
         $suffix .= '?' . $query;
