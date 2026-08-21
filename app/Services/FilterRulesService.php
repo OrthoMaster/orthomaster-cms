@@ -20,25 +20,96 @@ use Illuminate\Support\Facades\Cache;
  *
  * Caches are busted via FilterRulesService::clearCache() when rules.json
  * changes (e.g. from the rules edit page).
+ *
+ * Two cache layers:
+ *   - Per-request memo (private properties) — productMatches() is called
+ *     once per product, so without this we'd hit the cache driver (and
+ *     originally re-read + re-decode rules.json) thousands of times per
+ *     request.
+ *   - Cache facade — survives across requests, TTL = CACHE_MINUTES.
  */
 class FilterRulesService
 {
-    public const CACHE_KEY_PARENT_MAP     = 'filter_rules.parent_map';
-    public const CACHE_KEY_BUCKET_MAP     = 'filter_rules.bucket_map';
+    public const CACHE_KEY_GROUP_MAP            = 'filter_rules.group_map';
+    public const CACHE_KEY_PARENT_MAP           = 'filter_rules.parent_map';
+    public const CACHE_KEY_BUCKET_MAP           = 'filter_rules.bucket_map';
     public const CACHE_KEY_MEASUREMENT_NODE_IDS = 'filter_rules.measurement_node_ids';
-    public const CACHE_KEY_PROTOCOLS      = 'filter_rules.protocols';
-    public const CACHE_MINUTES = 60;
+    public const CACHE_KEY_PROTOCOLS            = 'filter_rules.protocols';
+    public const CACHE_MINUTES                  = 60;
+
+    /** Per-request memos. Reset naturally — the service is resolved per request. */
+    private ?array $treeMemo      = null;
+    private ?array $groupMapMemo  = null;
+    private ?array $groupIdsMemo  = null;
+    private ?array $bucketMapMemo = null;
+
+    // ---------------------------------------------------------------
+
+    /**
+     * Groups where a missing product tag is NOT disqualifying.
+     *
+     * These describe the patient rather than the pathology, so a product
+     * that says nothing about them is assumed to be suitable for anyone.
+     * Every other group the user filters on is mandatory: if the product
+     * has no tag there, it can't claim to satisfy the criterion.
+     *
+     * Add new lenient group ids here.
+     */
+    public const OPTIONAL_GROUPS = [
+        'patient',
+        'type-sub',
+        'age-sub',
+        'activ-sub',
+    ];
+
+    private ?array $optionalGroupsMemo = null;
+
+    /** OPTIONAL_GROUPS đã array_flip để tra O(1). */
+    private function optionalGroups(): array
+    {
+        return $this->optionalGroupsMemo ??= array_flip(self::OPTIONAL_GROUPS);
+    }
+
+    /**
+     * Có ít nhất một pathology filter nằm NGOÀI OPTIONAL_GROUPS không?
+     *
+     * Tag lạ / không còn trong rules.json bị bỏ qua — chúng không lọc
+     * được gì nên không tính là filter hợp lệ.
+     */
+    private function hasMandatoryFilters(array $pathologyFilters): bool
+    {
+        if (empty($pathologyFilters)) return false;
+
+        $groupMap = $this->groupMap();
+        $groupIds = $this->groupIds();
+        $optional = $this->optionalGroups();
+
+        foreach ($pathologyFilters as $f) {
+            if (!is_string($f) || $f === '') continue;
+
+            // Tag generic (id trùng nodeId) thuộc chính group đó.
+            $gid = isset($groupIds[$f]) ? $f : ($groupMap[$f] ?? null);
+            if ($gid === null) continue;              // stale/unknown
+
+            if (!isset($optional[$gid])) return true;
+        }
+
+        return false;
+    }
+
 
     /**
      * Load the raw rules tree from storage. Returns [] if missing/invalid.
      */
     public function loadTree(): array
     {
+        if ($this->treeMemo !== null) return $this->treeMemo;
+
         $path = storage_path('app/product/rules.json');
-        if (!file_exists($path)) return [];
-        $raw = file_get_contents($path);
-        $decoded = json_decode($raw, true);
-        return is_array($decoded) ? $decoded : [];
+        if (!file_exists($path)) return $this->treeMemo = [];
+
+        $decoded = json_decode(file_get_contents($path), true);
+        return $this->treeMemo = is_array($decoded) ? $decoded : [];
     }
 
     /**
@@ -51,15 +122,22 @@ class FilterRulesService
      */
     public function loadProtocols(): array
     {
-        return Cache::remember(self::CACHE_KEY_PROTOCOLS, now()->addMinutes(self::CACHE_MINUTES), function () {
-            $path = storage_path('app/product/protocols.json');
-            if (!file_exists($path)) return [];
-            $raw = file_get_contents($path);
-            $decoded = json_decode($raw, true);
-            if (!is_array($decoded)) return [];
-            $protocols = $decoded['protocols'] ?? [];
-            return is_array($protocols) ? $protocols : [];
-        });
+        $protocols = Cache::remember(
+            self::CACHE_KEY_PROTOCOLS,
+            now()->addMinutes(self::CACHE_MINUTES),
+            function () {
+                $path = storage_path('app/product/protocols.json');
+                if (!file_exists($path)) return [];
+
+                $decoded = json_decode(file_get_contents($path), true);
+                if (!is_array($decoded)) return [];
+
+                $protocols = $decoded['protocols'] ?? [];
+                return is_array($protocols) ? $protocols : [];
+            }
+        );
+
+        return is_array($protocols) ? $protocols : [];
     }
 
     /**
@@ -81,6 +159,97 @@ class FilterRulesService
         return null;
     }
 
+    // ---------------------------------------------------------------
+    // Derived maps
+    // ---------------------------------------------------------------
+
+    /**
+     * Build a map: childId => nodeId   (which node OWNS this child).
+     *
+     * Each childId belongs to exactly one node in the tree (the one
+     * whose `children[]` array contains it). This is the "group" the
+     * child is part of for matching purposes.
+     */
+    public function groupMap(): array
+    {
+        if ($this->groupMapMemo !== null) return $this->groupMapMemo;
+
+        $map = Cache::remember(
+            self::CACHE_KEY_GROUP_MAP,
+            now()->addMinutes(self::CACHE_MINUTES),
+            function () {
+                $map = [];
+                foreach ($this->loadTree() as $node) {
+                    $nodeId = $node['id'] ?? null;
+                    if (!is_string($nodeId) || $nodeId === '') continue;
+
+                    foreach (($node['children'] ?? []) as $child) {
+                        $cid = $child['id'] ?? null;
+                        if (is_string($cid) && $cid !== '') {
+                            $map[$cid] = $nodeId;
+                        }
+                    }
+                }
+                return $map;
+            }
+        );
+
+        return $this->groupMapMemo = is_array($map) ? $map : [];
+    }
+
+    /**
+     * Set of node ids (array_flip'd for O(1) isset lookup) — used to
+     * detect "generic" tags, i.e. a tag whose id IS a group id.
+     */
+    public function groupIds(): array
+    {
+        if ($this->groupIdsMemo !== null) return $this->groupIdsMemo;
+
+        return $this->groupIdsMemo = array_flip(
+            array_values(array_unique(array_values($this->groupMap())))
+        );
+    }
+
+    /**
+     * Build a map: bucketChildId => ['dimensionKey' => ..., 'min' => N, 'max' => N]
+     *
+     * Only includes children of measurement nodes (nodes with a
+     * top-level "dimensionKey" field). Children without numeric
+     * min/max are SKIPPED — they're malformed for a measurement bucket.
+     */
+    public function bucketMap(): array
+    {
+        if ($this->bucketMapMemo !== null) return $this->bucketMapMemo;
+
+        $map = Cache::remember(
+            self::CACHE_KEY_BUCKET_MAP,
+            now()->addMinutes(self::CACHE_MINUTES),
+            function () {
+                $map = [];
+                foreach ($this->loadTree() as $node) {
+                    $dimKey = $node['dimensionKey'] ?? null;
+                    if (!is_string($dimKey) || $dimKey === '') continue;
+
+                    foreach (($node['children'] ?? []) as $child) {
+                        $cid = $child['id'] ?? null;
+                        if (!is_string($cid) || $cid === '') continue;
+                        if (!isset($child['min']) || !isset($child['max'])) continue;
+                        if (!is_numeric($child['min']) || !is_numeric($child['max'])) continue;
+
+                        $map[$cid] = [
+                            'dimensionKey' => $dimKey,
+                            'min'          => (float) $child['min'],
+                            'max'          => (float) $child['max'],
+                        ];
+                    }
+                }
+                return $map;
+            }
+        );
+
+        return $this->bucketMapMemo = is_array($map) ? $map : [];
+    }
+
     /**
      * Build a map: childId => [parentChildId, ...]
      *
@@ -94,40 +263,15 @@ class FilterRulesService
      */
     public function parentMap(): array
     {
-        return Cache::remember(self::CACHE_KEY_PARENT_MAP, now()->addMinutes(self::CACHE_MINUTES), function () {
-            return $this->buildParentMap();
-        });
-    }
-
-    /**
-     * Build a map: bucketChildId => ['dimensionKey' => ..., 'min' => N, 'max' => N]
-     *
-     * Only includes children of measurement nodes (nodes with a
-     * top-level "dimensionKey" field). Children without numeric
-     * min/max are SKIPPED — they're malformed for a measurement bucket.
-     */
-    public function bucketMap(): array
-    {
-        return Cache::remember(self::CACHE_KEY_BUCKET_MAP, now()->addMinutes(self::CACHE_MINUTES), function () {
-            $tree = $this->loadTree();
-            $map = [];
-            foreach ($tree as $node) {
-                $dimKey = $node['dimensionKey'] ?? null;
-                if (!is_string($dimKey) || $dimKey === '') continue;
-                foreach (($node['children'] ?? []) as $child) {
-                    $cid = $child['id'] ?? null;
-                    if (!is_string($cid) || $cid === '') continue;
-                    if (!isset($child['min']) || !isset($child['max'])) continue;
-                    if (!is_numeric($child['min']) || !is_numeric($child['max'])) continue;
-                    $map[$cid] = [
-                        'dimensionKey' => $dimKey,
-                        'min'          => (float) $child['min'],
-                        'max'          => (float) $child['max'],
-                    ];
-                }
+        $map = Cache::remember(
+            self::CACHE_KEY_PARENT_MAP,
+            now()->addMinutes(self::CACHE_MINUTES),
+            function () {
+                return $this->buildParentMap();
             }
-            return $map;
-        });
+        );
+
+        return is_array($map) ? $map : [];
     }
 
     /**
@@ -137,43 +281,22 @@ class FilterRulesService
      */
     public function measurementNodeIds(): array
     {
-        return Cache::remember(self::CACHE_KEY_MEASUREMENT_NODE_IDS, now()->addMinutes(self::CACHE_MINUTES), function () {
-            $ids = [];
-            foreach ($this->loadTree() as $node) {
-                $dk = $node['dimensionKey'] ?? null;
-                if (is_string($dk) && $dk !== '') {
-                    $ids[] = $node['id'];
+        $ids = Cache::remember(
+            self::CACHE_KEY_MEASUREMENT_NODE_IDS,
+            now()->addMinutes(self::CACHE_MINUTES),
+            function () {
+                $ids = [];
+                foreach ($this->loadTree() as $node) {
+                    $dk = $node['dimensionKey'] ?? null;
+                    if (is_string($dk) && $dk !== '' && isset($node['id'])) {
+                        $ids[] = $node['id'];
+                    }
                 }
+                return $ids;
             }
-            return $ids;
-        });
-    }
+        );
 
-    public static function clearCache(): void
-    {
-        Cache::forget(self::CACHE_KEY_PARENT_MAP);
-        Cache::forget(self::CACHE_KEY_BUCKET_MAP);
-        Cache::forget(self::CACHE_KEY_MEASUREMENT_NODE_IDS);
-        Cache::forget(self::CACHE_KEY_PROTOCOLS);
-    }
-
-    /**
-     * Build a map: childId => nodeId   (which node OWNS this child).
-     *
-     * Each childId belongs to exactly one node in the tree (the one
-     * whose `children[]` array contains it). This is the "group" the
-     * child is part of for matching purposes.
-     */
-    public function groupMap(): array
-    {
-        $tree = $this->loadTree();
-        $map = [];
-        foreach ($tree as $node) {
-            foreach (($node['children'] ?? []) as $child) {
-                $map[$child['id']] = $node['id'];
-            }
-        }
-        return $map;
+        return is_array($ids) ? $ids : [];
     }
 
     /**
@@ -181,14 +304,29 @@ class FilterRulesService
      */
     public function childrenOfGroup(string $nodeId): array
     {
-        $tree = $this->loadTree();
-        foreach ($tree as $node) {
-            if ($node['id'] === $nodeId) {
-                return array_map(fn ($c) => $c['id'], $node['children'] ?? []);
+        foreach ($this->loadTree() as $node) {
+            if (($node['id'] ?? null) === $nodeId) {
+                return array_values(array_filter(array_map(
+                    fn($c) => $c['id'] ?? null,
+                    $node['children'] ?? []
+                )));
             }
         }
         return [];
     }
+
+    public static function clearCache(): void
+    {
+        Cache::forget(self::CACHE_KEY_GROUP_MAP);
+        Cache::forget(self::CACHE_KEY_PARENT_MAP);
+        Cache::forget(self::CACHE_KEY_BUCKET_MAP);
+        Cache::forget(self::CACHE_KEY_MEASUREMENT_NODE_IDS);
+        Cache::forget(self::CACHE_KEY_PROTOCOLS);
+    }
+
+    // ---------------------------------------------------------------
+    // Matching
+    // ---------------------------------------------------------------
 
     /**
      * Master match function: does this product satisfy the user's
@@ -241,6 +379,14 @@ class FilterRulesService
             }
         }
 
+        // User đã gửi filter, nhưng sau khi loại OPTIONAL_GROUPS thì
+        // không còn tiêu chí nào thực sự lọc → không trả product nào.
+        // (Duyệt toàn bộ danh sách vẫn được: không filter gì cả thì đã
+        // return true ở đầu hàm.)
+        if (!$hasGroup && !$this->hasMandatoryFilters($pathologyFilters) && empty($measurementFilters)) {
+            return false;
+        }
+
         // Protocol group check — when set, product must be tagged with
         // this exact group id. Plain set membership against the product's
         // `groups` JSON column.
@@ -255,17 +401,18 @@ class FilterRulesService
     }
 
     /**
-     * Pathology per-group match (preserved legacy logic).
+     * Pathology per-group match.
      *
      * Rule per group:
-     *   1. If user has no filter in a group → group doesn't restrict.
-     *   2. If product has no tag in that group → product is unrestricted
-     *      for this group → match.
-     *   3. If product has ONLY the generic tag (= the group's nodeId) →
-     *      product is "any sub-option" → match.
-     *   4. If product has at least one SPECIFIC tag in the group →
-     *      ignore any generic tag it might also have; product matches
-     *      only if user's filter shares at least one specific tag.
+     *   0. Product has NO valid tag at all → excluded.
+     *   1. User has no filter in a group → group doesn't restrict.
+     *   2. Product has no tag in a group the user filtered on →
+     *      excluded, UNLESS the group is in OPTIONAL_GROUPS.
+     *   3. Product has ONLY the generic tag (= the group's nodeId) →
+     *      "any sub-option" → match.
+     *   4. Product has at least one SPECIFIC tag in the group → ignore
+     *      any generic tag it might also have; match only if the user's
+     *      filter shares at least one specific tag.
      *
      * Across groups: product must pass EVERY group the user filtered on.
      */
@@ -274,32 +421,38 @@ class FilterRulesService
         if (empty($userFilters)) return true;
 
         $groupMap = $this->groupMap();
+        $groupIds = $this->groupIds();
 
-        // Set of node ids — used to detect "generic" tags (tag id == a group id).
-        $groupIds = array_flip(array_values(array_unique(array_values($groupMap))));
-
-        // Index product tags by group:
-        //   groupId => ['generic' => bool, 'specifics' => [childId, ...]]
         $productByGroup = $this->indexTagsByGroup($productTags, $groupMap, $groupIds);
-        $userByGroup    = $this->indexTagsByGroup($userFilters, $groupMap, $groupIds);
 
-        foreach ($userByGroup as $groupId => $userBucket) {
-            $productBucket = $productByGroup[$groupId] ?? null;
+        // Rule 0: untagged (or only stale/unknown tags) → not a candidate.
+        if (empty($productByGroup)) return false;
 
-            // Rule 2: product has nothing in this group → ok.
-            if ($productBucket === null) continue;
+        $userByGroup = $this->indexTagsByGroup($userFilters, $groupMap, $groupIds);
+
+        $optional = array_flip(self::OPTIONAL_GROUPS);
+
+        foreach ($userByGroup as $gid => $userBucket) {
+            $productBucket = $productByGroup[$gid] ?? null;
+
+            // Rule 2: product says nothing about this group.
+            if ($productBucket === null) {
+                if (isset($optional[$gid])) continue;   // ngoại lệ → bỏ qua
+                return false;                            // bắt buộc → loại
+            }
 
             // Rule 4: product has specifics → user must share at least one.
             if (!empty($productBucket['specifics'])) {
                 $overlap = array_intersect($productBucket['specifics'], $userBucket['specifics']);
-                if (empty($overlap)) {
-                    return false;
-                }
+                if (empty($overlap)) return false;
                 continue;
             }
 
             // Rule 3: product has only generic → match anything in group.
             if ($productBucket['generic']) continue;
+
+            // Không generic cũng không specific — không nên xảy ra, loại cho chắc.
+            return false;
         }
 
         return true;
@@ -397,6 +550,10 @@ class FilterRulesService
         return true;
     }
 
+    // ---------------------------------------------------------------
+    // Parent map internals
+    // ---------------------------------------------------------------
+
     /**
      * Walk a rule and collect every (nodeId, childId) reference,
      * returning just the childIds. Used to detect explicit parent links.
@@ -437,15 +594,20 @@ class FilterRulesService
         $allChildIds = [];
         foreach ($tree as $node) {
             foreach (($node['children'] ?? []) as $child) {
-                $allChildIds[$child['id']] = true;
+                if (isset($child['id'])) $allChildIds[$child['id']] = true;
             }
         }
 
         foreach ($tree as $node) {
-            $nodeId = $node['id'];
+            $nodeId = $node['id'] ?? null;
+            if ($nodeId === null) continue;
+
             $isIndicator = isset($allChildIds[$nodeId]);
+
             foreach (($node['children'] ?? []) as $child) {
-                $cid = $child['id'];
+                $cid = $child['id'] ?? null;
+                if ($cid === null) continue;
+
                 if (!isset($parentMap[$cid])) $parentMap[$cid] = [];
 
                 if ($isIndicator) {
@@ -453,8 +615,7 @@ class FilterRulesService
                 }
 
                 $rule = $child['visibilityRule'] ?? null;
-                $refs = $this->collectRuleChildRefs($rule);
-                foreach ($refs as $ref) {
+                foreach ($this->collectRuleChildRefs($rule) as $ref) {
                     $parentMap[$cid][] = $ref;
                 }
             }
