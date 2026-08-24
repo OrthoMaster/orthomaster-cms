@@ -53,144 +53,153 @@ class SearchController extends Controller
      */
     public function search(Request $request)
     {
-        $results = null;
         if (!$request->has('keyword')) {
             return response()->json([
                 'success' => true,
-                'data' => [
-                    'keyword' => '',
-                    'results' => $results,
-                ]
+                'data' => ['keyword' => '', 'results' => null],
             ]);
         }
 
-        $keyword = trim($request->keyword);
-        $keyword = mb_check_encoding($keyword, 'UTF-8') ? $keyword : mb_convert_encoding($keyword, 'UTF-8', 'UTF-8');;
+        // normalize inline
+        $keyword = str_replace(['’', '‘', '´', '`'], "'", $request->keyword);
+        $keyword = str_replace("\u{00A0}", ' ', $keyword);
+        $keyword = trim(preg_replace('/\s+/u', ' ', $keyword));
 
-        $userId = $request->user()->id;
+        if ($keyword === '') {
+            return response()->json([
+                'success' => true,
+                'data' => ['keyword' => '', 'results' => null],
+            ]);
+        }
 
-        DB::beginTransaction();
+        $userId      = $request->user()->id;
+        $lessonsPage = max(1, (int) $request->input('lessons_page', 1));
+        $videosPage  = max(1, (int) $request->input('videos_page', 1));
+        $perPage     = 6;
+
+        // ===== Khối 1: lưu keyword — lỗi ở đây KHÔNG được làm chết search
+        if ($lessonsPage === 1 && $videosPage === 1) {
+            try {
+                DB::transaction(function () use ($userId, $keyword) {
+                    $searchHistory = SearchHistory::firstOrNew([
+                        'user_id' => $userId,
+                        'keyword' => $keyword,
+                    ]);
+                    if ($searchHistory->exists) {
+                        $searchHistory->increment('search_count');
+                    } else {
+                        $searchHistory->search_count = 1;
+                        $searchHistory->save();
+                    }
+
+                    $trendingKeyword = TrendingKeyword::firstOrNew([
+                        'keyword' => $keyword,
+                    ]);
+                    if ($trendingKeyword->exists) {
+                        $trendingKeyword->increment('search_count');
+                    } else {
+                        $trendingKeyword->search_count = 1;
+                        $trendingKeyword->save();
+                    }
+                }, 3);
+            } catch (\Throwable $e) {
+                Log::channel('api')->warning('save keyword failed: ' . $e->getMessage(), [
+                    'exception' => $e,
+                    'keyword'   => $keyword,
+                ]);
+            }
+        }
+
+        // ===== Khối 2: search — read-only, không transaction
         try {
-            // Save keyword
-            $searchHistory = SearchHistory::firstOrNew([
-                'user_id' => $userId,
-                'keyword' => $keyword,
-            ]);
+            $categories = ['all', 'lesson', 'video'];
+            $category = in_array($request->category, $categories) ? $request->category : null;
 
-            if ($searchHistory->exists) {
-                $searchHistory->increment('search_count');
-            } else {
-                $searchHistory->search_count = 1;
-                $searchHistory->save();
-            }
+            $results = ['lessons' => null, 'videos' => null];
 
-            // Save trending keyword
-            $trendingKeyword = TrendingKeyword::firstOrNew([
-                'keyword' => $keyword,
-            ]);
-
-            if ($trendingKeyword->exists) {
-                $trendingKeyword->increment('search_count');
-            } else {
-                $trendingKeyword->search_count = 1;
-                $trendingKeyword->save();
-            }
-
-            DB::commit();
-
-            // Search 
-            $categories = ['all', 'lesson', 'media'];
-            $category = $request->category;
-            if (!in_array($category, $categories)) {
-                $category = null;
-            }
-
-            $lessonsPage = (int) $request->input('lessons_page', 1);
-            $videosPage = (int) $request->input('videos_page', 1);
-            $perPage = 6;
-
-            $results = [
-                'lessons' => null,
-                'videos' => null,
-            ];
-
-            // Search Lessons
+            // --- Lessons
             if (!$category || $category === 'all' || $category === 'lesson') {
-                $lessonsQuery = Lesson::with(['module', 'module.package', 'module.package.training'])
-                    ->published()
-                    ->where(function ($query) use ($keyword) {
-                        $query->where('title', 'LIKE', '%' . $keyword . '%');
-                    });
+                $escaped = addcslashes($keyword, '%_\\');
 
-                $lessons = $lessonsQuery->paginate($perPage, ['*'], 'lessons_page', $lessonsPage);
+                $lessons = Lesson::with(['module', 'module.package', 'module.package.training'])
+                    ->published()
+                    ->where('title', 'LIKE', '%' . $escaped . '%')
+                    ->paginate($perPage, ['*'], 'lessons_page', $lessonsPage);
 
                 $results['lessons'] = [
-                    'data' => $lessons->items(),
+                    'data'         => $lessons->items(),
                     'current_page' => $lessons->currentPage(),
-                    'total' => $lessons->total(),
-                    'per_page' => $lessons->perPage(),
-                    'has_more' => $lessons->hasMorePages(),
+                    'total'        => $lessons->total(),
+                    'per_page'     => $lessons->perPage(),
+                    'has_more'     => $lessons->hasMorePages(),
                 ];
             }
 
             // Search Videos
             if (!$category || $category === 'all' || $category === 'video') {
 
-                $eventIds = Event::search($keyword)->keys()->toArray();
+                $eventIds = Event::search($keyword)->take(500)->keys()->toArray();
 
-                // Admin
-                if (in_array($request->user()->role->name, ['admin', 'directeur', 'manager'])) {
-                    $videoIdsFromKeyword = OldContent::search($keyword)
-                        ->where('type', 'flash')
-                        ->keys()
-                        ->toArray();
-                } else {
-                    // User
-                    $videoIdsFromKeyword = OldContent::search($keyword)
-                        ->where('type', 'flash')
-                        ->where('published', '1')
-                        ->keys()
-                        ->toArray();
+                $isAdmin = in_array($request->user()->role->name, ['admin', 'directeur', 'manager']);
+
+                // Scout trả về theo thứ tự relevance giảm dần
+                $scout = OldContent::search($keyword)->where('type', 'flash');
+                if (!$isAdmin) {
+                    $scout->where('published', '1');
                 }
+                $videoIdsFromKeyword = $scout->take(500)->keys()->toArray();
 
                 // Video thuộc các event khớp keyword
                 $videoIdsFromEvents = [];
                 if (!empty($eventIds)) {
                     $videoIdsFromEvents = OldContent::where('type', 'flash')
                         ->whereIn('event_id', $eventIds)
+                        ->orderByDesc('id_content')
                         ->pluck('id_content')
                         ->toArray();
                 }
 
-                $allVideoIds = array_unique(array_merge($videoIdsFromKeyword, $videoIdsFromEvents));
+                // merge: khớp keyword đứng trước, khớp qua event đứng sau
+                // array_unique giữ lần xuất hiện ĐẦU TIÊN -> video vừa khớp keyword vừa
+                // thuộc event sẽ giữ nguyên vị trí relevance cao của nó
+                $allVideoIds = array_values(array_unique(
+                    array_merge($videoIdsFromKeyword, $videoIdsFromEvents)
+                ));
 
-                $videosQuery = OldContent::whereIn('id_content', $allVideoIds)
-                    ->orderBy('id_content', 'desc');
+                $videosQuery = OldContent::where('type', 'flash')
+                    ->whereIn('id_content', $allVideoIds)
+                    ->when(!$isAdmin, fn($q) => $q->where('published', '1'));
+
+                // ép DB sort đúng theo thứ tự mảng $allVideoIds
+                if (!empty($allVideoIds)) {
+                    $placeholders = implode(',', array_fill(0, count($allVideoIds), '?'));
+                    $videosQuery->orderByRaw("FIELD(id_content, {$placeholders})", $allVideoIds);
+                }
 
                 $videos = $videosQuery->paginate($perPage, ['*'], 'videos_page', $videosPage);
 
                 $results['videos'] = [
-                    'data' => $videos->items(),
+                    'data'         => $videos->items(),
                     'current_page' => $videos->currentPage(),
-                    'total' => $videos->total(),
-                    'per_page' => $videos->perPage(),
-                    'has_more' => $videos->hasMorePages(),
+                    'total'        => $videos->total(),
+                    'per_page'     => $videos->perPage(),
+                    'has_more'     => $videos->hasMorePages(),
                 ];
             }
 
             return response()->json([
                 'success' => true,
-                'data' => [
-                    'keyword' => $keyword,
-                    'results' => $results,
-                ]
+                'data' => ['keyword' => $keyword, 'results' => $results],
             ]);
-        } catch (\Exception $e) {
-            DB::rollBack();
-            Log::channel('api')->error($e->getMessage(), ['search-content']);
+        } catch (\Throwable $e) {
+            Log::channel('api')->error('search failed: ' . $e->getMessage(), [
+                'exception' => $e,
+                'keyword'   => $keyword,
+            ]);
+
             return response()->json([
                 'success' => false,
-                'message' => 'Erreur lors de la suppression',
+                'message' => 'Erreur lors de la recherche',
             ], 500);
         }
     }

@@ -9,15 +9,37 @@
         border-left: 3px solid #5eead4;
         padding-left: 12px;
     }
-    #filter-tree .ftree-node.indent {
-        margin-left: 24px;
-        border-left-color: #cfd2db;
+    /* Nested dependants sit inside their parent's box, offset far enough
+       that the chain (Zone > Segment > Localisation > Pathologie) reads
+       at a glance. */
+    #filter-tree .ftree-children {
+        margin-top: 12px;
+        padding-left: 14px;
+        border-left: 1px dashed #cfd2db;
     }
+    #filter-tree .ftree-children > .ftree-node {
+        border-left-color: #cfd2db;
+        margin-bottom: 12px;
+    }
+    #filter-tree .ftree-children > .ftree-node:last-child {
+        margin-bottom: 0;
+    }
+    /* Depth tint — each level a step cooler than the last. */
+    #filter-tree .ftree-node[data-depth="1"] { border-left-color: #93c5fd; }
+    #filter-tree .ftree-node[data-depth="2"] { border-left-color: #c4b5fd; }
+    #filter-tree .ftree-node[data-depth="3"] { border-left-color: #f0abfc; }
+    #filter-tree .ftree-node[data-depth="4"] { border-left-color: #cfd2db; }
+
     #filter-tree .ftree-title {
         font-weight: 600;
         color: #2D3142;
         margin-bottom: 6px;
         font-size: 13px;
+    }
+    #filter-tree .ftree-node[data-depth="0"] > .ftree-title {
+        font-size: 14px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
     }
     #filter-tree .ftree-title .ftree-meta {
         font-weight: 400;
@@ -42,6 +64,7 @@
         font-size: 12.5px;
         color: #4a5278;
         transition: all 0.15s ease;
+        margin: 0;
     }
     #filter-tree .ftree-pill:hover {
         border-color: #5eead4;

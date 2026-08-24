@@ -89,6 +89,117 @@ $(document).ready(function () {
         return evaluateRule(child.visibilityRule, sel);
     }
 
+    // ------------------------------------------------------------
+    // Hierarchy — who nests inside whom
+    // ------------------------------------------------------------
+
+    // Collect every nodeId a rule tree refers to, in encounter order.
+    function collectRuleRefs(rule, out) {
+        out = out || [];
+        if (!rule) return out;
+        if (rule.kind) {
+            if (rule.nodeId) out.push(rule.nodeId);
+            return out;
+        }
+        if (rule.op === 'AND' || rule.op === 'OR') {
+            (rule.rules || []).forEach(function (r) { collectRuleRefs(r, out); });
+        } else if (rule.op === 'NOT') {
+            collectRuleRefs(rule.rule, out);
+        }
+        return out;
+    }
+
+    // parentId for each node:
+    //   1. explicit `parentNodeId` when it points at a real node
+    //   2. otherwise the first node its visibility rule depends on
+    //   3. null for roots (no rule at all)
+    //
+    // Rule 2 is what produces the natural chain in rules.json —
+    // segment depends on zone, localisation on segment, and so on —
+    // without every node needing a parentNodeId spelled out.
+    var nodeById = {};
+    treeData.forEach(function (n) { nodeById[n.id] = n; });
+
+    var parentOf = {};
+    treeData.forEach(function (n) {
+        var p = n.parentNodeId;
+        if (typeof p === 'string' && p !== '' && nodeById[p]) {
+            parentOf[n.id] = p;
+            return;
+        }
+        var refs = collectRuleRefs(n.visibilityRule).filter(function (r) {
+            return nodeById[r] && r !== n.id;
+        });
+        parentOf[n.id] = refs.length > 0 ? refs[0] : null;
+    });
+
+    // Break any cycle by promoting the offender to a root — a malformed
+    // rules.json shouldn't hang the page.
+    treeData.forEach(function (n) {
+        var seen = {}, cur = n.id;
+        while (cur) {
+            if (seen[cur]) { parentOf[n.id] = null; break; }
+            seen[cur] = true;
+            cur = parentOf[cur];
+        }
+    });
+
+    var childrenOf = {};
+    treeData.forEach(function (n) {
+        var p = parentOf[n.id];
+        if (p === null || p === undefined) return;
+        (childrenOf[p] = childrenOf[p] || []).push(n.id);
+    });
+
+    // ------------------------------------------------------------
+    // Render
+    // ------------------------------------------------------------
+
+    function renderNode(node, sel, depth) {
+        if (!node) return '';
+        // Measurement nodes aren't user-tickable filter tags — their
+        // buckets match via product.sizes numeric ranges, not filter_keys.
+        if (node.dimensionKey) return '';
+        if (!isNodeVisible(node, sel)) return '';
+
+        var isMulti = node.selectionType === 'multi';
+        var html = '<div class="ftree-node" data-depth="' + depth + '">';
+
+        html += '<div class="ftree-title">'
+             +    escapeHtml(node.title)
+             +    '<span class="ftree-meta">' + (isMulti ? 'multi' : 'single') + '</span>'
+             +  '</div>';
+
+        html += '<div class="ftree-options">';
+        node.children.forEach(function (child) {
+            if (!isChildVisible(child, sel)) return;
+            var checked = selected.has(child.id);
+            html += '<label class="ftree-pill' + (checked ? ' checked' : '') + '"'
+                 +    ' data-node="' + escapeAttr(node.id) + '"'
+                 +    ' data-child="' + escapeAttr(child.id) + '"'
+                 +    ' data-mode="' + escapeAttr(node.selectionType) + '">';
+            html +=   '<input type="checkbox" name="filter_keys[]" value="' + escapeAttr(child.id) + '"'
+                 +      (checked ? ' checked' : '') + ' style="display:none;">';
+            html +=   escapeHtml(child.label);
+            html += '</label>';
+        });
+        html += '</div>';
+
+        // Dependants render INSIDE this node, so the visual hierarchy
+        // matches the rules hierarchy instead of a flat list where a
+        // pathology sat next to the zone it depends on.
+        var kids = (childrenOf[node.id] || [])
+            .map(function (id) { return renderNode(nodeById[id], sel, depth + 1); })
+            .filter(function (h) { return h !== ''; });
+
+        if (kids.length > 0) {
+            html += '<div class="ftree-children">' + kids.join('') + '</div>';
+        }
+
+        html += '</div>';
+        return html;
+    }
+
     function render() {
         var $tree = $('#filter-tree');
         if (!$tree.length) return;
@@ -97,29 +208,8 @@ $(document).ready(function () {
         var html = '';
 
         treeData.forEach(function (node) {
-            // SKIP measurement nodes — they aren't user-tickable filter
-            // tags. Their buckets are matched via product.sizes numeric
-            // ranges, not via the filter_keys table.
-            if (node.dimensionKey) return;
-
-            if (!isNodeVisible(node, sel)) return;
-
-            html += '<div class="ftree-node' + (node.visibilityRule ? ' indent' : '') + '">';
-            html += '<div class="ftree-title">'
-                +     escapeHtml(node.title)
-                +     '<span class="ftree-meta">multi</span>'
-                + '</div>';
-
-            html += '<div class="ftree-options">';
-            node.children.forEach(function (child) {
-                if (!isChildVisible(child, sel)) return;
-                var checked = selected.has(child.id);
-                html += '<label class="ftree-pill' + (checked ? ' checked' : '') + '" data-node="' + escapeAttr(node.id) + '" data-child="' + escapeAttr(child.id) + '" data-mode="' + node.selectionType + '">';
-                html +=   '<input type="checkbox" name="filter_keys[]" value="' + escapeAttr(child.id) + '"' + (checked ? ' checked' : '') + ' style="display:none;">';
-                html +=   escapeHtml(child.label);
-                html += '</label>';
-            });
-            html += '</div></div>';
+            if (parentOf[node.id]) return;   // roots only
+            html += renderNode(node, sel, 0);
         });
 
         $tree.html(html);
@@ -170,6 +260,18 @@ $(document).ready(function () {
         e.preventDefault();
         selected.clear();
         render();
+    });
+
+    $('#filter-copy').on('click', function () {
+        var el = document.getElementById('filter-export');
+        if (!el) return;
+        el.select();
+        el.setSelectionRange(0, 99999);
+        try { document.execCommand('copy'); } catch (e) {}
+        if (navigator.clipboard) { navigator.clipboard.writeText(el.value).catch(function(){}); }
+        var $b = $(this), t = $b.html();
+        $b.html('<i class="voyager-check"></i> Copié').addClass('btn-success').removeClass('btn-info');
+        setTimeout(function () { $b.html(t).removeClass('btn-success').addClass('btn-info'); }, 1200);
     });
 
     render();
@@ -574,6 +676,7 @@ $(document).ready(function () {
 
         return null;
     }
+
     // ============================================================
     // Protocol groups — flat checkbox tree grouped by protocol > phase.
     // Only filter-type groups are rendered (info groups can't be
@@ -679,18 +782,6 @@ $(document).ready(function () {
             selectedGroups.clear();
             $treeEl.find('.group-checkbox').prop('checked', false);
             updateCount();
-        });
-
-        $('#filter-copy').on('click', function () {
-            var el = document.getElementById('filter-export');
-            if (!el) return;
-            el.select();
-            el.setSelectionRange(0, 99999);
-            try { document.execCommand('copy'); } catch (e) {}
-            if (navigator.clipboard) { navigator.clipboard.writeText(el.value).catch(function(){}); }
-            var $b = $(this), t = $b.html();
-            $b.html('<i class="voyager-check"></i> Copié').addClass('btn-success').removeClass('btn-info');
-            setTimeout(function () { $b.html(t).removeClass('btn-success').addClass('btn-info'); }, 1200);
         });
 
         render();
