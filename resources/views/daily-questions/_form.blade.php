@@ -46,7 +46,20 @@
             <div class="panel-body">
 
                 <div class="form-group">
-                    <label for="topic_id">Centre d'intérêt <span class="text-danger">*</span></label>
+                    <label for="video_id">Vidéo associée</label>
+                    <select class="form-control" id="video_id" name="video_id">
+                        <option value=""></option>
+                        @if ($val('video_id', $question->video_id ?? null))
+                            <option value="{{ $val('video_id', $question->video_id) }}" selected>
+                                {{ $selectedVideo }}
+                            </option>
+                        @endif
+                    </select>
+                    <p class="help-block">Facultatif. Saisissez au moins 3 caractères pour rechercher.</p>
+                </div>
+
+                <div class="form-group">
+                    <label for="topic_id">Sujet <span class="text-danger">*</span></label>
                     <select class="form-control" id="topic_id" name="topic_id" required>
                         <option value="">—</option>
                         @foreach ($topics as $t)
@@ -122,20 +135,20 @@
 
                 <div class="form-group">
                     <label for="published_at">Date de publication</label>
-                    <input type="datetime-local" class="form-control" id="published_at" name="published_at"
+                    <input type="date" class="form-control" id="published_at" name="published_at"
                            value="{{ $val('published_at', isset($question->published_at) && $question->published_at
-                                ? \Illuminate\Support\Carbon::parse($question->published_at)->format('Y-m-d\TH:i')
+                                ? \Illuminate\Support\Carbon::parse($question->published_at)->format('Y-m-d')
                                 : '') }}">
                     <p class="help-block">
-                        La question apparaît dans l'application à partir de cette date. L'heure d'affichage du pub sera déterminée par le système.
+                        La question apparaît dans l'application à partir de cette date.
                     </p>
                 </div>
 
                 <div class="form-group" style="margin-bottom:0">
                     <label for="expired_at">Date de fin</label>
-                    <input type="datetime-local" class="form-control" id="expired_at" name="expired_at"
+                    <input type="date" class="form-control" id="expired_at" name="expired_at"
                            value="{{ $val('expired_at', isset($question->expired_at) && $question->expired_at
-                                ? \Illuminate\Support\Carbon::parse($question->expired_at)->format('Y-m-d\TH:i')
+                                ? \Illuminate\Support\Carbon::parse($question->expired_at)->format('Y-m-d')
                                 : '') }}">
                 </div>
 

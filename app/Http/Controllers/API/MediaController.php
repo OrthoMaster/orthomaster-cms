@@ -76,6 +76,16 @@ class MediaController extends Controller
                     ->get(['e.id', 'e.name']);
             }
 
+            // Add thumbnail
+            $s3ImagePath = 'https://content-orthomaster-prod.s3.eu-west-1.amazonaws.com/application-data/';
+            if ($content->version !== 'v2') {
+                $content->thumbnail = Storage::disk('s3_root')->url($content->s3_path . '/' . $content->title . '/logo.png');
+            } else {
+                $content->thumbnail = $content->video_thumbnail
+                    ? $s3ImagePath . ltrim($content->video_thumbnail, '/')
+                    : null;
+            }
+
             return response()->json([
                 'success' => true,
                 'data' => $content ?? null

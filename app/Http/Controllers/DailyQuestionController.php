@@ -46,9 +46,10 @@ class DailyQuestionController extends Controller
     public function create()
     {
         return view('daily-questions.create', [
-            'topics'   => $this->topicOptions(),
-            'question' => null,
-            'answers'  => collect(),
+            'topics'        => $this->topicOptions(),
+            'question'      => null,
+            'answers'       => collect(),
+            'selectedVideo' => null,
         ]);
     }
 
@@ -88,9 +89,10 @@ class DailyQuestionController extends Controller
         $question = $this->questionOrFail($id);
 
         return view('daily-questions.edit', [
-            'topics'   => $this->topicOptions(),
-            'question' => $question,
-            'answers'  => $this->answersFor($id),
+            'topics'        => $this->topicOptions(),
+            'question'      => $question,
+            'answers'       => $this->answersFor($id),
+            'selectedVideo' => $this->videoLabel($question->video_id),
         ]);
     }
 
@@ -127,10 +129,11 @@ class DailyQuestionController extends Controller
     {
         $v = $request->validate([
             'topic_id'           => ['required', 'integer', 'exists:topics,id'],
+            'video_id'           => ['nullable', 'integer', 'exists:videos,id'],
             'question'           => ['required', 'string'],
             'explanation'        => ['nullable', 'string'],
             'published_at'       => ['nullable', 'date'],
-            'expired_at'         => ['nullable', 'date', 'after:published_at'],
+            'expired_at'         => ['nullable', 'date', 'after_or_equal:published_at'],
             'notification_title' => ['nullable', 'string', 'max:255'],
             'notification_body'  => ['nullable', 'string', 'max:500'],
             'answers'            => ['required', 'array', 'min:' . self::MIN_ANSWERS, 'max:' . self::MAX_ANSWERS],
@@ -141,9 +144,10 @@ class DailyQuestionController extends Controller
             'answers.max'      => 'Une question ne peut pas comporter plus de :max réponses.',
             'answers.*.required' => 'Aucune réponse ne peut être laissée vide.',
             'correct.required' => 'Vous devez désigner la bonne réponse.',
-            'expired_at.after' => 'La date de fin doit être postérieure à la date de publication.',
+            'expired_at.after_or_equal' => 'La date de fin ne peut pas précéder la date de publication.',
         ], [
             'topic_id'           => 'centre d\'intérêt',
+            'video_id'           => 'vidéo',
             'question'           => 'question',
             'explanation'        => 'explication',
             'published_at'       => 'date de publication',
@@ -166,6 +170,7 @@ class DailyQuestionController extends Controller
 
         $v['answers'] = $answers;
         $v['correct'] = $correct;
+        $v['video_id'] = $v['video_id'] ?: null;
 
         return $v;
     }
@@ -176,11 +181,12 @@ class DailyQuestionController extends Controller
     private function questionPayload(array $data): array
     {
         return [
+            'video_id'           => $data['video_id'],
             'topic_id'           => $data['topic_id'],
             'question'           => $data['question'],
             'explanation'        => $data['explanation'] ?? null,
-            'published_at'       => $this->toDateTime($data['published_at'] ?? null),
-            'expired_at'         => $this->toDateTime($data['expired_at'] ?? null),
+            'published_at'       => $this->startOfDay($data['published_at'] ?? null),
+            'expired_at'         => $this->endOfDay($data['expired_at'] ?? null),
             'notification_title' => $data['notification_title'] ?? null,
             'notification_body'  => $data['notification_body'] ?? null,
         ];
@@ -234,5 +240,22 @@ class DailyQuestionController extends Controller
     private function topicOptions()
     {
         return DB::table('topics')->orderBy('name')->get(['id', 'name']);
+    }
+
+    private function videoLabel(?int $videoId): ?string
+    {
+        return $videoId
+            ? DB::table('videos')->where('id', $videoId)->value('title')
+            : null;
+    }
+
+    private function startOfDay(?string $value): ?string
+    {
+        return $value ? Carbon::parse($value)->startOfDay()->toDateTimeString() : null;
+    }
+
+    private function endOfDay(?string $value): ?string
+    {
+        return $value ? Carbon::parse($value)->endOfDay()->toDateTimeString() : null;
     }
 }

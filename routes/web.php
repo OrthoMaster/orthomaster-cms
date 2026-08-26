@@ -14,6 +14,7 @@ use App\Http\Controllers\CompanyController;
 use App\Http\Controllers\ContentViewReportController;
 use App\Http\Controllers\DailyQuestionController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\DashboardDailyActionController;
 use App\Http\Controllers\DashboardLessonController;
 use App\Http\Controllers\DashboardUserController;
 use App\Http\Controllers\DashboardVideoAdsController;
@@ -21,6 +22,7 @@ use App\Http\Controllers\DashboardVideoViewsController;
 use App\Http\Controllers\GenerateDocumentController;
 use App\Http\Controllers\GeneratePdfController;
 use App\Http\Controllers\GuideController;
+use App\Http\Controllers\InfographicController;
 use App\Http\Controllers\IntEmpTrackerController;
 use App\Http\Controllers\MediaController;
 use App\Http\Controllers\MktShortLinkController;
@@ -313,6 +315,32 @@ Route::group(['prefix' => 'admin', 'middleware' => ['cmsAdmin']], function () {
             Route::get('/{id}/edit', [DailyQuestionController::class, 'edit'])->name('edit');
             Route::match(['put', 'patch'], '/{id}', [DailyQuestionController::class, 'update'])->name('update');
         });
+
+    // Podcast
+    Route::prefix('podcasts')
+        ->name('voyager.podcasts.')
+        ->group(function () {
+            Route::get('/', [PodcastController::class, 'index'])->name('index');
+            Route::get('/create', [PodcastController::class, 'create'])->name('create');
+            Route::post('/', [PodcastController::class, 'store'])->name('store');
+            Route::get('/{id}/edit', [PodcastController::class, 'edit'])->name('edit');
+            Route::match(['put', 'patch'], '/{id}', [PodcastController::class, 'update'])->name('update');
+        });
+
+    // Infographic
+    Route::prefix('infographics')
+        ->name('infographics.')
+        ->group(function () {
+            Route::get('/', [InfographicController::class, 'index'])->name('index');
+            Route::get('/create', [InfographicController::class, 'create'])->name('create');
+            Route::post('/', [InfographicController::class, 'store'])->name('store');
+            Route::get('/search-videos', [InfographicController::class, 'searchVideos'])->name('search-videos');
+            Route::get('/{id}/edit', [InfographicController::class, 'edit'])->name('edit');
+            Route::put('/{id}', [InfographicController::class, 'update'])->name('update');
+            Route::delete('/{id}', [InfographicController::class, 'destroy'])->name('destroy');
+        });
+    Route::get('dashboard/daily-actions', [DashboardDailyActionController::class, 'index'])
+        ->name('dashboard.daily-actions');
 
     // Test notification
     Route::prefix('notifications')
