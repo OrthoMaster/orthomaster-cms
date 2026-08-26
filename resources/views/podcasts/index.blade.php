@@ -67,6 +67,10 @@
                                                         : '—' }}
                                                 </td>
                                                 <td class="no-sort no-click text-right">
+                                                    <button type="button" class="btn btn-success"
+                                                        onclick="const b=this; navigator.clipboard.writeText('https://go.orthomaster.fr/open/podcast/{{ $p->id }}'); b.textContent='✓ Copié !'; setTimeout(() => b.textContent='Partager', 1500);">
+                                                        Partager
+                                                    </button>
                                                     <a href="{{ route('voyager.podcasts.edit', $p->id) }}"
                                                        class="btn btn-sm btn-primary edit">
                                                         <i class="voyager-edit"></i>

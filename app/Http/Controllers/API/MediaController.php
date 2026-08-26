@@ -81,8 +81,8 @@ class MediaController extends Controller
             if ($content->version !== 'v2') {
                 $content->thumbnail = Storage::disk('s3_root')->url($content->s3_path . '/' . $content->title . '/logo.png');
             } else {
-                $content->thumbnail = $content->video_thumbnail
-                    ? $s3ImagePath . ltrim($content->video_thumbnail, '/')
+                $content->thumbnail = $content->video->thumbnail
+                    ? $s3ImagePath . ltrim($content->video->thumbnail, '/')
                     : null;
             }
 
