@@ -341,22 +341,34 @@ class AuthController extends Controller
         $token = $request->token;
         $email = $request->email;
 
-        $user = User::where('email', $email)->first();
-        if (!$user) {
-            $status = 'failed-check-exist';
-        }
+        try {
+            $user = User::where('email', $email)->first();
+            $broker = Password::broker();
 
-        $broker = Password::broker();
-        $tokenRepository = $broker->getRepository();
-        if (!$tokenRepository->exists($user, $token)) {
-            $status = 'failed-check-token';
-        }
+            if (! $user) {
+                $status = 'failed-check-exist';
+            } elseif (! $broker->getRepository()->exists($user, $token)) {
+                $status = 'failed-check-token';
+            }
 
-        return view('landingpage.password-reset', [
-            'status' => $status,
-            'token' => $request->token,
-            'email' => $request->email,
-        ]);
+            $tokenRepository = $broker->getRepository();
+            if (!$tokenRepository->exists($user, $token)) {
+                $status = 'failed-check-token';
+            }
+
+            return view('landingpage.password-reset', [
+                'status' => $status,
+                'token' => $request->token,
+                'email' => $request->email,
+            ]);
+        } catch (\Exception $e) {
+            Log::error($e->getMessage(), [$request->email, 'reset-password-page']);
+            return view('landingpage.password-reset', [
+                'status' => 'failed-check-token',
+                'token' => $request->token,
+                'email' => $request->email,
+            ]);
+        }
     }
 
     /**
