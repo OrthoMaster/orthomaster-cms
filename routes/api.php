@@ -64,6 +64,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/daily-action', [DailyActionController::class, 'getTodayActionByUser']);
     Route::get('/daily-question/{id}', [DailyActionController::class, 'getQuestion']);
     Route::get('/podcast/{id}', [DailyActionController::class, 'getPodcast']);
+    Route::get('/infographic/{id}', [DailyActionController::class, 'getInfographic']);
     Route::put('/daily-question', [DailyActionController::class, 'answerQuestion']);
     Route::put('/daily-podcast/count', [DailyActionController::class, 'countTimesPodcast']);
 

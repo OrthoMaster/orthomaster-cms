@@ -69,6 +69,7 @@ class InfographicController extends Controller
             'infographic'   => null,
             'selectedVideo' => null,
             'imageUrl'      => null,
+            'topics'        => $this->topicOptions(),
         ]);
     }
 
@@ -112,6 +113,7 @@ class InfographicController extends Controller
             'infographic'   => $infographic,
             'selectedVideo' => $this->videoLabel($infographic->video_id),
             'imageUrl'      => $this->fileUrl($infographic->thumbnail ?: $infographic->image),
+            'topics'        => $this->topicOptions(),
         ]);
     }
 
@@ -195,25 +197,33 @@ class InfographicController extends Controller
         $v = $request->validate([
             'title'              => ['required', 'string', 'max:255'],
             'video_id'           => ['nullable', 'integer', 'exists:videos,id'],
+            'topic_id'           => ['required', 'integer', 'exists:topics,id'],
             'image_file'         => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
             'notification_title' => ['nullable', 'string', 'max:150'],
             'notification_body'  => ['nullable', 'string', 'max:255'],
             'published_at'       => ['nullable', 'date'],
+            'expired_at'         => ['nullable', 'date', 'after_or_equal:published_at'],
         ], [
             'image_file.max'   => 'Le visuel ne doit pas dépasser 5 Mo.',
             'image_file.image' => 'Le fichier doit être une image.',
+            'expired_at.after_or_equal' => 'La date de fin ne peut pas précéder la date de publication.',
         ], [
             'title'              => 'titre',
+            'topic_id'           => 'sujet',
             'video_id'           => 'vidéo',
             'image_file'         => 'visuel',
             'notification_title' => 'titre de la notification',
             'notification_body'  => 'message de la notification',
             'published_at'       => 'date de publication',
+            'expired_at'         => 'date de fin',
         ]);
 
         $v['video_id']     = $v['video_id'] ?: null;
         $v['published_at'] = !empty($v['published_at'])
             ? Carbon::parse($v['published_at'])->toDateString()
+            : null;
+        $v['expired_at']   = !empty($v['expired_at'])
+            ? Carbon::parse($v['expired_at'])->toDateString()
             : null;
 
         return $v;
@@ -227,9 +237,11 @@ class InfographicController extends Controller
         return [
             'title'              => $data['title'],
             'video_id'           => $data['video_id'],
+            'topic_id'           => $data['topic_id'],
             'notification_title' => $data['notification_title'] ?? null,
             'notification_body'  => $data['notification_body'] ?? null,
             'published_at'       => $data['published_at'],
+            'expired_at'         => $data['expired_at'],
         ];
     }
 
@@ -333,5 +345,10 @@ class InfographicController extends Controller
         return $videoId
             ? DB::table('videos')->where('id', $videoId)->value('title')
             : null;
+    }
+
+    private function topicOptions()
+    {
+        return DB::table('topics')->orderBy('name')->get(['id', 'name']);
     }
 }

@@ -30,12 +30,6 @@
             <div class="panel-body">
 
                 <div class="form-group">
-                    <label for="title">Titre <span class="text-danger">*</span></label>
-                    <input type="text" class="form-control" id="title" name="title"
-                           value="{{ $val('title', $infographic->title ?? '') }}" required>
-                </div>
-
-                <div class="form-group">
                     <label for="video_id">Vidéo associée</label>
                     <select class="form-control" id="video_id" name="video_id">
                         <option value=""></option>
@@ -46,6 +40,26 @@
                         @endif
                     </select>
                     <p class="help-block">Facultatif. Saisissez au moins 3 caractères pour rechercher.</p>
+                </div>
+
+                <div class="form-group">
+                    <label for="topic_id">Sujet <span class="text-danger">*</span></label>
+                    <select class="form-control" id="topic_id" name="topic_id" required>
+                        <option value="">—</option>
+                        @foreach ($topics as $t)
+                            <option value="{{ $t->id }}"
+                                @selected((int) $val('topic_id', $infographic->topic_id ?? null) === (int) $t->id)>
+                                {{ $t->name }}
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
+
+
+                <div class="form-group">
+                    <label for="title">Titre <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control" id="title" name="title"
+                           value="{{ $val('title', $infographic->title ?? '') }}" required>
                 </div>
 
                 <div class="form-group" style="margin-bottom:0">
@@ -83,7 +97,7 @@
             </div>
             <div class="panel-body">
 
-                <div class="form-group" style="margin-bottom:0">
+                <div class="form-group">
                     <label for="published_at">Date de publication</label>
                     <input type="date" class="form-control" id="published_at" name="published_at"
                            value="{{ $val('published_at', isset($infographic->published_at) && $infographic->published_at
@@ -92,6 +106,14 @@
                     <p class="help-block">
                         Laissez vide tant que l'infographie n'est pas programmée.
                     </p>
+                </div>
+
+                <div class="form-group" style="margin-bottom:0">
+                    <label for="expired_at">Date de fin</label>
+                    <input type="date" class="form-control" id="expired_at" name="expired_at"
+                           value="{{ $val('expired_at', isset($infographic->expired_at) && $infographic->expired_at
+                                ? \Illuminate\Support\Carbon::parse($infographic->expired_at)->format('Y-m-d')
+                                : '') }}">
                 </div>
 
             </div>

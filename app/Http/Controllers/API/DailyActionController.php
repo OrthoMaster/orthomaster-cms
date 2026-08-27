@@ -5,12 +5,14 @@ namespace App\Http\Controllers\API;
 use App\Http\Controllers\Controller;
 use App\Models\DailyQuestion;
 use App\Models\DailyQuestionAnswer;
+use App\Models\Infographic;
 use App\Models\OldContent;
 use App\Models\Podcast;
 use App\Models\TrkContentViews;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 
 class DailyActionController extends Controller
 {
@@ -90,11 +92,39 @@ class DailyActionController extends Controller
                 ];
             });
 
+
+            // Infographics
+            if (in_array($user->role->name, ['admin', 'directeur', 'manager'])) {
+                $infographics = Infographic::whereDate('expired_at', '>=', today())
+                    ->with('topic')
+                    ->orderBy('published_at', 'desc')
+                    ->get();
+            } else {
+                $infographics = Infographic::whereDate('published_at', '<=', today())
+                    ->whereDate('expired_at', '>=', today())
+                    ->with('topic')
+                    ->get();
+            }
+
+            // Process each podcast
+            $infographicsData = $infographics->map(function ($infop) use ($user) {
+                // Check user has topic
+                $hasTopicWithInfographic = $user->topics()
+                    ->where('topic_id', $infop->topic->id)
+                    ->exists();
+
+                return [
+                    'infographic' => $infop,
+                    'has_topic' => $hasTopicWithInfographic,
+                ];
+            });
+
             return response()->json([
                 'success' => true,
                 'data' => [
                     'questions' => $questionsData,
                     'podcasts' => $podcastsData,
+                    'infographics' => $infographicsData
                 ]
             ]);
         } catch (\Exception $e) {
@@ -145,6 +175,52 @@ class DailyActionController extends Controller
             ]);
         } catch (\Exception $e) {
             Log::channel('api')->error($e->getMessage(), ['get-podcast', $id]);
+            return response()->json([
+                'success' => false,
+            ]);
+        }
+    }
+
+    public function getInfographic(Request $request, $id)
+    {
+        try {
+            $infographic = Infographic::where('id', $id)
+                ->with(['topic', 'video'])
+                ->first();
+
+            if (!$infographic) {
+                return response()->json([
+                    'success' => false,
+                ]);
+            }
+
+            $infographic->image = Storage::disk('s3')->url($infographic->image);
+            if ($infographic->video) {
+                $content = DB::table('content')
+                    ->where('video_id', $infographic->video->id)
+                    ->where('type', 'flash')
+                    ->first();
+                
+                if ($content) {
+                    $infographic->content = MediaController::fillContentDetail($content);
+                }
+            }
+
+            // Check user has topic
+            $user = $request->user();
+            $hasTopic = $user->topics()
+                ->where('topic_id', $infographic->topic->id)
+                ->exists();
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'infographic'=> $infographic,
+                    'has_topic' => $hasTopic,
+                ]
+            ]);
+        } catch (\Exception $e) {
+            Log::channel('api')->error($e->getMessage(), ['get-infographic', $id]);
             return response()->json([
                 'success' => false,
             ]);

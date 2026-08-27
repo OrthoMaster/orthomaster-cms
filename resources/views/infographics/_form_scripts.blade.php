@@ -1,5 +1,6 @@
 <script>
     $(document).ready(function () {
+        $('#topic_id').select2({ width: '100%' });
 
         /* ---------- Select2 vidéo (min 3 caractères) ---------- */
         $('#video_id').select2({

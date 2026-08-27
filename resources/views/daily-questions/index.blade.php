@@ -46,6 +46,7 @@
                                     <thead>
                                         <tr>
                                             <th>ID</th>
+                                            <th>Titre</th>
                                             <th>Question</th>
                                             <th>Sujet</th>
                                             <th class="text-right">Participants</th>
@@ -58,7 +59,8 @@
                                         @foreach ($questions as $q)
                                             <tr>
                                                 <td>{{ $q->id }}</td>
-                                                <td><b>{{ \Illuminate\Support\Str::limit($q->question, 90) }}</b></td>
+                                                <td><b>{{ $q->title }}</b></td>
+                                                <td><b>{{ \Illuminate\Support\Str::limit($q->question, 50) }}</b></td>
                                                 <td>{{ $q->topic_name ?: '—' }}</td>
                                                 <td class="text-right">{{ number_format($q->count ?? 0, 0, ',', ' ') }}</td>
                                                 <td>

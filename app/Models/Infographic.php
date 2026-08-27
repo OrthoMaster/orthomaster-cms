@@ -7,4 +7,14 @@ use Illuminate\Database\Eloquent\Model;
 class Infographic extends Model
 {
     protected $guarded = ['id'];
+
+    public function topic()
+    {
+        return $this->belongsTo(Topic::class);
+    }
+
+    public function video()
+    {
+        return $this->belongsTo(Video::class);
+    }
 }

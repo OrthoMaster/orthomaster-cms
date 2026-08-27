@@ -24,6 +24,7 @@ class DailyQuestionController extends Controller
             ->leftJoin('topics as t', 't.id', '=', 'q.topic_id')
             ->select(
                 'q.id',
+                'q.title',
                 'q.question',
                 'q.count',
                 'q.published_at',
@@ -130,6 +131,7 @@ class DailyQuestionController extends Controller
         $v = $request->validate([
             'topic_id'           => ['required', 'integer', 'exists:topics,id'],
             'video_id'           => ['nullable', 'integer', 'exists:videos,id'],
+            'title'              => ['required', 'string', 'max:120'],
             'question'           => ['required', 'string'],
             'explanation'        => ['nullable', 'string'],
             'published_at'       => ['nullable', 'date'],
@@ -148,6 +150,7 @@ class DailyQuestionController extends Controller
         ], [
             'topic_id'           => 'centre d\'intérêt',
             'video_id'           => 'vidéo',
+            'title'              => 'titre',
             'question'           => 'question',
             'explanation'        => 'explication',
             'published_at'       => 'date de publication',
@@ -183,6 +186,7 @@ class DailyQuestionController extends Controller
         return [
             'video_id'           => $data['video_id'],
             'topic_id'           => $data['topic_id'],
+            'title'              => $data['title'],
             'question'           => $data['question'],
             'explanation'        => $data['explanation'] ?? null,
             'published_at'       => $this->startOfDay($data['published_at'] ?? null),

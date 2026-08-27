@@ -72,6 +72,14 @@
                 </div>
 
                 <div class="form-group">
+                    <label for="title">Titre <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control" id="title" name="title"
+                           value="{{ $val('title', $question->title ?? '') }}"
+                           maxlength="120" required>
+                    <p class="help-block">120 caractères maximum.</p>
+                </div>
+
+                <div class="form-group">
                     <label for="question">Énoncé <span class="text-danger">*</span></label>
                     <textarea class="form-control" id="question" name="question" rows="3"
                               required>{{ $val('question', $question->question ?? '') }}</textarea>
