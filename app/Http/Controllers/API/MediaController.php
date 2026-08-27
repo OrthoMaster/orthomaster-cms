@@ -47,44 +47,7 @@ class MediaController extends Controller
                 ->where('type', 'flash')
                 ->first();
 
-            if ($content->s3_path && $content->version == 'v1') {
-                $direction = $content->s3_path . "/" . $content->title . "/content.xml";
-                $xmlContent = Storage::disk('s3_root')->get($direction);
-
-                $baseDirectory = $content->s3_path . "/" . $content->title;
-                $trainingController = new TrainingController;
-                $parsedContent = $trainingController->processXmlImages($xmlContent, $baseDirectory);
-
-                $content->xml_content = $parsedContent;
-            } elseif (!!$content->video_id && $content->version == 'v2') {
-                $content->video = DB::table('videos')
-                    ->where('id', $content->video_id)
-                    ->first();
-                $content->block = DB::table('blocks')
-                    ->where('video_id', $content->video_id)
-                    ->first();
-                $content->event = DB::table('events')
-                    ->where('id', $content->event_id)
-                    ->first();
-                $content->past_event = DB::table('past_events')
-                    ->where('id', $content->id_past_event)
-                    ->first();
-                $content->experts = DB::table('expert_video as ev')
-                    ->join('experts as e', 'e.id', '=', 'ev.expert_id')
-                    ->where('ev.content_id', $content->id_content)
-                    ->orderBy('e.name')
-                    ->get(['e.id', 'e.name']);
-            }
-
-            // Add thumbnail
-            $s3ImagePath = 'https://content-orthomaster-prod.s3.eu-west-1.amazonaws.com/application-data/';
-            if ($content->version !== 'v2') {
-                $content->thumbnail = Storage::disk('s3_root')->url($content->s3_path . '/' . $content->title . '/logo.png');
-            } else {
-                $content->thumbnail = $content->video->thumbnail
-                    ? $s3ImagePath . ltrim($content->video->thumbnail, '/')
-                    : null;
-            }
+            $content = $this->fillContentDetail($content);
 
             return response()->json([
                 'success' => true,
@@ -96,6 +59,50 @@ class MediaController extends Controller
                 'success' => false,
             ]);
         }
+    }
+
+    public static function fillContentDetail($content)
+    {
+        if ($content->s3_path && $content->version == 'v1') {
+            $direction = $content->s3_path . "/" . $content->title . "/content.xml";
+            $xmlContent = Storage::disk('s3_root')->get($direction);
+
+            $baseDirectory = $content->s3_path . "/" . $content->title;
+            $trainingController = new TrainingController;
+            $parsedContent = $trainingController->processXmlImages($xmlContent, $baseDirectory);
+
+            $content->xml_content = $parsedContent;
+        } elseif (!!$content->video_id && $content->version == 'v2') {
+            $content->video = DB::table('videos')
+                ->where('id', $content->video_id)
+                ->first();
+            $content->block = DB::table('blocks')
+                ->where('video_id', $content->video_id)
+                ->first();
+            $content->event = DB::table('events')
+                ->where('id', $content->event_id)
+                ->first();
+            $content->past_event = DB::table('past_events')
+                ->where('id', $content->id_past_event)
+                ->first();
+            $content->experts = DB::table('expert_video as ev')
+                ->join('experts as e', 'e.id', '=', 'ev.expert_id')
+                ->where('ev.content_id', $content->id_content)
+                ->orderBy('e.name')
+                ->get(['e.id', 'e.name']);
+        }
+
+        // Add thumbnail
+        $s3ImagePath = 'https://content-orthomaster-prod.s3.eu-west-1.amazonaws.com/application-data/';
+        if ($content->version !== 'v2') {
+            $content->thumbnail = Storage::disk('s3_root')->url($content->s3_path . '/' . $content->title . '/logo.png');
+        } else {
+            $content->thumbnail = $content->video->thumbnail
+                ? $s3ImagePath . ltrim($content->video->thumbnail, '/')
+                : null;
+        }
+
+        return $content;
     }
 
     /**

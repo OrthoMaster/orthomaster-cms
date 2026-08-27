@@ -5,6 +5,7 @@ namespace App\Http\Controllers\API;
 use App\Http\Controllers\Controller;
 use App\Models\DailyQuestion;
 use App\Models\DailyQuestionAnswer;
+use App\Models\OldContent;
 use App\Models\Podcast;
 use App\Models\TrkContentViews;
 use Illuminate\Http\Request;
@@ -109,13 +110,24 @@ class DailyActionController extends Controller
         try {
             $podcast = Podcast::where('id', $id)
                 ->whereDate('expired_at', '>=', today())
-                ->with('topic')
+                ->with(['topic', 'video'])
                 ->first();
 
             if (!$podcast) {
                 return response()->json([
                     'success' => false,
                 ]);
+            }
+
+            if ($podcast->video) {
+                $content = DB::table('content')
+                    ->where('video_id', $podcast->video->id)
+                    ->where('type', 'flash')
+                    ->first();
+                
+                if ($content) {
+                    $podcast->content = MediaController::fillContentDetail($content);
+                }
             }
 
             // Check user has topic
@@ -152,7 +164,8 @@ class DailyActionController extends Controller
                     'answers',
                     'answers.users' => function ($query) use ($user) {
                         $query->where('user_id', $user->id);
-                    }
+                    },
+                    'video'
                 ])
                 ->first();
 
@@ -160,6 +173,17 @@ class DailyActionController extends Controller
                 return response()->json([
                     'success' => false,
                 ]);
+            }
+
+            if ($question->video) {
+                $content = DB::table('content')
+                    ->where('video_id', $question->video->id)
+                    ->where('type', 'flash')
+                    ->first();
+                
+                if ($content) {
+                    $question->content = MediaController::fillContentDetail($content);
+                }
             }
 
             $userAnswer = $question->answers->first(function ($answer) {
