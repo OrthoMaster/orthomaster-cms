@@ -329,46 +329,39 @@ class AuthController extends Controller
      */
     public function viewResetPage(Request $request)
     {
-        $status = 'valid';
+        $token = $request->token;
+        $email = $request->email;
+
         $validator = Validator::make($request->all(), [
             'token' => ['required', 'string'],
             'email' => ['required', 'email'],
         ]);
+
         if ($validator->fails()) {
-            $status = 'failed-validate';
+            return view('landingpage.password-reset', [
+                'status' => 'failed-validate',
+                'token'  => $token,
+                'email'  => $email,
+            ]);
         }
 
-        $token = $request->token;
-        $email = $request->email;
-
         try {
-            $user = User::where('email', $email)->first();
+            $user   = User::where('email', $email)->first();
             $broker = Password::broker();
 
             if (! $user) {
                 $status = 'failed-check-exist';
             } elseif (! $broker->getRepository()->exists($user, $token)) {
                 $status = 'failed-check-token';
+            } else {
+                $status = 'valid';
             }
-
-            $tokenRepository = $broker->getRepository();
-            if (!$tokenRepository->exists($user, $token)) {
-                $status = 'failed-check-token';
-            }
-
-            return view('landingpage.password-reset', [
-                'status' => $status,
-                'token' => $request->token,
-                'email' => $request->email,
-            ]);
-        } catch (\Exception $e) {
-            Log::error($e->getMessage(), [$request->email, 'reset-password-page']);
-            return view('landingpage.password-reset', [
-                'status' => 'failed-check-token',
-                'token' => $request->token,
-                'email' => $request->email,
-            ]);
+        } catch (\Throwable $e) {
+            Log::error($e->getMessage(), [$email, 'reset-password-page']);
+            $status = 'failed-check-token';
         }
+
+        return view('landingpage.password-reset', compact('status', 'token', 'email'));
     }
 
     /**
