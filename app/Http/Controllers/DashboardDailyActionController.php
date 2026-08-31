@@ -77,39 +77,45 @@ class DashboardDailyActionController extends Controller
     {
         $today = now()->toDateString();
 
-        $podcasts = $this->countByTopic('podcasts', $today);
-        $quizzes  = $this->countByTopic('daily_questions', $today);
-        $users    = $this->usersByTopic();
+        $podcasts     = $this->countByTopic('podcasts', $today);
+        $quizzes      = $this->countByTopic('daily_questions', $today);
+        $infographics = $this->countByTopic('infographics', $today);
+        $users        = $this->usersByTopic();
 
         $topics = DB::table('topics')->orderBy('name')->get(['id', 'name']);
 
         $totals = [
-            'podcasts' => array_sum($podcasts->all()),
-            'quizzes'  => array_sum($quizzes->all()),
-            'users'    => array_sum($users->all()),
+            'podcasts'     => array_sum($podcasts->all()),
+            'quizzes'      => array_sum($quizzes->all()),
+            'infographics' => array_sum($infographics->all()),
+            'users'        => array_sum($users->all()),
         ];
 
         // Les maximums servent à moduler l'intensité des couleurs
         $max = [
-            'podcasts' => $podcasts->max() ?: 0,
-            'quizzes'  => $quizzes->max() ?: 0,
-            'users'    => $users->max() ?: 0,
+            'podcasts'     => $podcasts->max() ?: 0,
+            'quizzes'      => $quizzes->max() ?: 0,
+            'infographics' => $infographics->max() ?: 0,
+            'users'        => $users->max() ?: 0,
         ];
 
-        $rows = $topics->map(function ($topic) use ($podcasts, $quizzes, $users, $totals) {
+        $rows = $topics->map(function ($topic) use ($podcasts, $quizzes, $infographics, $users, $totals) {
             $p = (int) ($podcasts[$topic->id] ?? 0);
             $q = (int) ($quizzes[$topic->id] ?? 0);
+            $i = (int) ($infographics[$topic->id] ?? 0);
             $u = (int) ($users[$topic->id] ?? 0);
 
             return [
-                'id'            => $topic->id,
-                'name'          => $topic->name,
-                'podcasts'      => $p,
-                'quizzes'       => $q,
-                'users'         => $u,
-                'podcasts_rate' => $this->rate($p, $totals['podcasts']),
-                'quizzes_rate'  => $this->rate($q, $totals['quizzes']),
-                'users_rate'    => $this->rate($u, $totals['users']),
+                'id'                => $topic->id,
+                'name'              => $topic->name,
+                'podcasts'          => $p,
+                'quizzes'           => $q,
+                'infographics'      => $i,
+                'users'             => $u,
+                'podcasts_rate'     => $this->rate($p, $totals['podcasts']),
+                'quizzes_rate'      => $this->rate($q, $totals['quizzes']),
+                'infographics_rate' => $this->rate($i, $totals['infographics']),
+                'users_rate'        => $this->rate($u, $totals['users']),
             ];
         });
 

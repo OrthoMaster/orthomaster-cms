@@ -107,6 +107,10 @@
                                                 Quiz
                                                 <span class="col-total">{{ number_format($distribution['totals']['quizzes'], 0, ',', ' ') }}</span>
                                             </th>
+                                            <th class="col-infographics">
+                                                Infographies
+                                                <span class="col-total">{{ number_format($distribution['totals']['infographics'], 0, ',', ' ') }}</span>
+                                            </th>
                                             <th class="col-users">
                                                 Utilisateurs
                                                 <span class="col-total">{{ number_format($distribution['totals']['users'], 0, ',', ' ') }}</span>
@@ -118,7 +122,7 @@
                                             <tr>
                                                 <td class="topic-name">{{ $row['name'] }}</td>
 
-                                                @foreach (['podcasts', 'quizzes', 'users'] as $key)
+                                                @foreach (['podcasts', 'quizzes', 'infographics', 'users'] as $key)
                                                     @php
                                                         $rate = $row[$key . '_rate'];
 
@@ -234,6 +238,8 @@
         .distribution-table thead th.col-quizzes .col-total { color: #955BA5; }
         .distribution-table thead th.col-users,
         .distribution-table thead th.col-users .col-total { color: #F39C12; }
+        .distribution-table thead th.col-infographics,
+        .distribution-table thead th.col-infographics .col-total { color: #2ECC71; }
 
         .cell {
             padding: 14px 12px;
@@ -249,6 +255,7 @@
         .cell-podcasts { background: rgba(34, 167, 240, var(--alpha, 0)); }
         .cell-quizzes  { background: rgba(149, 91, 165, var(--alpha, 0)); }
         .cell-users    { background: rgba(243, 156, 18, var(--alpha, 0)); }
+        .cell-infographics { background: rgba(46, 204, 113, var(--alpha, 0)); }
 
         /* Fond soutenu : on passe le texte en blanc pour rester lisible */
         .cell.is-strong .cell-value,

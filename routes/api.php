@@ -9,6 +9,7 @@ use App\Http\Controllers\API\CompanyController;
 use App\Http\Controllers\API\ContractController;
 use App\Http\Controllers\API\DailyActionController;
 use App\Http\Controllers\API\DocumentController;
+use App\Http\Controllers\API\FavouriteController;
 use App\Http\Controllers\API\MediaController;
 use App\Http\Controllers\API\PaymentController;
 use App\Http\Controllers\API\PlanController;
@@ -76,6 +77,11 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::put('/profile/notifications', [AuthController::class, 'updateNotiPermission']);
 
     Route::put('/profile/topics/add', [AuthController::class, 'addTopic']);
+    // Favourite
+    Route::post('/favourites/topics/toggle', [FavouriteController::class, 'toggleTopic'])->middleware('throttle:30,1');
+    Route::post('/favourites/toggle', [FavouriteController::class, 'toggleFavourite'])->middleware('throttle:30,1');
+    Route::get('/favourites', [FavouriteController::class, 'getFavourites']);
+
 
     // Notification
     Route::get('/notifications', [SystemNotificationController::class, 'getNotifications']);
@@ -207,7 +213,6 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/count', [ProductController::class, 'count']);
         Route::get('/counts-by-group', [ProductController::class, 'countsByGroup']);
         Route::get('/{product}', [ProductController::class, 'show']);
-        
     });
 
     // Video ads

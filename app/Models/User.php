@@ -114,6 +114,11 @@ class User extends \TCG\Voyager\Models\User
         return $this->belongsToMany(Topic::class);
     }
 
+    public function favourites()
+    {
+        return $this->hasMany(Favourite::class);
+    }
+
     public function packages()
     {
         return $this->belongsToMany(Package::class, 'package_user')

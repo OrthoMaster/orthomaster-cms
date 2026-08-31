@@ -85,10 +85,15 @@ class DailyActionController extends Controller
                 $hasTopicWithPodcast = $user->topics()
                     ->where('topic_id', $podcast->topic->id)
                     ->exists();
+                $hasLikeWithPodcast = $user->favourites()
+                    ->where('item_id', $podcast->id)
+                    ->where('type', 'podcast')
+                    ->exists();
 
                 return [
                     'podcast' => $podcast,
                     'has_topic' => $hasTopicWithPodcast,
+                    'has_like' => $hasLikeWithPodcast
                 ];
             });
 
@@ -112,10 +117,15 @@ class DailyActionController extends Controller
                 $hasTopicWithInfographic = $user->topics()
                     ->where('topic_id', $infop->topic->id)
                     ->exists();
+                $hasLikeWithInfographic = $user->favourites()
+                    ->where('item_id', $infop->id)
+                    ->where('type', 'infographic')
+                    ->exists();
 
                 return [
                     'infographic' => $infop,
                     'has_topic' => $hasTopicWithInfographic,
+                    'has_like' => $hasLikeWithInfographic,
                 ];
             });
 
@@ -165,12 +175,17 @@ class DailyActionController extends Controller
             $hasTopicWithPodcast = $user->topics()
                 ->where('topic_id', $podcast->topic->id)
                 ->exists();
+            $hasLikeWithPodcast = $user->favourites()
+                    ->where('item_id', $podcast->id)
+                    ->where('type', 'podcast')
+                    ->exists();
 
             return response()->json([
                 'success' => true,
                 'data' => [
                     'podcast' => $podcast,
                     'has_topic' => $hasTopicWithPodcast,
+                    'has_like' => $hasLikeWithPodcast,
                 ]
             ]);
         } catch (\Exception $e) {
@@ -211,12 +226,17 @@ class DailyActionController extends Controller
             $hasTopic = $user->topics()
                 ->where('topic_id', $infographic->topic->id)
                 ->exists();
+            $hasLike = $user->favourites()
+                    ->where('item_id', $infographic->id)
+                    ->where('type', 'infographic')
+                    ->exists();
 
             return response()->json([
                 'success' => true,
                 'data' => [
                     'infographic'=> $infographic,
                     'has_topic' => $hasTopic,
+                    'has_like' => $hasLike
                 ]
             ]);
         } catch (\Exception $e) {
