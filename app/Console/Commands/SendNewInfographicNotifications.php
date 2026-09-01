@@ -40,7 +40,8 @@ class SendNewInfographicNotifications extends Command
         }
 
         $query = User::where('notification_flg', true)
-            ->whereHas('topics', fn($q) => $q->where('topics.id', $infographic->topic_id));
+            //->whereHas('topics', fn($q) => $q->where('topics.id', $infographic->topic_id))
+            ;
 
         $totalUsers = $query->count();
         if ($totalUsers === 0) {

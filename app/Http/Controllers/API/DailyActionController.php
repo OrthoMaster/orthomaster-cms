@@ -164,7 +164,7 @@ class DailyActionController extends Controller
                     ->where('video_id', $podcast->video->id)
                     ->where('type', 'flash')
                     ->first();
-                
+
                 if ($content) {
                     $podcast->content = MediaController::fillContentDetail($content);
                 }
@@ -176,9 +176,9 @@ class DailyActionController extends Controller
                 ->where('topic_id', $podcast->topic->id)
                 ->exists();
             $hasLikeWithPodcast = $user->favourites()
-                    ->where('item_id', $podcast->id)
-                    ->where('type', 'podcast')
-                    ->exists();
+                ->where('item_id', $podcast->id)
+                ->where('type', 'podcast')
+                ->exists();
 
             return response()->json([
                 'success' => true,
@@ -215,7 +215,7 @@ class DailyActionController extends Controller
                     ->where('video_id', $infographic->video->id)
                     ->where('type', 'flash')
                     ->first();
-                
+
                 if ($content) {
                     $infographic->content = MediaController::fillContentDetail($content);
                 }
@@ -227,14 +227,23 @@ class DailyActionController extends Controller
                 ->where('topic_id', $infographic->topic->id)
                 ->exists();
             $hasLike = $user->favourites()
-                    ->where('item_id', $infographic->id)
-                    ->where('type', 'infographic')
-                    ->exists();
+                ->where('item_id', $infographic->id)
+                ->where('type', 'infographic')
+                ->exists();
+
+            // Tracking
+            if (!in_array($user->role->name, ['admin', 'directeur', 'manager'])) {
+                TrkContentViews::create([
+                    'user_id' => $request->user()->id,
+                    'content_id' => $infographic->id,
+                    'type' => 'infographic'
+                ]);
+            }
 
             return response()->json([
                 'success' => true,
                 'data' => [
-                    'infographic'=> $infographic,
+                    'infographic' => $infographic,
                     'has_topic' => $hasTopic,
                     'has_like' => $hasLike
                 ]
@@ -276,7 +285,7 @@ class DailyActionController extends Controller
                     ->where('video_id', $question->video->id)
                     ->where('type', 'flash')
                     ->first();
-                
+
                 if ($content) {
                     $question->content = MediaController::fillContentDetail($content);
                 }
@@ -289,6 +298,15 @@ class DailyActionController extends Controller
             $hasTopicWithQuestion = $user->topics()
                 ->where('topic_id', $question->topic->id)
                 ->exists();
+
+            // Tracking
+            if (!in_array($user->role->name, ['admin', 'directeur', 'manager'])) {
+                TrkContentViews::create([
+                    'user_id' => $request->user()->id,
+                    'content_id' => $question->id,
+                    'type' => 'question-view'
+                ]);
+            }
 
             return response()->json([
                 'success' => true,
@@ -323,14 +341,15 @@ class DailyActionController extends Controller
                 'updated_at' => now(),
             ]);
 
-            DailyQuestion::where('id', $request->questionId)->increment('count');
-            DailyQuestionAnswer::where('id', $request->answerId)->increment('count');
-            TrkContentViews::create([
-                'user_id' => $request->user()->id,
-                'content_id' => $request->questionId,
-                'type' => 'question'
-            ]);
-
+            if (!in_array($request->user()->role->name, ['admin', 'directeur', 'manager'])) {
+                DailyQuestion::where('id', $request->questionId)->increment('count');
+                DailyQuestionAnswer::where('id', $request->answerId)->increment('count');
+                TrkContentViews::create([
+                    'user_id' => $request->user()->id,
+                    'content_id' => $request->questionId,
+                    'type' => 'question'
+                ]);
+            }
 
             return response()->json([
                 'success' => true,
