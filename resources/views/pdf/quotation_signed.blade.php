@@ -341,7 +341,8 @@
                     <th class="text-right" style="width: 20%;">QUANTITÉ</th>
                     <th class="text-right" style="width: 30%;">HEURES</th>
                 @else
-                    <th style="width: 45%;">DESCRIPTION</th>
+                    <th style="width: 35%;">DESCRIPTION</th>
+                    <th class="text-right" style="width: 10%;">HEURES</th>
                     <th class="text-right" style="width: 20%;">PRIX UNITAIRE</th>
                     <th class="text-right" style="width: 15%;">QUANTITÉ</th>
                     <th class="text-right" style="width: 20%;">MONTANT HT</th>
@@ -358,6 +359,9 @@
                             {{ sizeof($members) > 1 ? 'Unité(s)' : 'Unité' }}</td>
                         <td class="text-right">{{ number_format($item->package->duration / 60, 1, ',', ' ') }} h</td>
                     @else
+                        <td class="text-right">
+                            {{ number_format(($item->package->duration / 60), 2, ',', ' ') }}        
+                        </td>
                         <td class="text-right">
                             {{ number_format(($item->package->duration / 60) * $unitPrice, 2, ',', ' ') }} €
                         </td>
@@ -401,19 +405,19 @@
             @else
                 <!-- Subtotal Row -->
                 <tr class="total-row">
-                    <td colspan="3" class="text-right">Montant hors taxes</td>
+                    <td colspan="4" class="text-right">Montant hors taxes</td>
                     <td class="text-right">{{ number_format($amount_ht, 2, ',', ' ') }} €</td>
                 </tr>
 
                 <!-- TVA Row -->
                 <tr class="total-row">
-                    <td colspan="3" class="text-right">TVA {{ $tva }}%</td>
+                    <td colspan="4" class="text-right">TVA {{ $tva }}%</td>
                     <td class="text-right">{{ number_format($tva_amount, 2, ',', ' ') }} €</td>
                 </tr>
 
                 <!-- Total Row -->
                 <tr class="grand-total">
-                    <td colspan="3" class="text-right"><strong>Total</strong></td>
+                    <td colspan="4" class="text-right"><strong>Total</strong></td>
                     <td class="text-right"><strong>{{ number_format($amount, 2, ',', ' ') }} €</strong></td>
                 </tr>
             @endif
