@@ -37,16 +37,27 @@ class InfographicController extends Controller
     {
         $search = trim((string) $request->query('q', ''));
 
+        // Consultations et spectateurs distincts, depuis le journal de vues
+        $views = "(SELECT COUNT(*)
+                   FROM trk_content_views v
+                   WHERE v.type = 'infographic' AND v.content_id = i.id)";
+
+        $viewers = "(SELECT COUNT(DISTINCT v.user_id)
+                     FROM trk_content_views v
+                     WHERE v.type = 'infographic' AND v.content_id = i.id)";
+
         $infographics = DB::table('infographics as i')
-            ->leftJoin('videos as v', 'v.id', '=', 'i.video_id')
+            ->leftJoin('videos as vd', 'vd.id', '=', 'i.video_id')
             ->select(
                 'i.id',
                 'i.code',
                 'i.title',
                 'i.thumbnail',
                 'i.published_at',
-                'v.title as video_title'
+                'vd.title as video_title'
             )
+            ->selectRaw("{$views} as views")
+            ->selectRaw("{$viewers} as viewers")
             ->when($search !== '', fn ($q) => $q->where('i.title', 'like', '%' . $search . '%'))
             ->orderByDesc('i.created_at')
             ->orderByDesc('i.id')

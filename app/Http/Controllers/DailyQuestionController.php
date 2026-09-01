@@ -20,6 +20,15 @@ class DailyQuestionController extends Controller
      */
     public function index()
     {
+        // Consultations et spectateurs distincts, depuis le journal de vues
+        $views = "(SELECT COUNT(*)
+                   FROM trk_content_views v
+                   WHERE v.type = 'question-view' AND v.content_id = q.id)";
+
+        $viewers = "(SELECT COUNT(DISTINCT v.user_id)
+                     FROM trk_content_views v
+                     WHERE v.type = 'question-view' AND v.content_id = q.id)";
+
         $questions = DB::table('daily_questions as q')
             ->leftJoin('topics as t', 't.id', '=', 'q.topic_id')
             ->select(
@@ -31,6 +40,8 @@ class DailyQuestionController extends Controller
                 'q.expired_at',
                 't.name as topic_name'
             )
+            ->selectRaw("{$views} as views")
+            ->selectRaw("{$viewers} as viewers")
             ->orderByDesc('q.published_at')
             ->orderByDesc('q.id')
             ->paginate(25);

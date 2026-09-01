@@ -49,6 +49,7 @@
                                             <th>Titre</th>
                                             <th>Auteur</th>
                                             <th>Écoutes</th>
+                                            <th>Auditeurs</th>
                                             <th>Publication</th>
                                             <th class="actions text-right">Actions</th>
                                         </tr>
@@ -61,6 +62,7 @@
                                                 <td><b>{{ $p->title }}</b></td>
                                                 <td>{{ $p->author ?: '—' }}</td>
                                                 <td>{{ number_format($p->count ?? 0, 0, ',', ' ') }}</td>
+                                                <td>{{ number_format($p->listeners ?? 0, 0, ',', ' ') }}</td>
                                                 <td>
                                                     {{ $p->published_at
                                                         ? \Illuminate\Support\Carbon::parse($p->published_at)->format('d/m/Y')

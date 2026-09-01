@@ -65,7 +65,8 @@
                                             <th style="width:80px">Visuel</th>
                                             <th>Titre</th>
                                             <th>Code</th>
-                                            <th>Vidéo associée</th>
+                                            <th>Vues</th>
+                                            <th>Spectateurs</th>
                                             <th>Publication</th>
                                             <th class="actions text-right">Actions</th>
                                         </tr>
@@ -83,13 +84,18 @@
                                                 </td>
                                                 <td><b>{{ $item->title }}</b></td>
                                                 <td><code>{{ $item->code }}</code></td>
-                                                <td>{{ $item->video_title ?: '—' }}</td>
+                                                <td>{{ number_format($item->views ?? 0, 0, ',', ' ') }}</td>
+                                                <td>{{ number_format($item->viewers ?? 0, 0, ',', ' ') }}</td>
                                                 <td>
                                                     {{ $item->published_at
                                                         ? \Illuminate\Support\Carbon::parse($item->published_at)->format('d/m/Y')
                                                         : '—' }}
                                                 </td>
                                                 <td class="no-sort no-click text-right">
+                                                    <button type="button" class="btn btn-success"
+                                                        onclick="const b=this; navigator.clipboard.writeText('https://go.orthomaster.fr/open/infographic/{{ $item->id }}'); b.textContent='✓ Copié !'; setTimeout(() => b.textContent='Partager', 1500);">
+                                                        Partager
+                                                    </button>
                                                     <a href="{{ route('infographics.edit', $item->id) }}"
                                                        class="btn btn-sm btn-primary edit">
                                                         <i class="voyager-edit"></i>

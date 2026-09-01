@@ -14,6 +14,11 @@ class PodcastController extends Controller
      */
     public function index()
     {
+        // Auditeurs distincts, comptés depuis le journal de lecture
+        $listeners = "(SELECT COUNT(DISTINCT v.user_id)
+                       FROM trk_content_views v
+                       WHERE v.type = 'podcast' AND v.content_id = p.id)";
+
         $podcasts = DB::table('podcasts as p')
             ->leftJoin('topics as t', 't.id', '=', 'p.topic_id')
             ->select(
@@ -24,6 +29,7 @@ class PodcastController extends Controller
                 'p.published_at',
                 't.name as topic_name'
             )
+            ->selectRaw("{$listeners} as listeners")
             ->orderByDesc('p.published_at')
             ->orderByDesc('p.id')
             ->paginate(25);

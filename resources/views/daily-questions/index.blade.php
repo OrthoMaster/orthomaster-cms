@@ -47,9 +47,10 @@
                                         <tr>
                                             <th>ID</th>
                                             <th>Titre</th>
-                                            <th>Question</th>
                                             <th>Sujet</th>
-                                            <th class="text-right">Participants</th>
+                                            <th>Vues</th>
+                                            <th>Spectateurs</th>
+                                            <th>Réponses</th>
                                             <th>Publication</th>
                                             <th>Fin</th>
                                             <th class="actions text-right">Actions</th>
@@ -60,9 +61,10 @@
                                             <tr>
                                                 <td>{{ $q->id }}</td>
                                                 <td><b>{{ $q->title }}</b></td>
-                                                <td><b>{{ \Illuminate\Support\Str::limit($q->question, 50) }}</b></td>
                                                 <td>{{ $q->topic_name ?: '—' }}</td>
-                                                <td class="text-right">{{ number_format($q->count ?? 0, 0, ',', ' ') }}</td>
+                                                <td>{{ number_format($q->views ?? 0, 0, ',', ' ') }}</td>
+                                                <td>{{ number_format($q->viewers ?? 0, 0, ',', ' ') }}</td>
+                                                <td>{{ number_format($q->count ?? 0, 0, ',', ' ') }}</td>
                                                 <td>
                                                     {{ $q->published_at ? \Illuminate\Support\Carbon::parse($q->published_at)->format('d/m/Y H:i') : '—' }}
                                                 </td>

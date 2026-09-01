@@ -236,9 +236,7 @@
 
     <!-- Content -->
     <div class="section-title">Intitulé de la formation</div>
-    <div class="section-content">Formation FOAD ORTHOMASTER / Une formation destinée à mieux prescrire et délivrer les
-        Dispositifs
-        Médicaux de petit appareillage orthopédique (orthèses et attelles de série).
+    <div class="section-content">Formation FOAD ORTHOMASTER / {{ $group->pluck('package.name')->implode(' ; ') }}.
     </div>
 
     <div class="section-title">Formation de {{ number_format($duration / 60, 2, ',', ' ') }} heures
@@ -327,6 +325,11 @@
         </thead>
         <tbody>
             @foreach ($group as $item)
+                @if (sizeof($group) > 1)
+                <tr>
+                    <td colspan="4" style="background-color: #ddd;"><b>{{ $item->package->name }}</b></td>
+                </tr>
+                @endif
                 @foreach ($item->package->modules as $module)
                     <tr>
                         <td>{{ $module->name }}</td>
