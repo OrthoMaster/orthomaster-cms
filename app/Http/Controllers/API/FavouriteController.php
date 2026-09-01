@@ -128,7 +128,7 @@ class FavouriteController extends Controller
         $validator = Validator::make($request->all(), [
             'type'             => ['nullable', 'string', 'in:' . implode(',', self::TYPES)],
             'page'             => ['nullable', 'integer', 'min:1'],
-            'limit'            => ['nullable', 'integer', 'min:1', 'max:' . self::MAX_LIMIT],
+            'limit'            => ['nullable', 'integer', 'min:0', 'max:' . self::MAX_LIMIT],
             'sort'             => ['nullable', 'string', 'in:date,name'],
             'order'            => ['nullable', 'string', 'in:asc,desc'],
             'podcastLimit'     => ['nullable', 'integer', 'min:1', 'max:' . self::MAX_LIMIT],
@@ -137,6 +137,7 @@ class FavouriteController extends Controller
         ]);
 
         if ($validator->fails()) {
+            Log::channel('api')->error($validator->messages(), ['get-favourites', $request->user()->id]);
             return response()->json(['success' => false], 200);
         }
 

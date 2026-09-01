@@ -79,6 +79,7 @@
                                     <option value="">—</option>
                                     <option value="podcast" @selected(old('target_type') === 'podcast')>Podcast</option>
                                     <option value="daily-question" @selected(old('target_type') === 'daily-question')>Question du jour</option>
+                                    <option value="infographic" @selected(old('target_type') === 'infographic')>Infographie</option>
                                 </select>
                             </div>
 

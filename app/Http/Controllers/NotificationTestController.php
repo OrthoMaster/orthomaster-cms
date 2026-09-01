@@ -13,7 +13,7 @@ class NotificationTestController extends Controller
     private const TEST_EMAIL_DOMAIN = '@orthomaster.fr';
 
     /** Types de contenu pouvant être notifiés */
-    private const TARGET_TYPES = ['podcast', 'daily-question'];
+    private const TARGET_TYPES = ['podcast', 'daily-question', 'infographic'];
 
     public function __construct(private ExpoNotificationService $expo) {}
 
@@ -58,20 +58,28 @@ class NotificationTestController extends Controller
             return response()->json([]);
         }
 
-        $rows = $type === 'podcast'
-            ? DB::table('podcasts')
-            ->select('id', 'title', 'notification_title', 'notification_body')
-            ->orderByDesc('id')
-            ->limit(100)
-            ->get()
-            : DB::table('daily_questions')
-            ->select('id', 'question as title', 'notification_title', 'notification_body')
-            ->orderByDesc('id')
-            ->limit(100)
-            ->get();
+        $rows = match ($type) {
+            'podcast' => DB::table('podcasts')
+                ->select('id', 'title', 'notification_title', 'notification_body')
+                ->orderByDesc('id')
+                ->limit(100)
+                ->get(),
+
+            'infographic' => DB::table('infographics')
+                ->select('id', 'title', 'notification_title', 'notification_body')
+                ->orderByDesc('id')
+                ->limit(100)
+                ->get(),
+
+            default => DB::table('daily_questions')
+                ->select('id', 'title', 'notification_title', 'notification_body')
+                ->orderByDesc('id')
+                ->limit(100)
+                ->get(),
+        };
 
         return response()->json(
-            $rows->map(fn($r) => [
+            $rows->map(fn ($r) => [
                 'id'    => $r->id,
                 'text'  => '#' . $r->id . ' — ' . \Illuminate\Support\Str::limit($r->title, 70),
                 'title' => $r->notification_title,
@@ -89,7 +97,7 @@ class NotificationTestController extends Controller
         $data = $request->validate([
             'user_id'     => ['required', 'integer', 'exists:users,id'],
             'device_id'   => ['required', 'integer', 'exists:device_tokens,id'],
-            'target_type' => ['required', 'string', 'in:podcast,daily-question'],
+            'target_type' => ['required', 'string', 'in:podcast,daily-question,infographic'],
             'target_id'   => ['required', 'integer'],
             'title'       => ['required', 'string', 'max:255'],
             'body'        => ['required', 'string', 'max:500'],
@@ -115,7 +123,11 @@ class NotificationTestController extends Controller
         }
 
         // Le contenu visé doit exister
-        $table = $data['target_type'] === 'podcast' ? 'podcasts' : 'daily_questions';
+        $table = match ($data['target_type']) {
+            'podcast'     => 'podcasts',
+            'infographic' => 'infographics',
+            default       => 'daily_questions',
+        };
 
         if (!DB::table($table)->where('id', $data['target_id'])->exists()) {
             return back()->withInput()

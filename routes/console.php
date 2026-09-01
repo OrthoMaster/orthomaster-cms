@@ -25,12 +25,16 @@ Schedule::command('reports:user-agents')
     ->dailyAt('02:00')
     ->timezone('Europe/Paris');
 
-// Notifications
+// Daily actions
 Schedule::command('notifications:daily-question')
     ->dailyAt('18:50')
     ->timezone('Europe/Paris');
 
 Schedule::command('notifications:new-podcast')
+    ->dailyAt('18:55')
+    ->timezone('Europe/Paris');
+
+Schedule::command('notifications:new-infographic')
     ->dailyAt('19:00')
     ->timezone('Europe/Paris');
 
@@ -55,5 +59,5 @@ Schedule::command('emails:remind-managers')
 
 // Ad Provider
 Schedule::command('emails:ad-provider')
-    ->dailyAt('10:01')
+    ->dailyAt('10:00')
     ->timezone('Europe/Paris');
