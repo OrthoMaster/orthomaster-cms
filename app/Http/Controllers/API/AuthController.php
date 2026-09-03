@@ -699,4 +699,50 @@ class AuthController extends Controller
             ]);
         }
     }
+
+        /**
+     * Enregistre ou met à jour le jeton de notification de l'appareil.
+     *
+     * Appelé en dehors de la connexion : le jeton peut changer en cours
+     * de route, ou n'être délivré qu'après l'octroi de l'autorisation.
+     *
+     * POST /device-token
+     */
+    public function syncDeviceToken(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'fcm_token'   => ['required', 'string', 'max:255'],
+            'device_id'   => ['required', 'string', 'max:255'],
+            'device_type' => ['nullable', 'string', 'max:20'],
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['success' => false], 200);
+        }
+
+        $data = $validator->validated();
+
+        try {
+            $user = $request->user();
+
+            DeviceToken::updateOrCreate(
+                [
+                    'user_id'   => $user->id,
+                    'device_id' => $data['device_id'],
+                ],
+                [
+                    'access_token_id' => $user->currentAccessToken()?->id,
+                    'fcm_token'       => $data['fcm_token'],
+                    'device_type'     => $data['device_type'] ?? null,
+                    'last_used_at'    => now(),
+                ]
+            );
+
+            return response()->json(['success' => true], 200);
+        } catch (\Exception $e) {
+            Log::channel('api')->error($e->getMessage(), ['sync-device-token', $request->user()->id]);
+
+            return response()->json(['success' => false], 500);
+        }
+    }
 }

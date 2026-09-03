@@ -61,6 +61,9 @@ Route::prefix('tracking')->group(function () {
 });
 
 Route::middleware(['auth:sanctum'])->group(function () {
+    // Device token
+    Route::post('/device-token', [AuthController::class, 'syncDeviceToken']);
+
     // Daily question
     Route::get('/daily-action', [DailyActionController::class, 'getTodayActionByUser']);
     Route::get('/daily-question/{id}', [DailyActionController::class, 'getQuestion']);

@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\DeviceToken;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -10,6 +11,9 @@ class ExpoNotificationService
     private const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send';
     private const EXPO_RECEIPT_URL = 'https://exp.host/--/api/v2/push/getReceipts';
     private const MAX_BATCH_SIZE = 100; // Expo limit
+
+    /** Erreur Expo signalant un jeton devenu inutilisable */
+    private const ERROR_UNREGISTERED = 'DeviceNotRegistered';
 
     /**
      * Send notification to 1 device
@@ -35,7 +39,7 @@ class ExpoNotificationService
         array $options = []
     ) {
         // Validate tokens
-        $validTokens = $this->validateTokens($expoPushTokens);
+        $validTokens = array_values($this->validateTokens($expoPushTokens));
 
         if (empty($validTokens)) {
             return false;
@@ -46,10 +50,14 @@ class ExpoNotificationService
 
         // Send in batches
         $results = [];
-        $chunks = array_chunk($messages, self::MAX_BATCH_SIZE);
 
-        foreach ($chunks as $chunk) {
-            $response = $this->sendBatch($chunk);
+        // Les jetons sont découpés en parallèle des messages : un ticket
+        // en erreur doit pouvoir être rattaché au jeton qui l'a provoqué
+        $messageChunks = array_chunk($messages, self::MAX_BATCH_SIZE);
+        $tokenChunks   = array_chunk($validTokens, self::MAX_BATCH_SIZE);
+
+        foreach ($messageChunks as $i => $chunk) {
+            $response = $this->sendBatch($chunk, $tokenChunks[$i] ?? []);
             $results[] = $response;
         }
 
@@ -69,7 +77,7 @@ class ExpoNotificationService
         array $data = [],
         array $options = []
     ) {
-        $devices = \App\Models\DeviceToken::where('user_id', $userId)
+        $devices = DeviceToken::where('user_id', $userId)
             ->pluck('fcm_token')
             ->toArray();
 
@@ -90,10 +98,10 @@ class ExpoNotificationService
         array $data = [],
         array $options = []
     ) {
-        $devices = \App\Models\DeviceToken::whereIn('user_id', $userIds)
+        // Un utilisateur peut posséder plusieurs appareils : tous sont notifiés
+        $devices = DeviceToken::whereIn('user_id', $userIds)
             ->orderBy('updated_at')
-            ->pluck('fcm_token', 'user_id')
-            ->values()
+            ->pluck('fcm_token')
             ->toArray();
 
         if (empty($devices)) {
@@ -161,8 +169,10 @@ class ExpoNotificationService
 
     /**
      * Send batch to Expo
+     *
+     * @param array $tokens Jetons du lot, dans le même ordre que les messages
      */
-    private function sendBatch(array $messages): array
+    private function sendBatch(array $messages, array $tokens = []): array
     {
         try {
             $response = Http::timeout(30)
@@ -172,7 +182,7 @@ class ExpoNotificationService
                 $result = $response->json();
 
                 // Log errors nếu có
-                $this->handleTicketErrors($result['data'] ?? []);
+                $this->handleTicketErrors($result['data'] ?? [], $tokens);
 
                 return [
                     'success' => true,
@@ -204,21 +214,49 @@ class ExpoNotificationService
 
     /**
      * Handle ticket errors and deactivate invalid tokens
+     *
+     * Expo renvoie les tickets dans l'ordre des messages envoyés : la
+     * position d'un ticket suffit à retrouver le jeton correspondant.
      */
-    private function handleTicketErrors(array $tickets): void
+    private function handleTicketErrors(array $tickets, array $tokens = []): void
     {
-        foreach ($tickets as $ticket) {
-            if (isset($ticket['status']) && $ticket['status'] === 'error') {
-                $errorCode = $ticket['details']['error'] ?? null;
+        $unregistered = [];
 
-                // Deactivate device nếu token không hợp lệ
-                if ($errorCode === 'DeviceNotRegistered') {
-                    Log::warning('Device not registered', $ticket);
-                    // TODO: Deactivate device in database
-                }
-
-                Log::error('Expo Ticket Error', $ticket);
+        foreach ($tickets as $index => $ticket) {
+            if (($ticket['status'] ?? null) !== 'error') {
+                continue;
             }
+
+            $errorCode = $ticket['details']['error'] ?? null;
+
+            // L'appareil a désinstallé l'application ou révoqué son jeton
+            if ($errorCode === self::ERROR_UNREGISTERED && isset($tokens[$index])) {
+                $unregistered[] = $tokens[$index];
+                continue;
+            }
+
+            Log::error('Expo Ticket Error', $ticket);
+        }
+
+        if (!empty($unregistered)) {
+            $this->purgeTokens($unregistered);
+        }
+    }
+
+    /**
+     * Supprime les appareils dont le jeton n'est plus valable.
+     */
+    private function purgeTokens(array $tokens): void
+    {
+        try {
+            $deleted = DeviceToken::whereIn('fcm_token', $tokens)->delete();
+
+            Log::channel('api')->info('Expo : jetons obsolètes supprimés', [
+                'tokens'  => count($tokens),
+                'deleted' => $deleted,
+            ]);
+        } catch (\Exception $e) {
+            Log::channel('api')->error($e->getMessage(), ['expo-purge-tokens']);
         }
     }
 
