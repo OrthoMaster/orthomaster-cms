@@ -67,6 +67,7 @@
                                             <th>Code</th>
                                             <th>Vues</th>
                                             <th>Spectateurs</th>
+                                            <th>Sauvegardes</th>
                                             <th>Publication</th>
                                             <th class="actions text-right">Actions</th>
                                         </tr>
@@ -86,6 +87,7 @@
                                                 <td><code>{{ $item->code }}</code></td>
                                                 <td>{{ number_format($item->views ?? 0, 0, ',', ' ') }}</td>
                                                 <td>{{ number_format($item->viewers ?? 0, 0, ',', ' ') }}</td>
+                                                <td>{{ number_format($item->favourites ?? 0, 0, ',', ' ') }}</td>
                                                 <td>
                                                     {{ $item->published_at
                                                         ? \Illuminate\Support\Carbon::parse($item->published_at)->format('d/m/Y')

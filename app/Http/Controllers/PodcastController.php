@@ -8,6 +8,9 @@ use Illuminate\Support\Facades\DB;
 
 class PodcastController extends Controller
 {
+    /** Rôles correspondant aux utilisateurs de l'application */
+    private const USER_ROLES = [2, 4];
+
     /**
      * Liste des podcasts.
      * GET /podcasts
@@ -18,6 +21,14 @@ class PodcastController extends Controller
         $listeners = "(SELECT COUNT(DISTINCT v.user_id)
                        FROM trk_content_views v
                        WHERE v.type = 'podcast' AND v.content_id = p.id)";
+
+        // Mises en favori, hors comptes internes
+        $favourites = "(SELECT COUNT(*)
+                        FROM favourites f
+                        JOIN users u ON u.id = f.user_id
+                        WHERE f.type = 'podcast'
+                          AND f.item_id = p.id
+                          AND u.role_id IN (" . implode(',', self::USER_ROLES) . "))";
 
         $podcasts = DB::table('podcasts as p')
             ->leftJoin('topics as t', 't.id', '=', 'p.topic_id')
@@ -30,6 +41,7 @@ class PodcastController extends Controller
                 't.name as topic_name'
             )
             ->selectRaw("{$listeners} as listeners")
+            ->selectRaw("{$favourites} as favourites")
             ->orderByDesc('p.published_at')
             ->orderByDesc('p.id')
             ->paginate(25);

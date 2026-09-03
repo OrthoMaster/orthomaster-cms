@@ -29,6 +29,9 @@ class InfographicController extends Controller
     /** Alphabet du code : chiffres et majuscules sans caractères ambigus */
     private const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
+    /** Rôles correspondant aux utilisateurs de l'application */
+    private const USER_ROLES = [2, 4];
+
         /**
      * Liste des infographies.
      * GET /infographics
@@ -46,6 +49,14 @@ class InfographicController extends Controller
                      FROM trk_content_views v
                      WHERE v.type = 'infographic' AND v.content_id = i.id)";
 
+        // Mises en favori, hors comptes internes
+        $favourites = "(SELECT COUNT(*)
+                        FROM favourites f
+                        JOIN users u ON u.id = f.user_id
+                        WHERE f.type = 'infographic'
+                          AND f.item_id = i.id
+                          AND u.role_id IN (" . implode(',', self::USER_ROLES) . "))";
+
         $infographics = DB::table('infographics as i')
             ->leftJoin('videos as vd', 'vd.id', '=', 'i.video_id')
             ->select(
@@ -58,6 +69,7 @@ class InfographicController extends Controller
             )
             ->selectRaw("{$views} as views")
             ->selectRaw("{$viewers} as viewers")
+            ->selectRaw("{$favourites} as favourites")
             ->when($search !== '', fn ($q) => $q->where('i.title', 'like', '%' . $search . '%'))
             ->orderByDesc('i.created_at')
             ->orderByDesc('i.id')
