@@ -32,7 +32,7 @@
                         </div>
                     </div>
 
-                    <div class="col-lg-3 col-md-6 col-sm-6">
+                    <div class="col-lg-2 col-md-6 col-sm-6">
                         <div class="panel panel-bordered kpi-panel kpi-purple">
                             <div class="panel-body">
                                 <i class="voyager-question kpi-icon"></i>
@@ -58,16 +58,30 @@
                         </div>
                     </div>
 
-                    <div class="col-lg-3 col-md-6 col-sm-6">
+                    <div class="col-lg-4 col-md-6 col-sm-6">
                         <div class="panel panel-bordered kpi-panel kpi-orange">
                             <div class="panel-body">
                                 <i class="voyager-people kpi-icon"></i>
-                                <div class="kpi-label">Utilisateurs avec centres d'intérêt</div>
-                                <div class="kpi-value">
-                                    {{ number_format($summary['users_with_topics'], 0, ',', ' ') }}
-                                    <small class="kpi-rate">{{ $summary['users_rate'] }} %</small>
+                                <div class="kpi-label">Utilisateurs</div>
+
+                                <div class="kpi-split">
+                                    <div class="kpi-part">
+                                        <div class="kpi-sub">Avec centre d'intérêt</div>
+                                        <div class="kpi-value">
+                                            {{ number_format($summary['users_with_topics'], 0, ',', ' ') }}
+                                            <small class="kpi-rate">{{ $summary['users_rate'] }} %</small>
+                                        </div>
+                                    </div>
+                                    <div class="kpi-part">
+                                        <div class="kpi-sub">Notifications activées</div>
+                                        <div class="kpi-value">
+                                            {{ number_format($summary['users_with_notifications'], 0, ',', ' ') }}
+                                            <small class="kpi-rate">{{ $summary['notifications_rate'] }} %</small>
+                                        </div>
+                                    </div>
                                 </div>
-                                <div class="kpi-sub">
+
+                                <div class="kpi-sub kpi-total">
                                     sur {{ number_format($summary['total_users'], 0, ',', ' ') }} utilisateurs
                                 </div>
                             </div>
@@ -112,7 +126,7 @@
                                                 <span class="col-total">{{ number_format($distribution['totals']['infographics'], 0, ',', ' ') }}</span>
                                             </th>
                                             <th class="col-users">
-                                                Utilisateurs
+                                                Sélections
                                                 <span class="col-total">{{ number_format($distribution['totals']['users'], 0, ',', ' ') }}</span>
                                             </th>
                                         </tr>
@@ -207,6 +221,27 @@
         .kpi-green  .kpi-link { color: #2ECC71; }
 
         .kpi-link:hover, .kpi-link:focus { text-decoration: underline; }
+
+        /* --- KPI à deux chiffres --- */
+        .kpi-split { display: flex; }
+        .kpi-part { flex: 1 1 50%; }
+        .kpi-part + .kpi-part { border-left: 1px solid #eceff3; padding-left: 12px; }
+
+        .kpi-sub {
+            font-size: 11px; text-transform: uppercase; letter-spacing: .03em;
+            color: #a4abb3; margin-bottom: 4px; line-height: 1.35;
+            min-height: 30px; padding-right: 8px;
+        }
+
+        .kpi-split .kpi-value { font-size: 22px; }
+        .kpi-split .kpi-rate { font-size: 12px; margin-left: 4px; }
+
+        .kpi-total {
+            margin-top: 10px;
+            margin-bottom: 0;
+            min-height: 0;
+            text-transform: none;
+        }
 
         /* --- Tableau de répartition --- */
         .distribution-table { margin-bottom: 0; }

@@ -16,6 +16,7 @@ use App\Http\Controllers\DailyQuestionController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DashboardDailyActionController;
 use App\Http\Controllers\DashboardLessonController;
+use App\Http\Controllers\DashboardReportController;
 use App\Http\Controllers\DashboardUserController;
 use App\Http\Controllers\DashboardVideoAdsController;
 use App\Http\Controllers\DashboardVideoViewsController;
@@ -82,12 +83,12 @@ Route::get('/legal-notice', [WebController::class, 'legalNotice'])->name('web.le
 Route::group(['prefix' => 'admin', 'middleware' => ['cmsAdmin']], function () {
     Route::get('/', [DashboardUserController::class, 'index'])->name('voyager.dashboard');
 
+    // Accounts
     Route::prefix('dashboard/users')
         ->name('dashboard.users.')
         ->group(function () {
             Route::get('/', [DashboardUserController::class, 'index'])->name('index');
             Route::get('/data', [DashboardUserController::class, 'chartData'])->name('data');
-            Route::get('/export', [DashboardUserController::class, 'export'])->name('export');
         });
 
     // Lessons
@@ -117,6 +118,14 @@ Route::group(['prefix' => 'admin', 'middleware' => ['cmsAdmin']], function () {
             Route::post('/{id}/content/image', [MediaController::class, 'uploadContentImage'])->name('content.image');
         });
     Route::get('medias/list', [MediaController::class, 'list'])->name('medias.list');
+
+    // Reports
+    Route::prefix('dashboard/reports')
+        ->name('dashboard.reports.')
+        ->group(function () {
+            Route::get('/', [DashboardReportController::class, 'index'])->name('index');
+            Route::get('/export', [DashboardReportController::class, 'export'])->name('export');
+        });
 
 
     Route::get('/dashboard/staffs/kpi', [DashboardController::class, 'staffIndex'])->name('voyager.dashboard.staff');

@@ -104,9 +104,6 @@
 
                             <div class="col-md-3" style="padding-top:18px">
                                 <button type="submit" class="btn btn-primary">Appliquer</button>
-                                <button type="button" id="btn-export" class="btn btn-success">
-                                    <i class="voyager-file-text"></i> Excel
-                                </button>
                             </div>
 
                             <div class="col-md-3" style="padding-top:14px">
@@ -366,11 +363,6 @@
                     .always(function () {
                         $btn.prop('disabled', false).text('Appliquer');
                     });
-            });
-
-            /* ---------- Export Excel : reprend les filtres courants ---------- */
-            $('#btn-export').on('click', function () {
-                window.location = '{{ route('dashboard.users.export') }}?' + $form.serialize();
             });
         });
     </script>

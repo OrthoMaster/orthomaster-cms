@@ -44,15 +44,21 @@ class DashboardDailyActionController extends Controller
             })
             ->count();
 
+        // Utilisateurs acceptant les notifications
+        $usersWithNotifications = DB::table('users')
+            ->whereIn('role_id', self::USER_ROLES)
+            ->where('notification_flg', true)
+            ->count();
+
         return [
-            'podcasts'          => $this->publishedCount('podcasts'),
-            'quizzes'           => $this->publishedCount('daily_questions'),
-            'infographics'      => $this->publishedCount('infographics'),
-            'total_users'       => $totalUsers,
-            'users_with_topics' => $usersWithTopics,
-            'users_rate'        => $totalUsers > 0
-                ? round($usersWithTopics / $totalUsers * 100, 1)
-                : 0,
+            'podcasts'                 => $this->publishedCount('podcasts'),
+            'quizzes'                  => $this->publishedCount('daily_questions'),
+            'infographics'             => $this->publishedCount('infographics'),
+            'total_users'              => $totalUsers,
+            'users_with_topics'        => $usersWithTopics,
+            'users_with_notifications' => $usersWithNotifications,
+            'users_rate'               => $this->rate($usersWithTopics, $totalUsers),
+            'notifications_rate'       => $this->rate($usersWithNotifications, $totalUsers),
         ];
     }
 
