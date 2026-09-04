@@ -78,6 +78,8 @@ class ExpoNotificationService
         array $options = []
     ) {
         $devices = DeviceToken::where('user_id', $userId)
+            ->whereNotNull('fcm_token')
+            ->distinct()
             ->pluck('fcm_token')
             ->toArray();
 
@@ -100,7 +102,8 @@ class ExpoNotificationService
     ) {
         // Un utilisateur peut posséder plusieurs appareils : tous sont notifiés
         $devices = DeviceToken::whereIn('user_id', $userIds)
-            ->orderBy('updated_at')
+            ->whereNotNull('fcm_token')
+            ->distinct()
             ->pluck('fcm_token')
             ->toArray();
 

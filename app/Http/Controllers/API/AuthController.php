@@ -64,6 +64,13 @@ class AuthController extends Controller
 
         // Save device token
         if ($request->fcm_token) {
+            DeviceToken::where('fcm_token', $request->fcm_token)
+                ->where(function ($q) use ($user, $request) {
+                    $q->where('user_id', '<>', $user->id)
+                        ->orWhere('device_id', '<>', $request->device_id);
+                })
+                ->delete();
+
             $deviceToken = DeviceToken::updateOrCreate(
                 [
                     'user_id' => $user->id,
@@ -724,6 +731,13 @@ class AuthController extends Controller
 
         try {
             $user = $request->user();
+
+            DeviceToken::where('fcm_token', $data['fcm_token'])
+                ->where(function ($q) use ($user, $data) {
+                    $q->where('user_id', '<>', $user->id)
+                        ->orWhere('device_id', '<>', $data['device_id']);
+                })
+                ->delete();
 
             DeviceToken::updateOrCreate(
                 [
