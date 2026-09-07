@@ -260,7 +260,9 @@ class AuthController extends Controller
      */
     public function viewForgotPage(Request $request)
     {
-        return view('landingpage.password-request', ['email' => $request->email]);
+        return view('landingpage.password-request', [
+            'email' => $request->string('email')->toString(),
+        ]);
     }
 
     /**
@@ -329,8 +331,8 @@ class AuthController extends Controller
      */
     public function viewResetPage(Request $request)
     {
-        $token = $request->token;
-        $email = $request->email;
+        $token = $request->string('token')->toString();
+        $email = $request->string('email')->toString();
 
         $validator = Validator::make($request->all(), [
             'token' => ['required', 'string'],
