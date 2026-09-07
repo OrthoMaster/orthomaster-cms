@@ -4,6 +4,7 @@ namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
 use App\Models\Event;
+use App\Models\Favourite;
 use App\Models\TrkContentViews;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -101,6 +102,16 @@ class MediaController extends Controller
                 ? $s3ImagePath . ltrim($content->video->thumbnail, '/')
                 : null;
         }
+
+        // Add favourite
+        $has_like = false;
+        if (Auth::check()) {
+            $has_like = Favourite::where('user_id', Auth::user()->id)
+                            ->where('type', 'video')
+                            ->where('item_id', $content->id_content)
+                            ->exists();
+        }
+        $content->has_like = $has_like;
 
         return $content;
     }

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 
 class FavouriteController extends Controller
@@ -193,6 +194,20 @@ class FavouriteController extends Controller
         $total = (clone $query)->count();
         $items = $query->forPage($page, $limit)->get();
 
+        if (!in_array($type, ['podcast', 'infographic'], true)) {
+            $items = $items->map(function ($item) {
+                $item->s3_thumbnail = $item->version !== 'v2'
+                    ? Storage::disk('s3_root')->url($item->s3_path . '/' . $item->title . '/logo.png')
+                    : ($item->thumbnail !== null
+                        ? self::S3_BASE_URL . ltrim($item->thumbnail, '/')
+                        : null);
+
+                unset($item->s3_path);
+
+                return $item;
+            });
+        }
+
         return [
             'success' => true,
             'data'    => $items,
@@ -256,9 +271,11 @@ class FavouriteController extends Controller
                     'c.title',
                     'c.duration',
                     'c.version',
+                    'c.s3_path',
                     'c.video_id',
                     'v.thumbnail'
-                ),
+                )
+                ->selectRaw("CONCAT(?, TRIM(LEADING '/' FROM v.thumbnail)) as s3_thumbnail", [self::S3_BASE_URL]),
         };
 
         $titleColumn = match ($type) {
