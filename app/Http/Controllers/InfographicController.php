@@ -65,6 +65,7 @@ class InfographicController extends Controller
                 'i.title',
                 'i.thumbnail',
                 'i.published_at',
+                'i.expired_at',
                 'vd.title as video_title'
             )
             ->selectRaw("{$views} as views")

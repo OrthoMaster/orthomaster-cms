@@ -69,6 +69,7 @@
                                             <th>Spectateurs</th>
                                             <th>Sauvegardes</th>
                                             <th>Publication</th>
+                                            <th>Fin</th>
                                             <th class="actions text-right">Actions</th>
                                         </tr>
                                     </thead>
@@ -91,6 +92,11 @@
                                                 <td>
                                                     {{ $item->published_at
                                                         ? \Illuminate\Support\Carbon::parse($item->published_at)->format('d/m/Y')
+                                                        : '—' }}
+                                                </td>
+                                                <td>
+                                                    {{ $item->expired_at
+                                                        ? \Illuminate\Support\Carbon::parse($item->expired_at)->format('d/m/Y')
                                                         : '—' }}
                                                 </td>
                                                 <td class="no-sort no-click text-right">

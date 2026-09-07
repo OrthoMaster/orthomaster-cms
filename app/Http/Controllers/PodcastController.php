@@ -38,6 +38,7 @@ class PodcastController extends Controller
                 'p.author',
                 'p.count',
                 'p.published_at',
+                'p.expired_at',
                 't.name as topic_name'
             )
             ->selectRaw("{$listeners} as listeners")

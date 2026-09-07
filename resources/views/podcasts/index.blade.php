@@ -52,6 +52,7 @@
                                             <th>Auditeurs</th>
                                             <th>Sauvegardes</th>
                                             <th>Publication</th>
+                                            <th>Fin</th>
                                             <th class="actions text-right">Actions</th>
                                         </tr>
                                     </thead>
@@ -69,6 +70,9 @@
                                                     {{ $p->published_at
                                                         ? \Illuminate\Support\Carbon::parse($p->published_at)->format('d/m/Y')
                                                         : '—' }}
+                                                </td>
+                                                <td>
+                                                    {{ $p->expired_at ? \Illuminate\Support\Carbon::parse($p->expired_at)->format('d/m/Y H:i') : '—' }}
                                                 </td>
                                                 <td class="no-sort no-click text-right">
                                                     <button type="button" class="btn btn-success"
