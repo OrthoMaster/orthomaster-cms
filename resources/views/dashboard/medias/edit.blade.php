@@ -119,6 +119,48 @@
             overflow: auto;
             font-size: 12px;
         }
+
+                /* --- Blocs de contenu lié --- */
+        .linked-block {
+            margin-bottom: 18px;
+            padding: 14px 16px;
+            border: 1px solid #e3e6ec;
+            border-left: 3px solid #22A7F0;
+            border-radius: 6px;
+            background: #f7f9fc;
+        }
+
+        .linked-block-podcast { border-left-color: #955BA5; }
+        .linked-block-infographic { border-left-color: #2ECC71; }
+
+        .linked-head {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 8px;
+        }
+
+        .linked-kind {
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: .05em;
+            color: #8a9199;
+        }
+
+        .linked-missing {
+            font-size: 11px;
+            font-weight: 600;
+            color: #E74C3C;
+        }
+
+        .linked-empty {
+            margin: 0;
+            font-size: 13px;
+            color: #8a9199;
+        }
+
+        .linked-select { max-width: 460px; }
     </style>
 @stop
 
@@ -130,6 +172,7 @@
     <script src="{{ asset('js/editorjs/paragraph.js') }}"></script>
     <script src="{{ asset('js/editorjs/media-video.js') }}"></script>
     <script src="{{ asset('js/editorjs/media-chapters.js') }}"></script>
+    <script src="{{ asset('js/editorjs/media-linked.js') }}"></script>
 
     @include('dashboard.medias._form_scripts')
 @stop

@@ -103,13 +103,13 @@ class MediaController extends Controller
         return DB::table('experts')
             ->select('id', DB::raw("{$col} as text"))
             ->where($col, 'like', '%' . $term . '%')
-            ->when($eventId || $pastEventId, fn ($q) => $q->whereExists(function ($sub) use ($eventId, $pastEventId) {
+            ->when($eventId || $pastEventId, fn($q) => $q->whereExists(function ($sub) use ($eventId, $pastEventId) {
                 $sub->from('expert_video as ev')
                     ->join('content as c', 'c.id_content', '=', 'ev.content_id')
                     ->whereColumn('ev.expert_id', 'experts.id')
                     ->where('c.type', self::CONTENT_TYPE)
-                    ->when($eventId, fn ($s) => $s->where('c.event_id', $eventId))
-                    ->when($pastEventId, fn ($s) => $s->where('c.id_past_event', $pastEventId))
+                    ->when($eventId, fn($s) => $s->where('c.event_id', $eventId))
+                    ->when($pastEventId, fn($s) => $s->where('c.id_past_event', $pastEventId))
                     ->selectRaw('1');
             }))
             ->orderBy($col)
@@ -129,11 +129,11 @@ class MediaController extends Controller
         }
 
         return $this->baseContentQuery([
-                'event_id'      => $forcedEventId ?: ($request->integer('event_id') ?: null),
-                'past_event_id' => $request->integer('past_event_id') ?: null,
-                'expert_id'     => $request->integer('expert_id') ?: null,
-                'content_id'    => null,
-            ])
+            'event_id'      => $forcedEventId ?: ($request->integer('event_id') ?: null),
+            'past_event_id' => $request->integer('past_event_id') ?: null,
+            'expert_id'     => $request->integer('expert_id') ?: null,
+            'content_id'    => null,
+        ])
             ->select('content.id_content as id', 'content.title as text')
             ->where('content.title', 'like', '%' . $term . '%')
             ->orderBy('content.title')
@@ -239,7 +239,8 @@ class MediaController extends Controller
             'video'           => null,
             'thumbnailUrl'    => null,
             'block' => null,
-            'chapters' => []
+            'chapters' => [],
+            'linkedContents'  => $this->linkedContents(null),
         ]);
     }
 
@@ -315,10 +316,9 @@ class MediaController extends Controller
             'media'           => $media,
             'video'           => $video,
             'thumbnailUrl'    => $this->thumbnailUrl($video->thumbnail ?? null),
-            'block'           => $video
-                ? DB::table('blocks')->where('video_id', $video->id)->first()
-                : null,
+            'block'           => $this->contentBlock($media->video_id),
             'chapters'        => $this->parsedChapters($video->highlights ?? null),
+            'linkedContents'  => $this->linkedContents($media->video_id),
         ]);
     }
 
@@ -560,7 +560,7 @@ class MediaController extends Controller
         }
 
         DB::table('expert_video')->insert(
-            array_map(fn ($eid) => [
+            array_map(fn($eid) => [
                 'expert_id'  => $eid,
                 'content_id' => $contentId,
             ], $expertIds)
@@ -581,7 +581,7 @@ class MediaController extends Controller
         }
 
         DB::table('topic_video')->insert(
-            array_map(fn ($tid) => [
+            array_map(fn($tid) => [
                 'topic_id'   => $tid,
                 'content_id' => $contentId,
                 'video_id'   => $videoId,
@@ -666,7 +666,7 @@ class MediaController extends Controller
         return DB::table('topic_video')
             ->where('content_id', $contentId)
             ->pluck('topic_id')
-            ->map(fn ($id) => (int) $id)
+            ->map(fn($id) => (int) $id)
             ->all();
     }
 
@@ -814,10 +814,10 @@ class MediaController extends Controller
 
         return DB::table('content')
             ->where('content.type', self::CONTENT_TYPE)
-            ->when($eventId, fn ($q) => $q->where('content.event_id', $eventId))
-            ->when($pastEventId, fn ($q) => $q->where('content.id_past_event', $pastEventId))
-            ->when($contentId, fn ($q) => $q->where('content.id_content', $contentId))
-            ->when($expertId, fn ($q) => $q->whereIn('content.id_content', function ($sub) use ($expertId) {
+            ->when($eventId, fn($q) => $q->where('content.event_id', $eventId))
+            ->when($pastEventId, fn($q) => $q->where('content.id_past_event', $pastEventId))
+            ->when($contentId, fn($q) => $q->where('content.id_content', $contentId))
+            ->when($expertId, fn($q) => $q->whereIn('content.id_content', function ($sub) use ($expertId) {
                 $sub->from('expert_video')
                     ->select('content_id')
                     ->where('expert_id', $expertId);
@@ -834,18 +834,18 @@ class MediaController extends Controller
         return DB::table('trk_content_views as v')
             ->where('v.type', self::CONTENT_TYPE)
             ->whereBetween('v.created_at', [$start, $end])
-            ->when($f['content_id'], fn ($q) => $q->where('v.content_id', $f['content_id']))
-            ->when($f['expert_id'], fn ($q) => $q->whereIn('v.content_id', function ($sub) use ($f) {
+            ->when($f['content_id'], fn($q) => $q->where('v.content_id', $f['content_id']))
+            ->when($f['expert_id'], fn($q) => $q->whereIn('v.content_id', function ($sub) use ($f) {
                 $sub->from('expert_video')
                     ->select('content_id')
                     ->where('expert_id', $f['expert_id']);
             }))
-            ->when($f['event_id'] || $f['past_event_id'], fn ($q) => $q->whereIn('v.content_id', function ($sub) use ($f) {
+            ->when($f['event_id'] || $f['past_event_id'], fn($q) => $q->whereIn('v.content_id', function ($sub) use ($f) {
                 $sub->from('content')
                     ->select('id_content')
                     ->where('type', self::CONTENT_TYPE)
-                    ->when($f['event_id'], fn ($s) => $s->where('event_id', $f['event_id']))
-                    ->when($f['past_event_id'], fn ($s) => $s->where('id_past_event', $f['past_event_id']));
+                    ->when($f['event_id'], fn($s) => $s->where('event_id', $f['event_id']))
+                    ->when($f['past_event_id'], fn($s) => $s->where('id_past_event', $f['past_event_id']));
             }));
     }
 
@@ -942,7 +942,7 @@ class MediaController extends Controller
             ->groupBy('stat_date')
             ->orderBy('stat_date')
             ->get()
-            ->keyBy(fn ($r) => Carbon::parse($r->stat_date)->toDateString());
+            ->keyBy(fn($r) => Carbon::parse($r->stat_date)->toDateString());
 
         $buckets = [];
         $cursor  = Carbon::parse($f['from']);
@@ -972,7 +972,7 @@ class MediaController extends Controller
         // Moyenne par bucket : null quand personne n'a visionné, pour laisser
         // un trou dans la courbe plutôt qu'un zéro trompeur
         $avgWatched = array_map(
-            fn ($b) => $b['watched_count'] > 0
+            fn($b) => $b['watched_count'] > 0
                 ? round($b['watched_total'] / $b['watched_count'])
                 : null,
             $buckets
@@ -1057,8 +1057,8 @@ class MediaController extends Controller
 
         return [
             'labels'  => $rows->pluck('profession')->all(),
-            'views'   => $rows->pluck('views')->map(fn ($n) => (int) $n)->all(),
-            'viewers' => $rows->pluck('viewers')->map(fn ($n) => (int) $n)->all(),
+            'views'   => $rows->pluck('views')->map(fn($n) => (int) $n)->all(),
+            'viewers' => $rows->pluck('viewers')->map(fn($n) => (int) $n)->all(),
         ];
     }
 
@@ -1163,12 +1163,12 @@ class MediaController extends Controller
     {
         return DB::table('past_events as pe')
             ->join('events as e', 'e.id', '=', 'pe.id_event')
-            ->when($eventId, fn ($q) => $q->where('pe.id_event', $eventId))
+            ->when($eventId, fn($q) => $q->where('pe.id_event', $eventId))
             ->select('pe.id', 'pe.id_event', 'pe.edition_year', 'e.name')
             ->orderByDesc('pe.edition_year')
             ->orderBy('e.name')
             ->get()
-            ->map(fn ($r) => (object) [
+            ->map(fn($r) => (object) [
                 'id'       => $r->id,
                 'event_id' => $r->id_event,
                 'text'     => $withEventName
@@ -1254,6 +1254,41 @@ class MediaController extends Controller
     }
 
     /**
+     * Contenus rattachés à une vidéo, proposés dans l'éditeur.
+     * Les éléments non publiés restent sélectionnables : la publication
+     * du média et celle de ses contenus liés sont indépendantes.
+     */
+    private function linkedContents(?int $videoId): array
+    {
+        if (!$videoId) {
+            return ['quiz' => [], 'podcast' => [], 'infographic' => []];
+        }
+
+        return [
+            'quiz' => DB::table('daily_questions')
+                ->where('video_id', $videoId)
+                ->orderByDesc('id')
+                ->get(['id', 'title'])
+                ->map(fn($r) => ['id' => (int) $r->id, 'title' => $r->title])
+                ->all(),
+
+            'podcast' => DB::table('podcasts')
+                ->where('video_id', $videoId)
+                ->orderByDesc('id')
+                ->get(['id', 'title'])
+                ->map(fn($r) => ['id' => (int) $r->id, 'title' => $r->title])
+                ->all(),
+
+            'infographic' => DB::table('infographics')
+                ->where('video_id', $videoId)
+                ->orderByDesc('id')
+                ->get(['id', 'title'])
+                ->map(fn($r) => ['id' => (int) $r->id, 'title' => $r->title])
+                ->all(),
+        ];
+    }
+
+    /**
      * Chapitres issus de `videos.highlights`, au format attendu par l'éditeur.
      * Même parsing que VideoController::parseVideoHighlights().
      */
@@ -1293,7 +1328,7 @@ class MediaController extends Controller
             ];
         }
 
-        usort($result, fn ($a, $b) => $a['seconds'] <=> $b['seconds']);
+        usort($result, fn($a, $b) => $a['seconds'] <=> $b['seconds']);
 
         return $result;
     }

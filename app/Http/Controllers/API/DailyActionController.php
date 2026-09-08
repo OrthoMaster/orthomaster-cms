@@ -262,8 +262,7 @@ class DailyActionController extends Controller
             $user = $request->user();
 
             // Daily questions
-            $question = DailyQuestion::whereDate('expired_at', '>=', today())
-                ->where('id', $id)
+            $question = DailyQuestion::where('id', $id)
                 ->with([
                     'topic',
                     'answers',
