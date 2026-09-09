@@ -583,7 +583,7 @@ class AuthController extends Controller
                 'has_company' => sizeof($user->companiesUserIsManager) > 0,
                 'belongs_to_company' => sizeof($user->companiesUserIsMember) > 0,
 
-                'closable_ads' => in_array($user->role->name, ['admin', 'directeur', 'manager']),
+                'closable_ads' => !in_array($user->role_id, [2, 4]),
 
                 // Subscription
                 'has_subscription' => $user->hasSubscription(),

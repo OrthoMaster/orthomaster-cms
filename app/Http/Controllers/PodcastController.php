@@ -201,9 +201,22 @@ class PodcastController extends Controller
         return $podcast;
     }
 
+    /**
+     * Sujets pouvant recevoir un contenu : les sous-sujets, et les sujets
+     * qui n'en regroupent aucun. Un sujet parent ne sert que de regroupement.
+     */
     private function topicOptions()
     {
-        return DB::table('topics')->orderBy('name')->get(['id', 'name']);
+        return DB::table('topics as t')
+            ->leftJoin('topics as p', 'p.id', '=', 't.parent_id')
+            ->select('t.id')
+            ->selectRaw("CASE WHEN p.id IS NULL THEN t.name ELSE CONCAT(p.name, ' · ', t.name) END as name")
+            ->where('t.active_flg', 1)
+            ->whereNotExists(function ($q) {
+                $q->from('topics as c')->whereColumn('c.parent_id', 't.id')->selectRaw('1');
+            })
+            ->orderByRaw('COALESCE(p.order_dsp, t.order_dsp), t.order_dsp')
+            ->get();
     }
 
     private function videoLabel(?int $videoId): ?string

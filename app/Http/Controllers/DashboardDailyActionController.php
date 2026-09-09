@@ -39,7 +39,12 @@ class DashboardDailyActionController extends Controller
             ->whereIn('u.role_id', self::USER_ROLES)
             ->whereExists(function ($sub) {
                 $sub->from('topic_user as tu')
+                    ->join('topics as t', 't.id', '=', 'tu.topic_id')
                     ->whereColumn('tu.user_id', 'u.id')
+                    ->where('t.active_flg', 1)
+                    ->whereNotExists(function ($q) {
+                        $q->from('topics as c')->whereColumn('c.parent_id', 't.id')->selectRaw('1');
+                    })
                     ->selectRaw('1');
             })
             ->count();
@@ -88,7 +93,16 @@ class DashboardDailyActionController extends Controller
         $infographics = $this->countByTopic('infographics', $today);
         $users        = $this->usersByTopic();
 
-        $topics = DB::table('topics')->orderBy('name')->get(['id', 'name']);
+        $topics = DB::table('topics as t')
+            ->leftJoin('topics as p', 'p.id', '=', 't.parent_id')
+            ->select('t.id')
+            ->selectRaw("CASE WHEN p.id IS NULL THEN t.name ELSE CONCAT(p.name, ' · ', t.name) END as name")
+            ->where('t.active_flg', 1)
+            ->whereNotExists(function ($q) {
+                $q->from('topics as c')->whereColumn('c.parent_id', 't.id')->selectRaw('1');
+            })
+            ->orderByRaw("CASE WHEN p.id IS NULL THEN t.name ELSE CONCAT(p.name, ' · ', t.name) END")
+            ->get();
 
         $totals = [
             'podcasts'     => array_sum($podcasts->all()),
@@ -148,15 +162,21 @@ class DashboardDailyActionController extends Controller
     }
 
     /**
-     * Nombre d'utilisateurs abonnés à chaque centre d'intérêt.
+     * Abonnements par sujet. Les sujets parents sont écartés : après la
+     * migration, plus aucun abonnement ne devrait s'y rattacher.
      */
     private function usersByTopic()
     {
         return DB::table('topic_user as tu')
             ->join('users as u', 'u.id', '=', 'tu.user_id')
-            ->whereIn('u.role_id', self::USER_ROLES)
+            ->join('topics as t', 't.id', '=', 'tu.topic_id')
             ->select('tu.topic_id')
             ->selectRaw('COUNT(DISTINCT tu.user_id) as total')
+            ->whereIn('u.role_id', self::USER_ROLES)
+            ->where('t.active_flg', 1)
+            ->whereNotExists(function ($q) {
+                $q->from('topics as c')->whereColumn('c.parent_id', 't.id')->selectRaw('1');
+            })
             ->groupBy('tu.topic_id')
             ->pluck('total', 'topic_id');
     }
