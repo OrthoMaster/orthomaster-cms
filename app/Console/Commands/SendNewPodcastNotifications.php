@@ -32,16 +32,14 @@ class SendNewPodcastNotifications extends Command
         $podcast = Podcast::whereDate('published_at', today())
                 ->with('topic')
                 ->first();
-
+        
         if (!$podcast) {
             Log::channel('tracking')->warning('No job to run.', ['new-podcast']);
             $this->warn('No new podcast for today.');
             return Command::FAILURE;
         }
 
-        $query = User::where('notification_flg', true)
-            //->whereHas('topics', fn($q) => $q->where('topics.id', $podcast->topic_id))
-            ;
+        $query = User::notifiableFor('podcast', $podcast->id);
 
         $totalUsers = $query->count();
         if ($totalUsers === 0) {
@@ -51,7 +49,7 @@ class SendNewPodcastNotifications extends Command
         }
 
         $this->info("Sending to {$totalUsers} users...");
-        Log::channel('tracking')->info('Sending to users.', ['new-podcast', 'user_total: '.$totalUsers, 'topic: '.$podcast->topic_id]);
+        Log::channel('tracking')->info('Sending to users.', ['new-podcast', 'user_total: '.$totalUsers, 'podcast: '.$podcast->topic_id]);
         $query->chunk(100, function ($users) use ($podcast) {
             SendExpoNotificationJob::dispatch(
                 userIds: $users->pluck('id')->toArray(),

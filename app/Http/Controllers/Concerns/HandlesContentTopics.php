@@ -78,6 +78,19 @@ trait HandlesContentTopics
         );
     }
 
+    /**
+     * Réponse après enregistrement. Ouverte dans une fenêtre, la page
+     * se contente de prévenir son parent, qui referme et rafraîchit.
+     */
+    protected function afterSave(\Illuminate\Http\Request $request, string $route, string $message)
+    {
+        if ($request->boolean('embed')) {
+            return response()->view('partials.embed-done');
+        }
+
+        return redirect()->route($route)->with('message', $message);
+    }
+
     /** Identifiant du type de contenu, défini par chaque contrôleur */
     abstract protected function contentType(): string;
 }

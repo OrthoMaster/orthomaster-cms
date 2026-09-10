@@ -138,10 +138,7 @@ class InfographicController extends Controller
 
         $this->syncTopics($id, $request->input('notification_topics', []));
 
-        return redirect()
-            ->route('infographics.edit', $id)
-            ->with('message', 'L\'infographie a bien été créée.')
-            ->with('alert-type', 'success');
+        return $this->afterSave($request, 'infographics.index', 'Infographie enregistré.');
     }
 
     /**
@@ -187,10 +184,7 @@ class InfographicController extends Controller
             $this->deleteFiles([$infographic->image, $infographic->thumbnail]);
         }
 
-        return redirect()
-            ->route('infographics.edit', $infographic->id)
-            ->with('message', 'L\'infographie a bien été mise à jour.')
-            ->with('alert-type', 'success');
+        return $this->afterSave($request, 'infographics.index', 'Infographie enregistré.');
     }
 
     /**

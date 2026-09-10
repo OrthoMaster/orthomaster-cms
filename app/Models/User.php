@@ -170,6 +170,24 @@ class User extends \TCG\Voyager\Models\User
         return $this->activeSubscription()->exists();
     }
 
+    /**
+     * Send notification by topic
+     */
+    public function scopeNotifiableFor($query, string $type, int $contentId)
+    {
+        return $query
+            ->where('notification_flg', true)
+            // ->whereIn('role_id', [2, 4])
+            ->whereExists(function ($q) use ($type, $contentId) {
+                $q->from('topic_user as tu')
+                    ->join('topic_content as tc', 'tc.topic_id', '=', 'tu.topic_id')
+                    ->whereColumn('tu.user_id', 'users.id')
+                    ->where('tc.content_type', $type)
+                    ->where('tc.content_id', $contentId)
+                    ->selectRaw('1');
+            });
+    }
+
     // For sale
     public function customers()
     {

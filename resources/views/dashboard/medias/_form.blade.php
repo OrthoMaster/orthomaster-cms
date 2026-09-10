@@ -123,7 +123,7 @@
     </div>
 
     <div class="col-md-4">
-                @if ($media)
+        @if ($media)
             {{-- ============ CONTENUS LIÉS ============ --}}
             <div class="panel panel-bordered">
                 <div class="panel-heading">

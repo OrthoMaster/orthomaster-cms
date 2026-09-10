@@ -11,6 +11,8 @@
 @stop
 
 @section('content')
+    @include('partials._embed')
+
     <div class="page-content edit-add container-fluid">
         @include('voyager::alerts')
 

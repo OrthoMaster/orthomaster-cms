@@ -39,9 +39,7 @@ class SendDailyQuestionNotifications extends Command
             return Command::FAILURE;
         }
 
-        $query = User::where('notification_flg', true)
-            //->whereHas('topics', fn($q) => $q->where('topics.id', $dailyQuestion->topic_id))
-            ;
+        $query = User::notifiableFor('daily-question', $dailyQuestion->id);
 
         $totalUsers = $query->count();
         if ($totalUsers === 0) {

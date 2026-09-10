@@ -36,6 +36,23 @@
             @method('PUT')
             @include('dashboard.medias._form', ['submitLabel' => 'Enregistrer'])
         </form>
+
+        {{-- Fenêtre d'édition des contenus liés --}}
+        <div class="modal fade" id="linkedModal" tabindex="-1" role="dialog">
+            <div class="modal-dialog modal-lg" role="document">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <button type="button" class="close" data-dismiss="modal">
+                            <span>&times;</span>
+                        </button>
+                        <h4 class="modal-title" id="linkedModalTitle">Contenu lié</h4>
+                    </div>
+                    <div class="modal-body linked-modal-body">
+                        <iframe id="linkedFrame" src="" frameborder="0"></iframe>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 @stop
 
@@ -301,6 +318,24 @@
 
         .voyager .nav-tabs>li.active>a:hover {
             background-color: #62a8ea;
+        }
+
+        /* --- Fenêtre d'édition des contenus liés --- */
+        #linkedModal .modal-dialog {
+            width: 96%;
+            max-width: 1400px;
+            margin-top: 20px;
+        }
+
+        #linkedModal .modal-body {
+            padding: 0;
+        }
+
+        #linkedFrame {
+            display: block;
+            width: 100%;
+            height: 86vh;
+            border: none;
         }
     </style>
 @stop

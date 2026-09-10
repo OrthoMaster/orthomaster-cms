@@ -105,10 +105,7 @@ class DailyQuestionController extends Controller
 
         $this->syncTopics($id, $request->input('notification_topics', []));
 
-        return redirect()
-            ->route('voyager.daily-questions.edit', $id)
-            ->with('message', 'La question a bien été créée.')
-            ->with('alert-type', 'success');
+        return $this->afterSave($request, 'voyager.daily-questions.index', 'Quiz enregistré.');
     }
 
     /**
@@ -147,10 +144,7 @@ class DailyQuestionController extends Controller
 
         $this->syncTopics($id, $request->input('notification_topics', []));
 
-        return redirect()
-            ->route('voyager.daily-questions.edit', $question->id)
-            ->with('message', 'La question a bien été mise à jour.')
-            ->with('alert-type', 'success');
+        return $this->afterSave($request, 'voyager.daily-questions.index', 'Quiz enregistré.');
     }
 
     /* ===================== HELPERS FORMULAIRE ===================== */

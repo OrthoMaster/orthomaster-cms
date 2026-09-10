@@ -400,7 +400,7 @@
         /* ---------- Contenus liés : listes chargées à la demande ---------- */
 
         var LINKED_URL =
-        '{{ route('medias.linked', ['id' => $media->id_content ?? 0, 'type' => '__TYPE__']) }}';
+            '{{ route('medias.linked', ['id' => $media->id_content ?? 0, 'type' => '__TYPE__']) }}';
 
         var $linkedPanel = $('.linked-panel');
         var linkedCache = {};
@@ -419,8 +419,8 @@
                         '<td>' + $('<div>').text(item.title).html() + '</td>' +
                         '<td class="linked-date">' + (item.published_at || '—') + '</td>' +
                         '<td class="linked-action">' +
-                        '<a href="' + item.edit_url +
-                        '" target="_blank" class="btn btn-sm btn-primary">Modifier</a>' +
+                        '<a href="#" class="btn btn-sm btn-primary linked-open" ' +
+                        'data-url="' + item.edit_url + '" data-title="Modifier">Modifier</a>' +
                         '</td>' +
                         '</tr>';
                 });
@@ -429,7 +429,8 @@
             }
 
             return '<div class="linked-toolbar">' +
-                '<a href="' + data.create_url + '" target="_blank" class="btn btn-sm btn-success">' +
+                '<a href="#" class="btn btn-sm btn-success linked-open" ' +
+                'data-url="' + data.create_url + '" data-title="Créer">' +
                 '<i class="voyager-plus"></i> Créer</a>' +
                 '</div>' +
                 rows;
@@ -471,5 +472,34 @@
         if ($linkedPanel.length) {
             loadLinked('podcast');
         }
+
+        /* ---------- Fenêtre d'édition ---------- */
+
+        $(document).on('click', '.linked-open', function(e) {
+            e.preventDefault();
+
+            $('#linkedModalTitle').text($(this).data('title'));
+            $('#linkedFrame').attr('src', $(this).data('url'));
+            $('#linkedModal').modal('show');
+        });
+
+        // La page est vidée à la fermeture : le formulaire ne reste pas en mémoire
+        $('#linkedModal').on('hidden.bs.modal', function() {
+            $('#linkedFrame').attr('src', '');
+        });
+
+        // Enregistrement terminé ou abandon : la fenêtre se referme
+        window.addEventListener('message', function(event) {
+            if (!event.data || event.data.source !== 'linked-content') return;
+
+            $('#linkedModal').modal('hide');
+
+            if (event.data.saved) {
+                var type = $('.linked-tabs li.active a').data('type');
+
+                delete linkedCache[type];
+                loadLinked(type);
+            }
+        });
     });
 </script>

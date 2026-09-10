@@ -1463,13 +1463,16 @@ class MediaController extends Controller
                 'published_at' => $row->published_at
                     ? Carbon::parse($row->published_at)->format('d/m/Y')
                     : null,
-                'edit_url'     => route($config['route'] . '.edit', $row->id),
+                'edit_url'     => route($config['route'] . '.edit', $row->id) . '?embed=1',
             ]);
 
         return response()->json([
             'success'    => true,
             'items'      => $items,
-            'create_url' => route($config['route'] . '.create', ['video_id' => $media->video_id]),
+            'create_url' => route($config['route'] . '.create', [
+                'video_id' => $media->video_id,
+                'embed'    => 1,
+            ]),
         ]);
     }
 }

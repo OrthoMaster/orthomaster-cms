@@ -99,10 +99,7 @@ class PodcastController extends Controller
 
         $this->syncTopics($id, $request->input('notification_topics', []));
 
-        return redirect()
-            ->route('voyager.podcasts.edit', $id)
-            ->with('message', 'Le podcast a bien été créé.')
-            ->with('alert-type', 'success');
+        return $this->afterSave($request, 'voyager.podcasts.index', 'Podcast enregistré.');
     }
 
     /**
@@ -136,10 +133,7 @@ class PodcastController extends Controller
         
         $this->syncTopics($id, $request->input('notification_topics', []));
 
-        return redirect()
-            ->route('voyager.podcasts.edit', $podcast->id)
-            ->with('message', 'Le podcast a bien été mis à jour.')
-            ->with('alert-type', 'success');
+        return $this->afterSave($request, 'voyager.podcasts.index', 'Podcast enregistré.');
     }
 
     /* ===================== HELPERS FORMULAIRE ===================== */
