@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\HandlesContentTopics;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
@@ -13,6 +14,13 @@ use Intervention\Image\Facades\Image;
 
 class InfographicController extends Controller
 {
+    use HandlesContentTopics;
+
+    protected function contentType(): string
+    {
+        return 'infographic';
+    }
+
     /** Type unique pour l'instant, non modifiable depuis le formulaire */
     private const TYPE = 'info';
 
@@ -32,7 +40,7 @@ class InfographicController extends Controller
     /** Rôles correspondant aux utilisateurs de l'application */
     private const USER_ROLES = [2, 4];
 
-        /**
+    /**
      * Liste des infographies.
      * GET /infographics
      */
@@ -71,7 +79,7 @@ class InfographicController extends Controller
             ->selectRaw("{$views} as views")
             ->selectRaw("{$viewers} as viewers")
             ->selectRaw("{$favourites} as favourites")
-            ->when($search !== '', fn ($q) => $q->where('i.title', 'like', '%' . $search . '%'))
+            ->when($search !== '', fn($q) => $q->where('i.title', 'like', '%' . $search . '%'))
             ->orderByDesc('i.created_at')
             ->orderByDesc('i.id')
             ->paginate(25)
@@ -87,13 +95,22 @@ class InfographicController extends Controller
      * Formulaire de création.
      * GET /infographics/create
      */
-    public function create()
+    public function create(Request $request)
     {
+        // Création lancée depuis un média : la vidéo est imposée
+        $videoId = $request->query('video_id');
+
+        $video = $videoId
+            ? DB::table('videos')->where('id', $videoId)->first(['id', 'title', 'code'])
+            : null;
+        
         return view('infographics.create', [
             'infographic'   => null,
             'selectedVideo' => null,
             'imageUrl'      => null,
             'topics'        => $this->topicOptions(),
+            'selectedTopics' => [],
+            'lockedVideo' => $video,
         ]);
     }
 
@@ -119,6 +136,8 @@ class InfographicController extends Controller
             ]
         );
 
+        $this->syncTopics($id, $request->input('notification_topics', []));
+
         return redirect()
             ->route('infographics.edit', $id)
             ->with('message', 'L\'infographie a bien été créée.')
@@ -138,6 +157,7 @@ class InfographicController extends Controller
             'selectedVideo' => $this->videoLabel($infographic->video_id),
             'imageUrl'      => $this->fileUrl($infographic->thumbnail ?: $infographic->image),
             'topics'        => $this->topicOptions(),
+            'selectedTopics' => $this->selectedTopicIds($infographic->id),
         ]);
     }
 
@@ -159,6 +179,8 @@ class InfographicController extends Controller
         }
 
         DB::table('infographics')->where('id', $infographic->id)->update($payload);
+
+        $this->syncTopics($id, $request->input('notification_topics', []));
 
         // Les anciens fichiers ne sont supprimés qu'une fois la base à jour
         if (!empty($files)) {
@@ -227,6 +249,8 @@ class InfographicController extends Controller
             'notification_body'  => ['nullable', 'string', 'max:255'],
             'published_at'       => ['nullable', 'date'],
             'expired_at'         => ['nullable', 'date', 'after_or_equal:published_at'],
+            'notification_topics'   => ['nullable', 'array'],
+            'notification_topics.*' => ['integer', 'exists:topics,id'],
         ], [
             'image_file.max'   => 'Le visuel ne doit pas dépasser 5 Mo.',
             'image_file.image' => 'Le fichier doit être une image.',

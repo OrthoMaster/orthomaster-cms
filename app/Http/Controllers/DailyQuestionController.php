@@ -2,12 +2,20 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\HandlesContentTopics;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
 class DailyQuestionController extends Controller
 {
+    use HandlesContentTopics;
+
+    protected function contentType(): string
+    {
+        return 'daily-question';
+    }
+
     /** Nombre minimum de réponses par question */
     private const MIN_ANSWERS = 2;
 
@@ -55,13 +63,22 @@ class DailyQuestionController extends Controller
      * Formulaire de création.
      * GET /daily-questions/create
      */
-    public function create()
+    public function create(Request $request)
     {
+        // Création lancée depuis un média : la vidéo est imposée
+        $videoId = $request->query('video_id');
+
+        $video = $videoId
+            ? DB::table('videos')->where('id', $videoId)->first(['id', 'title', 'code'])
+            : null;
+        
         return view('daily-questions.create', [
             'topics'        => $this->topicOptions(),
             'question'      => null,
             'answers'       => collect(),
             'selectedVideo' => null,
+            'selectedTopics' => [],
+            'lockedVideo' => $video,
         ]);
     }
 
@@ -86,6 +103,8 @@ class DailyQuestionController extends Controller
             return $id;
         });
 
+        $this->syncTopics($id, $request->input('notification_topics', []));
+
         return redirect()
             ->route('voyager.daily-questions.edit', $id)
             ->with('message', 'La question a bien été créée.')
@@ -105,6 +124,7 @@ class DailyQuestionController extends Controller
             'question'      => $question,
             'answers'       => $this->answersFor($id),
             'selectedVideo' => $this->videoLabel($question->video_id),
+            'selectedTopics' => $this->selectedTopicIds($question->id),
         ]);
     }
 
@@ -124,6 +144,8 @@ class DailyQuestionController extends Controller
 
             $this->syncAnswers($question->id, $data['answers'], $data['correct']);
         });
+
+        $this->syncTopics($id, $request->input('notification_topics', []));
 
         return redirect()
             ->route('voyager.daily-questions.edit', $question->id)
@@ -152,6 +174,8 @@ class DailyQuestionController extends Controller
             'answers'            => ['required', 'array', 'min:' . self::MIN_ANSWERS, 'max:' . self::MAX_ANSWERS],
             'answers.*'          => ['required', 'string', 'max:500'],
             'correct'            => ['required', 'integer'],
+            'notification_topics'   => ['nullable', 'array'],
+            'notification_topics.*' => ['integer', 'exists:topics,id'],
         ], [
             'answers.min'      => 'Une question doit comporter au moins :min réponses.',
             'answers.max'      => 'Une question ne peut pas comporter plus de :max réponses.',

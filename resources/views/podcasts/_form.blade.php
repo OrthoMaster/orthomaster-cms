@@ -23,18 +23,28 @@
             </div>
             <div class="panel-body">
 
-                <div class="form-group">
-                    <label for="video_id">Vidéo associée</label>
-                    <select class="form-control" id="video_id" name="video_id">
-                        <option value=""></option>
-                        @if ($val('video_id', $podcast->video_id ?? null))
-                            <option value="{{ $val('video_id', $podcast->video_id) }}" selected>
-                                {{ $selectedVideo }}
-                            </option>
-                        @endif
-                    </select>
-                    <p class="help-block">Facultatif. Saisissez au moins 3 caractères pour rechercher.</p>
-                </div>
+                @if (!empty($lockedVideo))
+                    {{-- Création lancée depuis un média : la vidéo est imposée --}}
+                    <div class="form-group">
+                        <label>Vidéo associée</label>
+                        <input type="hidden" name="video_id" value="{{ $lockedVideo->id }}">
+                        <input type="text" class="form-control" value="{{ $lockedVideo->title }}" readonly>
+                        <p class="help-block">Imposée par le média d'origine.</p>
+                    </div>
+                @else
+                    <div class="form-group">
+                        <label for="video_id">Vidéo associée</label>
+                        <select class="form-control" id="video_id" name="video_id">
+                            <option value=""></option>
+                            @if ($val('video_id', $podcast->video_id ?? null))
+                                <option value="{{ $val('video_id', $podcast->video_id) }}" selected>
+                                    {{ $selectedVideo }}
+                                </option>
+                            @endif
+                        </select>
+                        <p class="help-block">Facultatif. Saisissez au moins 3 caractères pour rechercher.</p>
+                    </div>
+                @endif
 
                 <div class="form-group">
                     <label for="topic_id">Sujet <span class="text-danger">*</span></label>
@@ -138,6 +148,16 @@
                 <h3 class="panel-title"><i class="voyager-bell"></i> Notification</h3>
             </div>
             <div class="panel-body">
+                <div class="form-group">
+                    <label for="notification_topics">Centres d'intérêt notifiés</label>
+                    <select class="form-control" id="notification_topics" name="notification_topics[]" multiple>
+                        @foreach ($topics as $topic)
+                            <option value="{{ $topic->id }}" @selected(in_array($topic->id, old('notification_topics', $selectedTopics ?? [])))>
+                                {{ $topic->name }}
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
 
                 <div class="form-group">
                     <label for="notification_title">Titre</label>

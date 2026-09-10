@@ -116,6 +116,8 @@ Route::group(['prefix' => 'admin', 'middleware' => ['cmsAdmin']], function () {
             Route::post('/{id}/create-version', [MediaController::class, 'createVersion'])->name('create-version');
 
             Route::post('/{id}/content/image', [MediaController::class, 'uploadContentImage'])->name('content.image');
+
+            Route::get('/{id}/linked/{type}', [MediaController::class, 'linkedList'])->name('linked');
         });
     Route::get('medias/list', [MediaController::class, 'list'])->name('medias.list');
 

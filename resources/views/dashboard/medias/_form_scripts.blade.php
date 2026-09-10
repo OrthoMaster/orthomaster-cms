@@ -396,5 +396,80 @@
                     });
             });
         }
+
+        /* ---------- Contenus liés : listes chargées à la demande ---------- */
+
+        var LINKED_URL =
+        '{{ route('medias.linked', ['id' => $media->id_content ?? 0, 'type' => '__TYPE__']) }}';
+
+        var $linkedPanel = $('.linked-panel');
+        var linkedCache = {};
+
+        function renderLinked(data) {
+            var rows = '';
+
+            if (data.items.length === 0) {
+                rows = '<div class="linked-empty">Aucun élément rattaché à cette vidéo.</div>';
+            } else {
+                rows = '<table class="linked-table">';
+
+                data.items.forEach(function(item) {
+                    rows += '<tr>' +
+                        '<td class="linked-id">#' + item.id + '</td>' +
+                        '<td>' + $('<div>').text(item.title).html() + '</td>' +
+                        '<td class="linked-date">' + (item.published_at || '—') + '</td>' +
+                        '<td class="linked-action">' +
+                        '<a href="' + item.edit_url +
+                        '" target="_blank" class="btn btn-sm btn-primary">Modifier</a>' +
+                        '</td>' +
+                        '</tr>';
+                });
+
+                rows += '</table>';
+            }
+
+            return '<div class="linked-toolbar">' +
+                '<a href="' + data.create_url + '" target="_blank" class="btn btn-sm btn-success">' +
+                '<i class="voyager-plus"></i> Créer</a>' +
+                '</div>' +
+                rows;
+        }
+
+        function loadLinked(type) {
+            if (linkedCache[type]) {
+                $('.linked-content').html(linkedCache[type]);
+                return;
+            }
+
+            $linkedPanel.addClass('is-loading');
+
+            $.getJSON(LINKED_URL.replace('__TYPE__', type), function(data) {
+                var html = renderLinked(data);
+
+                linkedCache[type] = html;
+                $('.linked-content').html(html);
+            }).fail(function() {
+                $('.linked-content').html('<div class="linked-empty">Chargement impossible.</div>');
+            }).always(function() {
+                $linkedPanel.removeClass('is-loading');
+            });
+        }
+
+        $('.linked-tabs a').on('click', function(e) {
+            e.preventDefault();
+
+            var $li = $(this).parent();
+
+            if ($li.hasClass('active')) return;
+
+            $('.linked-tabs li').removeClass('active');
+            $li.addClass('active');
+
+            loadLinked($(this).data('type'));
+        });
+
+        if ($linkedPanel.length) {
+            loadLinked('podcast');
+        }
     });
 </script>

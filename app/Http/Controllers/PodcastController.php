@@ -5,9 +5,17 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use App\Http\Controllers\Concerns\HandlesContentTopics;
 
 class PodcastController extends Controller
 {
+    use HandlesContentTopics;
+
+    protected function contentType(): string
+    {
+        return 'podcast';
+    }
+
     /** Rôles correspondant aux utilisateurs de l'application */
     private const USER_ROLES = [2, 4];
 
@@ -56,12 +64,21 @@ class PodcastController extends Controller
      * Formulaire de création.
      * GET /podcasts/create
      */
-    public function create()
+    public function create(Request $request)
     {
+        // Création lancée depuis un média : la vidéo est imposée
+        $videoId = $request->query('video_id');
+
+        $video = $videoId
+            ? DB::table('videos')->where('id', $videoId)->first(['id', 'title', 'code'])
+            : null;
+        
         return view('podcasts.create', [
             'topics'        => $this->topicOptions(),
             'podcast'       => null,
             'selectedVideo' => null,
+            'selectedTopics' => [],
+            'lockedVideo' => $video,
         ]);
     }
 
@@ -79,6 +96,8 @@ class PodcastController extends Controller
                 'updated_at' => now(),
             ]
         );
+
+        $this->syncTopics($id, $request->input('notification_topics', []));
 
         return redirect()
             ->route('voyager.podcasts.edit', $id)
@@ -98,6 +117,7 @@ class PodcastController extends Controller
             'topics'        => $this->topicOptions(),
             'podcast'       => $podcast,
             'selectedVideo' => $this->videoLabel($podcast->video_id),
+            'selectedTopics' => $this->selectedTopicIds($podcast->id),
         ]);
     }
 
@@ -113,6 +133,8 @@ class PodcastController extends Controller
         DB::table('podcasts')
             ->where('id', $podcast->id)
             ->update($this->payload($data) + ['updated_at' => now()]);
+        
+        $this->syncTopics($id, $request->input('notification_topics', []));
 
         return redirect()
             ->route('voyager.podcasts.edit', $podcast->id)
@@ -139,6 +161,8 @@ class PodcastController extends Controller
             'expired_at'         => ['nullable', 'date', 'after_or_equal:published_at'],
             'notification_title' => ['nullable', 'string', 'max:255'],
             'notification_body'  => ['nullable', 'string', 'max:500'],
+            'notification_topics'   => ['nullable', 'array'],
+            'notification_topics.*' => ['integer', 'exists:topics,id'],
         ], [
             'expired_at.after_or_equal' => 'La date de fin ne peut pas précéder la date de publication.',
         ], [
@@ -199,24 +223,6 @@ class PodcastController extends Controller
         abort_if(!$podcast, 404);
 
         return $podcast;
-    }
-
-    /**
-     * Sujets pouvant recevoir un contenu : les sous-sujets, et les sujets
-     * qui n'en regroupent aucun. Un sujet parent ne sert que de regroupement.
-     */
-    private function topicOptions()
-    {
-        return DB::table('topics as t')
-            ->leftJoin('topics as p', 'p.id', '=', 't.parent_id')
-            ->select('t.id')
-            ->selectRaw("CASE WHEN p.id IS NULL THEN t.name ELSE CONCAT(p.name, ' · ', t.name) END as name")
-            ->where('t.active_flg', 1)
-            ->whereNotExists(function ($q) {
-                $q->from('topics as c')->whereColumn('c.parent_id', 't.id')->selectRaw('1');
-            })
-            ->orderByRaw('COALESCE(p.order_dsp, t.order_dsp), t.order_dsp')
-            ->get();
     }
 
     private function videoLabel(?int $videoId): ?string

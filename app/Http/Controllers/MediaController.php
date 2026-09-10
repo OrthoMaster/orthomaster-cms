@@ -1426,4 +1426,50 @@ class MediaController extends Controller
             'selectedVideo'  => $this->videoLabel($f['content_id']),
         ]);
     }
+
+        /** Contenus rattachables à une vidéo, et leur table */
+    private const LINKED_TABLES = [
+        'podcast'        => ['table' => 'podcasts',        'route' => 'voyager.podcasts'],
+        'daily-question' => ['table' => 'daily_questions', 'route' => 'voyager.daily-questions'],
+        'infographic'    => ['table' => 'infographics',    'route' => 'infographics'],
+    ];
+
+    /**
+     * Contenus d'un type donné rattachés à la vidéo d'un média.
+     * GET /dashboard/medias/{id}/linked/{type}
+     */
+    public function linkedList(int $id, string $type)
+    {
+        if (!array_key_exists($type, self::LINKED_TABLES)) {
+            return response()->json(['success' => false], 404);
+        }
+
+        $media = DB::table('content')->where('id_content', $id)->first();
+
+        if (!$media || !$media->video_id) {
+            return response()->json(['success' => true, 'items' => []]);
+        }
+
+        $config = self::LINKED_TABLES[$type];
+
+        $items = DB::table($config['table'])
+            ->select('id', 'title', 'published_at')
+            ->where('video_id', $media->video_id)
+            ->orderByDesc('id')
+            ->get()
+            ->map(fn ($row) => [
+                'id'           => $row->id,
+                'title'        => $row->title,
+                'published_at' => $row->published_at
+                    ? Carbon::parse($row->published_at)->format('d/m/Y')
+                    : null,
+                'edit_url'     => route($config['route'] . '.edit', $row->id),
+            ]);
+
+        return response()->json([
+            'success'    => true,
+            'items'      => $items,
+            'create_url' => route($config['route'] . '.create', ['video_id' => $media->video_id]),
+        ]);
+    }
 }

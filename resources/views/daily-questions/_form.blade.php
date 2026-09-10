@@ -1,6 +1,6 @@
 {{-- Formulaire partagé création / édition --}}
 @php
-    $val = fn ($key, $default = null) => old($key, $default);
+    $val = fn($key, $default = null) => old($key, $default);
 
     // Réponses à afficher : anciennes valeurs après erreur, sinon celles en base
     $oldAnswers = old('answers');
@@ -11,17 +11,18 @@
             $rows[] = (object) ['text' => $text, 'correct_flg' => (int) old('correct') === $i];
         }
     } else {
-        $rows = $answers->map(fn ($a) => (object) [
-            'text'        => $a->text,
-            'correct_flg' => (bool) $a->correct_flg,
-        ])->all();
+        $rows = $answers
+            ->map(
+                fn($a) => (object) [
+                    'text' => $a->text,
+                    'correct_flg' => (bool) $a->correct_flg,
+                ],
+            )
+            ->all();
     }
 
     if (empty($rows)) {
-        $rows = [
-            (object) ['text' => '', 'correct_flg' => true],
-            (object) ['text' => '', 'correct_flg' => false],
-        ];
+        $rows = [(object) ['text' => '', 'correct_flg' => true], (object) ['text' => '', 'correct_flg' => false]];
     }
 @endphp
 
@@ -45,26 +46,35 @@
             </div>
             <div class="panel-body">
 
-                <div class="form-group">
-                    <label for="video_id">Vidéo associée</label>
-                    <select class="form-control" id="video_id" name="video_id">
-                        <option value=""></option>
-                        @if ($val('video_id', $question->video_id ?? null))
-                            <option value="{{ $val('video_id', $question->video_id) }}" selected>
-                                {{ $selectedVideo }}
-                            </option>
-                        @endif
-                    </select>
-                    <p class="help-block">Facultatif. Saisissez au moins 3 caractères pour rechercher.</p>
-                </div>
+                @if (!empty($lockedVideo))
+                    {{-- Création lancée depuis un média : la vidéo est imposée --}}
+                    <div class="form-group">
+                        <label>Vidéo associée</label>
+                        <input type="hidden" name="video_id" value="{{ $lockedVideo->id }}">
+                        <input type="text" class="form-control" value="{{ $lockedVideo->title }}" readonly>
+                        <p class="help-block">Imposée par le média d'origine.</p>
+                    </div>
+                @else
+                    <div class="form-group">
+                        <label for="video_id">Vidéo associée</label>
+                        <select class="form-control" id="video_id" name="video_id">
+                            <option value=""></option>
+                            @if ($val('video_id', $podcast->video_id ?? null))
+                                <option value="{{ $val('video_id', $podcast->video_id) }}" selected>
+                                    {{ $selectedVideo }}
+                                </option>
+                            @endif
+                        </select>
+                        <p class="help-block">Facultatif. Saisissez au moins 3 caractères pour rechercher.</p>
+                    </div>
+                @endif
 
                 <div class="form-group">
                     <label for="topic_id">Sujet <span class="text-danger">*</span></label>
                     <select class="form-control" id="topic_id" name="topic_id" required>
                         <option value="">—</option>
                         @foreach ($topics as $t)
-                            <option value="{{ $t->id }}"
-                                @selected((int) $val('topic_id', $question->topic_id ?? null) === (int) $t->id)>
+                            <option value="{{ $t->id }}" @selected((int) $val('topic_id', $question->topic_id ?? null) === (int) $t->id)>
                                 {{ $t->name }}
                             </option>
                         @endforeach
@@ -74,21 +84,18 @@
                 <div class="form-group">
                     <label for="title">Titre <span class="text-danger">*</span></label>
                     <input type="text" class="form-control" id="title" name="title"
-                           value="{{ $val('title', $question->title ?? '') }}"
-                           maxlength="120" required>
+                        value="{{ $val('title', $question->title ?? '') }}" maxlength="120" required>
                     <p class="help-block">120 caractères maximum.</p>
                 </div>
 
                 <div class="form-group">
                     <label for="question">Énoncé <span class="text-danger">*</span></label>
-                    <textarea class="form-control" id="question" name="question" rows="3"
-                              required>{{ $val('question', $question->question ?? '') }}</textarea>
+                    <textarea class="form-control" id="question" name="question" rows="3" required>{{ $val('question', $question->question ?? '') }}</textarea>
                 </div>
 
                 <div class="form-group" style="margin-bottom:0">
                     <label for="explanation">Explication</label>
-                    <textarea class="form-control" id="explanation" name="explanation"
-                              rows="5">{{ $val('explanation', $question->explanation ?? '') }}</textarea>
+                    <textarea class="form-control" id="explanation" name="explanation" rows="5">{{ $val('explanation', $question->explanation ?? '') }}</textarea>
                     <p class="help-block">
                         Affichée à l'utilisateur une fois sa réponse validée.
                     </p>
@@ -113,10 +120,10 @@
                         <div class="answer-row">
                             <label class="answer-correct" title="Bonne réponse">
                                 <input type="radio" name="correct" value="{{ $i }}"
-                                       @checked($row->correct_flg)>
+                                    @checked($row->correct_flg)>
                             </label>
                             <input type="text" class="form-control answer-text" name="answers[]"
-                                   value="{{ $row->text }}" placeholder="Texte de la réponse" required>
+                                value="{{ $row->text }}" placeholder="Texte de la réponse" required>
                             <button type="button" class="btn btn-link answer-remove" title="Retirer">
                                 <i class="voyager-trash"></i>
                             </button>
@@ -144,9 +151,12 @@
                 <div class="form-group">
                     <label for="published_at">Date de publication</label>
                     <input type="date" class="form-control" id="published_at" name="published_at"
-                           value="{{ $val('published_at', isset($question->published_at) && $question->published_at
+                        value="{{ $val(
+                            'published_at',
+                            isset($question->published_at) && $question->published_at
                                 ? \Illuminate\Support\Carbon::parse($question->published_at)->format('Y-m-d')
-                                : '') }}">
+                                : '',
+                        ) }}">
                     <p class="help-block">
                         La question apparaît dans l'application à partir de cette date.
                     </p>
@@ -155,9 +165,12 @@
                 <div class="form-group" style="margin-bottom:0">
                     <label for="expired_at">Date de fin</label>
                     <input type="date" class="form-control" id="expired_at" name="expired_at"
-                           value="{{ $val('expired_at', isset($question->expired_at) && $question->expired_at
+                        value="{{ $val(
+                            'expired_at',
+                            isset($question->expired_at) && $question->expired_at
                                 ? \Illuminate\Support\Carbon::parse($question->expired_at)->format('Y-m-d')
-                                : '') }}">
+                                : '',
+                        ) }}">
                 </div>
 
             </div>
@@ -169,18 +182,27 @@
                 <h3 class="panel-title"><i class="voyager-bell"></i> Notification</h3>
             </div>
             <div class="panel-body">
+                <div class="form-group">
+                    <label for="notification_topics">Centres d'intérêt notifiés</label>
+                    <select class="form-control" id="notification_topics" name="notification_topics[]" multiple>
+                        @foreach ($topics as $topic)
+                            <option value="{{ $topic->id }}" @selected(in_array($topic->id, old('notification_topics', $selectedTopics ?? [])))>
+                                {{ $topic->name }}
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
 
                 <div class="form-group">
                     <label for="notification_title">Titre</label>
                     <input type="text" class="form-control" id="notification_title" name="notification_title"
-                           value="{{ $val('notification_title', $question->notification_title ?? '') }}"
-                           maxlength="255">
+                        value="{{ $val('notification_title', $question->notification_title ?? '') }}"
+                        maxlength="255">
                 </div>
 
                 <div class="form-group" style="margin-bottom:0">
                     <label for="notification_body">Message</label>
-                    <textarea class="form-control" id="notification_body" name="notification_body"
-                              rows="4" maxlength="200">{{ $val('notification_body', $question->notification_body ?? '') }}</textarea>
+                    <textarea class="form-control" id="notification_body" name="notification_body" rows="4" maxlength="200">{{ $val('notification_body', $question->notification_body ?? '') }}</textarea>
                 </div>
 
             </div>

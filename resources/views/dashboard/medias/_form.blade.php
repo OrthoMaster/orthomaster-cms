@@ -123,6 +123,49 @@
     </div>
 
     <div class="col-md-4">
+                @if ($media)
+            {{-- ============ CONTENUS LIÉS ============ --}}
+            <div class="panel panel-bordered">
+                <div class="panel-heading">
+                    <h3 class="panel-title"><i class="voyager-paperclip"></i> Contenus liés</h3>
+                </div>
+                <div class="panel-body">
+                    @if (!$media->video_id)
+                        <div class="alert alert-warning" style="margin-bottom:0">
+                            <strong>Aucune vidéo rattachée.</strong>
+                            Enregistrez d'abord le média pour pouvoir y associer des podcasts,
+                            des quiz ou des infographies.
+                        </div>
+                    @else
+                        <ul class="nav nav-tabs linked-tabs">
+                            <li class="active">
+                                <a href="#" data-type="podcast">
+                                    <i class="voyager-music"></i> Podcasts
+                                </a>
+                            </li>
+                            <li>
+                                <a href="#" data-type="daily-question">
+                                    <i class="voyager-question"></i> Quiz
+                                </a>
+                            </li>
+                            <li>
+                                <a href="#" data-type="infographic">
+                                    <i class="voyager-images"></i> Infographies
+                                </a>
+                            </li>
+                        </ul>
+
+                        <div class="linked-panel">
+                            <div class="linked-loading">
+                                <i class="voyager-refresh"></i> Chargement…
+                            </div>
+                            <div class="linked-content"></div>
+                        </div>
+                    @endif
+                </div>
+            </div>
+        @endif
+
         <div class="panel panel-bordered">
             <div class="panel-heading">
                 <h3 class="panel-title"><i class="voyager-list"></i> Classement</h3>
@@ -167,8 +210,7 @@
                     <select class="form-control" id="id_past_event" name="id_past_event">
                         <option value="">—</option>
                         @foreach ($pastEvents as $pe)
-                            <option value="{{ $pe->id }}"
-                                @selected((int) $val('id_past_event', $media->id_past_event ?? null) === (int) $pe->id)>
+                            <option value="{{ $pe->id }}" @selected((int) $val('id_past_event', $media->id_past_event ?? null) === (int) $pe->id)>
                                 {{ $pe->text }}
                             </option>
                         @endforeach
@@ -179,10 +221,9 @@
                     <label for="trend_flg">Tendance</label>
                     <div>
                         <input type="hidden" name="trend_flg" value="0">
-                        <input type="checkbox" name="trend_flg" id="trend_flg" value="1"
-                               data-toggle="toggle" data-on="Oui" data-off="Non"
-                               data-onstyle="danger" data-offstyle="default"
-                               @checked((bool) $val('trend_flg', $media->trend_flg ?? 0))>
+                        <input type="checkbox" name="trend_flg" id="trend_flg" value="1" data-toggle="toggle"
+                            data-on="Oui" data-off="Non" data-onstyle="danger" data-offstyle="default"
+                            @checked((bool) $val('trend_flg', $media->trend_flg ?? 0))>
                     </div>
                     <small class="help-block text-warning" style="margin-top:8px">
                         Met le média en avant dans la section « Tendances » de l'application.
@@ -201,9 +242,8 @@
                     <div class="form-group">
                         <label for="code">Code vidéo</label>
                         <input type="text" class="form-control" id="code" name="code"
-                               value="{{ $val('code', $video->code ?? '') }}"
-                               data-initial="{{ $video->code ?? '' }}"
-                               placeholder="ex : 9272ff36-e650-4f33-8efe-5c4c7dcd451a">
+                            value="{{ $val('code', $video->code ?? '') }}" data-initial="{{ $video->code ?? '' }}"
+                            placeholder="ex : 9272ff36-e650-4f33-8efe-5c4c7dcd451a">
                         <small class="help-block text-warning">
                             Ce code correspond au dossier de la vidéo sur le CDN.
                             Le modifier rendra la vidéo actuelle illisible.
@@ -216,16 +256,18 @@
                         <div>
                             <input type="hidden" name="published" value="0">
                             <input type="checkbox" name="published" id="published" value="1"
-                                   data-toggle="toggle" data-on="Publié" data-off="Hors ligne"
-                                   data-onstyle="success" data-offstyle="default"
-                                   @checked((bool) $val('published', $media->published ?? 0))>
+                                data-toggle="toggle" data-on="Publié" data-off="Hors ligne" data-onstyle="success"
+                                data-offstyle="default" @checked((bool) $val('published', $media->published ?? 0))>
                         </div>
                     </div>
                     <div class="form-group">
                         <input type="datetime-local" class="form-control" id="published_at" name="published_at"
-                               value="{{ $val('published_at', isset($video->published_at) && $video->published_at
+                            value="{{ $val(
+                                'published_at',
+                                isset($video->published_at) && $video->published_at
                                     ? \Illuminate\Support\Carbon::parse($video->published_at)->format('Y-m-d\TH:i')
-                                    : '') }}">
+                                    : '',
+                            ) }}">
                     </div>
 
                 </div>

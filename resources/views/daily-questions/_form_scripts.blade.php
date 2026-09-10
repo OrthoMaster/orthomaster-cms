@@ -1,37 +1,55 @@
 <script>
-    $(document).ready(function () {
+    $(document).ready(function() {
 
         var MIN_ANSWERS = {{ 2 }},
             MAX_ANSWERS = {{ 6 }};
 
-        $('#topic_id').select2({ width: '100%' });
+        $('#topic_id').select2({
+            width: '100%'
+        });
 
         /* ---------- Select2 vidéo (min 3 caractères) ---------- */
-        $('#video_id').select2({
-            width: '100%',
-            placeholder: 'Rechercher une vidéo…',
-            allowClear: true,
-            minimumInputLength: 3,
-            language: {
-                inputTooShort: function () { return 'Saisissez au moins 3 caractères'; },
-                noResults: function () { return 'Aucun résultat'; },
-                searching: function () { return 'Recherche…'; }
-            },
-            ajax: {
-                url: '{{ route('infographics.search-videos') }}',
-                dataType: 'json',
-                delay: 250,
-                data: function (params) { return { q: params.term }; },
-                processResults: function (data) { return { results: data }; },
-                cache: true
-            }
-        });
+        if ($('#video_id').length) {
+            $('#video_id').select2({
+                width: '100%',
+                placeholder: 'Rechercher une vidéo…',
+                allowClear: true,
+                minimumInputLength: 3,
+                language: {
+                    inputTooShort: function() {
+                        return 'Saisissez au moins 3 caractères';
+                    },
+                    noResults: function() {
+                        return 'Aucun résultat';
+                    },
+                    searching: function() {
+                        return 'Recherche…';
+                    }
+                },
+                ajax: {
+                    url: '{{ route('infographics.search-videos') }}',
+                    dataType: 'json',
+                    delay: 250,
+                    data: function(params) {
+                        return {
+                            q: params.term
+                        };
+                    },
+                    processResults: function(data) {
+                        return {
+                            results: data
+                        };
+                    },
+                    cache: true
+                }
+            });
+        }
 
         /* ---------- Réponses : ajout, retrait, réindexation ---------- */
         function reindex() {
             var $rows = $('#answers-list .answer-row');
 
-            $rows.each(function (i) {
+            $rows.each(function(i) {
                 $(this).find('input[type=radio]').val(i);
             });
 
@@ -48,12 +66,12 @@
         }
 
         function highlight() {
-            $('#answers-list .answer-row').each(function () {
+            $('#answers-list .answer-row').each(function() {
                 $(this).toggleClass('is-correct', $(this).find('input[type=radio]').is(':checked'));
             });
         }
 
-        $('#add-answer').on('click', function () {
+        $('#add-answer').on('click', function() {
             if ($('#answers-list .answer-row').length >= MAX_ANSWERS) return;
 
             var $row = $(
@@ -73,7 +91,7 @@
             $row.find('.answer-text').focus();
         });
 
-        $('#answers-list').on('click', '.answer-remove', function () {
+        $('#answers-list').on('click', '.answer-remove', function() {
             if ($('#answers-list .answer-row').length <= MIN_ANSWERS) return;
 
             $(this).closest('.answer-row').remove();
@@ -81,6 +99,12 @@
         });
 
         $('#answers-list').on('change', 'input[type=radio]', highlight);
+
+        $('#notification_topics').select2({
+            width: '100%',
+            placeholder: 'Sélectionnez un ou plusieurs centres d\'intérêt',
+            allowClear: true
+        });
 
         reindex();
     });
