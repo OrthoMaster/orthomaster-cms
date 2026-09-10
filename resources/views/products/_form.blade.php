@@ -109,6 +109,13 @@
                    placeholder="e.g. Orthèse de genou" required>
             @error('category')<small class="help-block">{{ $message }}</small>@enderror
         </div>
+
+        @if ($product)
+        <div>
+            <label>Source</label>
+            <a href="{{ $product->source }}" target="_blank">{{ $product->source }}</a>
+        </div>
+        @endif
     </div>
 </div>
 
