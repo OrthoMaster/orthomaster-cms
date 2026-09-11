@@ -59,8 +59,8 @@
                         <label for="video_id">Vidéo associée</label>
                         <select class="form-control" id="video_id" name="video_id">
                             <option value=""></option>
-                            @if ($val('video_id', $podcast->video_id ?? null))
-                                <option value="{{ $val('video_id', $podcast->video_id) }}" selected>
+                            @if ($val('video_id', $question->video_id ?? null))
+                                <option value="{{ $val('video_id', $question->video_id) }}" selected>
                                     {{ $selectedVideo }}
                                 </option>
                             @endif
