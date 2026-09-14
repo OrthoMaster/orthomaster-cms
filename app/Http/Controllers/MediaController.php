@@ -284,6 +284,8 @@ class MediaController extends Controller
             $this->syncExperts($contentId, $data['experts']);
             $this->syncTopics($contentId, $videoId, $data['topics']);
 
+            $this->refreshAuthor($contentId);
+
             return $contentId;
         });
 
@@ -384,6 +386,8 @@ class MediaController extends Controller
 
             $this->syncExperts($media->id_content, $data['experts']);
             $this->syncTopics($media->id_content, $media->video_id, $data['topics']);
+
+            $this->refreshAuthor($media->id_content);
         });
 
         // L'ancienne image n'est supprimée qu'une fois la base à jour
@@ -1427,7 +1431,7 @@ class MediaController extends Controller
         ]);
     }
 
-        /** Contenus rattachables à une vidéo, et leur table */
+    /** Contenus rattachables à une vidéo, et leur table */
     private const LINKED_TABLES = [
         'podcast'        => ['table' => 'podcasts',        'route' => 'voyager.podcasts'],
         'daily-question' => ['table' => 'daily_questions', 'route' => 'voyager.daily-questions'],
@@ -1457,7 +1461,7 @@ class MediaController extends Controller
             ->where('video_id', $media->video_id)
             ->orderByDesc('id')
             ->get()
-            ->map(fn ($row) => [
+            ->map(fn($row) => [
                 'id'           => $row->id,
                 'title'        => $row->title,
                 'published_at' => $row->published_at
@@ -1474,5 +1478,25 @@ class MediaController extends Controller
                 'embed'    => 1,
             ]),
         ]);
+    }
+
+    /**
+     * Recalcule content.author à partir des experts liés au contenu.
+     */
+    private function refreshAuthor(int $contentId): void
+    {
+        $author = DB::table('expert_video as ev')
+            ->join('experts as e', 'e.id', '=', 'ev.expert_id')
+            ->where('ev.content_id', $contentId)
+            ->orderBy('e.name')
+            ->distinct()
+            ->pluck('e.name')
+            ->implode(' - ');
+
+        DB::table('content')
+            ->where('id_content', $contentId)
+            ->update([
+                'author' => $author !== '' ? $author : null,
+            ]);
     }
 }

@@ -107,9 +107,9 @@ class MediaController extends Controller
         $has_like = false;
         if (Auth::check()) {
             $has_like = Favourite::where('user_id', Auth::user()->id)
-                            ->where('type', 'video')
-                            ->where('item_id', $content->id_content)
-                            ->exists();
+                ->where('type', 'video')
+                ->where('item_id', $content->id_content)
+                ->exists();
         }
         $content->has_like = $has_like;
 
@@ -402,24 +402,26 @@ class MediaController extends Controller
                 return response()->json(['success' => false], 404);
             }
 
-            $duration = $data['duration'] ?: $tracking->video_duration;
+            if (Auth::check() && in_array(Auth::user()->role->name, ['user', 'user-manager'])) {
+                $duration = $data['duration'] ?: $tracking->video_duration;
 
-            // Les compteurs ne peuvent que progresser : un heartbeat en retard
-            // (réseau lent, requêtes désordonnées) ne doit rien écraser
-            $watched = max((int) $tracking->watched_seconds, $data['watched_seconds']);
-            $maxPos  = max((int) $tracking->max_position, $data['max_position']);
+                // Les compteurs ne peuvent que progresser : un heartbeat en retard
+                // (réseau lent, requêtes désordonnées) ne doit rien écraser
+                $watched = max((int) $tracking->watched_seconds, $data['watched_seconds']);
+                $maxPos  = max((int) $tracking->max_position, $data['max_position']);
 
-            // Garde-fou : on ne dépasse jamais la durée réelle de la vidéo
-            if ($duration > 0) {
-                $watched = min($watched, $duration);
-                $maxPos  = min($maxPos, $duration);
+                // Garde-fou : on ne dépasse jamais la durée réelle de la vidéo
+                if ($duration > 0) {
+                    $watched = min($watched, $duration);
+                    $maxPos  = min($maxPos, $duration);
+                }
+
+                $tracking->update([
+                    'watched_seconds' => $watched,
+                    'max_position'    => $maxPos,
+                    'video_duration'  => $duration,
+                ]);
             }
-
-            $tracking->update([
-                'watched_seconds' => $watched,
-                'max_position'    => $maxPos,
-                'video_duration'  => $duration,
-            ]);
 
             return response()->json(['success' => true], 200);
         } catch (\Illuminate\Validation\ValidationException $e) {
