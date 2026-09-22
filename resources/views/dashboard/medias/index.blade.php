@@ -28,12 +28,11 @@
                     <div class="panel-body">
                         <form class="row" action="{{ route('medias.index') }}" method="GET">
                             <div class="col-md-3">
-                                <label for="event_id">Événement</label>
-                                <select class="form-control" name="event_id" id="event_id">
-                                    <option value="">Tous les événements</option>
+                                <label for="event_id">Événements</label>
+                                <select class="form-control" name="event_id[]" id="event_id" multiple>
                                     @foreach ($events as $e)
                                         <option value="{{ $e->id }}" data-code="{{ $e->code }}"
-                                            @selected($filters['event_id'] == $e->id)>
+                                            @selected(in_array($e->id, $filters['event_ids']))>
                                             {{ $e->name }}
                                         </option>
                                     @endforeach
@@ -192,19 +191,25 @@
                 return h > 0 ? h + ':' + pad(m) + ':' + pad(r) : m + ':' + pad(r);
             }
 
-            /* ---------- Événement + édition (cascade) ---------- */
+            /* ---------- Événements + édition (cascade) ---------- */
             var $event = $('#event_id'),
                 $pastEvent = $('#past_event_id'),
                 allEditions = $pastEvent.find('option[data-event]').clone();
 
+            /** Identifiants des événements choisis, en chaînes pour la comparaison */
+            function selectedEventIds() {
+                return ($event.val() || []).map(String);
+            }
+
             function refreshEditions() {
-                var eid = $event.val(),
+                var ids = selectedEventIds(),
                     current = $pastEvent.val();
 
                 $pastEvent.find('option[data-event]').remove();
 
+                // Sans événement choisi, toutes les éditions restent proposées
                 allEditions.each(function() {
-                    if (!eid || $(this).data('event') == eid) {
+                    if (!ids.length || ids.indexOf(String($(this).data('event'))) !== -1) {
                         $pastEvent.append($(this).clone());
                     }
                 });
@@ -215,10 +220,15 @@
 
             /* ---------- Bouton de partage ---------- */
             function refreshShareButton() {
-                var code = $event.find('option:selected').data('code');
+                var $selected = $event.find('option:selected'),
+                    codes = $selected.map(function() {
+                        return $(this).data('code');
+                    }).get().filter(Boolean);
 
-                if ($event.val() && code) {
-                    $('#btn-share').data('url', SHARE_BASE + '/' + code).show();
+                // Un événement sans code ne peut pas figurer dans le lien :
+                // mieux vaut ne rien proposer qu'un lien incomplet
+                if ($selected.length && codes.length === $selected.length) {
+                    $('#btn-share').data('url', SHARE_BASE + '/' + codes.join(',')).show();
                 } else {
                     $('#btn-share').hide();
                 }
@@ -252,7 +262,9 @@
             });
 
             $event.select2({
-                width: '100%'
+                width: '100%',
+                placeholder: 'Tous les événements',
+                allowClear: true
             });
             $pastEvent.select2({
                 width: '100%'
@@ -269,7 +281,7 @@
             /* ---------- Auteur ---------- */
             function eventParams() {
                 return {
-                    event_id: $event.val() || '',
+                    event_id: $event.val() || [],
                     past_event_id: $pastEvent.val() || ''
                 };
             }

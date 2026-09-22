@@ -53,7 +53,10 @@
                                 <th>Utilisateurs (période)</th>
                             @endif
                             <th>Vues (total)</th>
-                            <th>Action</th>
+                            {{-- En-tête et cellules suivent la même condition --}}
+                            @if ($canEdit)
+                                <th>Action</th>
+                            @endif
                         </tr>
                     </thead>
                     <tbody>

@@ -47,7 +47,8 @@ class MediaController extends Controller
             'summary'        => $this->buildSummary($f),
             'medias'         => $this->buildTableRows($f),
             'events'         => $this->eventOptions(),
-            'pastEvents'     => $this->pastEventOptions(),
+            // Plusieurs événements possibles : l'année seule serait ambiguë
+            'pastEvents'     => $this->pastEventOptions(null, true),
             'selectedExpert' => $this->expertLabel($f['expert_id']),
             'selectedVideo'  => $this->videoLabel($f['content_id']),
         ]);
@@ -85,10 +86,10 @@ class MediaController extends Controller
     }
 
     /**
-     * Auteurs correspondants, restreints à l'événement si fourni.
-     * $forcedEventId prend le pas sur la query string (mode partagé).
+     * Auteurs correspondants, restreints aux événements si fournis.
+     * $forcedEventIds prend le pas sur la query string (mode partagé).
      */
-    private function expertItems(Request $request, ?int $forcedEventId = null)
+    private function expertItems(Request $request, ?array $forcedEventIds = null)
     {
         $term = trim((string) $request->query('q', ''));
 
@@ -96,19 +97,19 @@ class MediaController extends Controller
             return collect();
         }
 
-        $eventId     = $forcedEventId ?: ($request->integer('event_id') ?: null);
+        $eventIds    = $forcedEventIds ?? $this->eventIdsFrom($request);
         $pastEventId = $request->integer('past_event_id') ?: null;
         $col         = self::EXPERT_NAME_COL;
 
         return DB::table('experts')
             ->select('id', DB::raw("{$col} as text"))
             ->where($col, 'like', '%' . $term . '%')
-            ->when($eventId || $pastEventId, fn($q) => $q->whereExists(function ($sub) use ($eventId, $pastEventId) {
+            ->when(!empty($eventIds) || $pastEventId, fn($q) => $q->whereExists(function ($sub) use ($eventIds, $pastEventId) {
                 $sub->from('expert_video as ev')
                     ->join('content as c', 'c.id_content', '=', 'ev.content_id')
                     ->whereColumn('ev.expert_id', 'experts.id')
                     ->where('c.type', self::CONTENT_TYPE)
-                    ->when($eventId, fn($s) => $s->where('c.event_id', $eventId))
+                    ->when(!empty($eventIds), fn($s) => $s->whereIn('c.event_id', $eventIds))
                     ->when($pastEventId, fn($s) => $s->where('c.id_past_event', $pastEventId))
                     ->selectRaw('1');
             }))
@@ -118,9 +119,9 @@ class MediaController extends Controller
     }
 
     /**
-     * Vidéos correspondantes, restreintes à l'événement si fourni.
+     * Vidéos correspondantes, restreintes aux événements si fournis.
      */
-    private function videoItems(Request $request, ?int $forcedEventId = null)
+    private function videoItems(Request $request, ?array $forcedEventIds = null)
     {
         $term = trim((string) $request->query('q', ''));
 
@@ -129,7 +130,7 @@ class MediaController extends Controller
         }
 
         return $this->baseContentQuery([
-            'event_id'      => $forcedEventId ?: ($request->integer('event_id') ?: null),
+            'event_ids'     => $forcedEventIds ?? $this->eventIdsFrom($request),
             'past_event_id' => $request->integer('past_event_id') ?: null,
             'expert_id'     => $request->integer('expert_id') ?: null,
             'content_id'    => null,
@@ -144,78 +145,89 @@ class MediaController extends Controller
     /* ===================== RAPPORT PARTAGÉ ===================== */
 
     /**
-     * Rapport en lecture seule pour l'organisateur d'un événement.
-     * L'événement est imposé par le code présent dans l'URL.
+     * Rapport en lecture seule pour l'organisateur d'un ou plusieurs
+     * événements. Les événements sont imposés par les codes de l'URL,
+     * séparés par une virgule.
      * GET /medias/shared/{code}
      */
     public function shared(Request $request, string $code)
     {
-        $event = $this->eventByCodeOrFail($code);
+        $events   = $this->eventsByCodesOrFail($code);
+        $eventIds = $events->pluck('id')->map(fn($id) => (int) $id)->all();
 
         $f = $this->resolveFilters($request);
-        $f['event_id']      = (int) $event->id;
-        $f['past_event_id'] = $this->restrictPastEvent($f['past_event_id'], (int) $event->id);
+        $f['event_ids']     = $eventIds;
+        $f['past_event_id'] = $this->restrictPastEvent($f['past_event_id'], $eventIds);
 
         return view('dashboard.medias.shared', [
-            'event'          => $event,
+            'events'         => $events,
             'code'           => $code,
             'filters'        => $f,
             'chart'          => $this->buildChartData($f, false),
             'summary'        => $this->buildSummary($f),
             'medias'         => $this->buildTableRows($f),
-            'pastEvents'     => $this->pastEventOptions((int) $event->id),
+            // Le nom de l'événement ne sert qu'à distinguer plusieurs événements
+            'pastEvents'     => $this->pastEventOptions($eventIds, count($eventIds) > 1),
             'selectedExpert' => $this->expertLabel($f['expert_id']),
             'selectedVideo'  => $this->videoLabel($f['content_id']),
         ]);
     }
 
     /**
-     * Autocomplete auteurs, version partagée (événement imposé).
+     * Autocomplete auteurs, version partagée (événements imposés).
      * GET /medias/shared/{code}/search-experts
      */
     public function sharedSearchExperts(Request $request, string $code)
     {
-        $event = $this->eventByCodeOrFail($code);
+        $eventIds = $this->eventsByCodesOrFail($code)->pluck('id')->map(fn($id) => (int) $id)->all();
 
-        return response()->json(
-            $this->expertItems($request, (int) $event->id)
-        );
+        return response()->json($this->expertItems($request, $eventIds));
     }
 
     /**
-     * Autocomplete vidéos, version partagée (événement imposé).
+     * Autocomplete vidéos, version partagée (événements imposés).
      * GET /medias/shared/{code}/search-videos
      */
     public function sharedSearchVideos(Request $request, string $code)
     {
-        $event = $this->eventByCodeOrFail($code);
+        $eventIds = $this->eventsByCodesOrFail($code)->pluck('id')->map(fn($id) => (int) $id)->all();
 
-        return response()->json(
-            $this->videoItems($request, (int) $event->id)
-        );
-    }
-
-    private function eventByCodeOrFail(string $code)
-    {
-        $event = DB::table('events')->where('code', $code)->first();
-
-        abort_if(!$event, 404);
-
-        return $event;
+        return response()->json($this->videoItems($request, $eventIds));
     }
 
     /**
-     * Ignore une édition qui n'appartient pas à l'événement partagé.
+     * Événements désignés par une liste de codes séparés par une virgule.
+     * Un code inconnu invalide le lien entier : une URL retouchée ne doit
+     * pas donner un rapport partiel qui passerait pour complet.
      */
-    private function restrictPastEvent(?int $pastEventId, int $eventId): ?int
+    private function eventsByCodesOrFail(string $code)
     {
-        if (!$pastEventId) {
+        $codes = array_values(array_unique(array_filter(array_map('trim', explode(',', $code)))));
+
+        abort_if(empty($codes), 404);
+
+        $events = DB::table('events')
+            ->whereIn('code', $codes)
+            ->orderBy('name')
+            ->get();
+
+        abort_if($events->count() !== count($codes), 404);
+
+        return $events;
+    }
+
+    /**
+     * Ignore une édition qui n'appartient à aucun des événements partagés.
+     */
+    private function restrictPastEvent(?int $pastEventId, array $eventIds): ?int
+    {
+        if (!$pastEventId || empty($eventIds)) {
             return null;
         }
 
         $ok = DB::table('past_events')
             ->where('id', $pastEventId)
-            ->where('id_event', $eventId)
+            ->whereIn('id_event', $eventIds)
             ->exists();
 
         return $ok ? $pastEventId : null;
@@ -738,12 +750,24 @@ class MediaController extends Controller
         return [
             'from'          => $from,
             'to'            => $to,
-            'event_id'      => $request->integer('event_id') ?: null,
+            'event_ids'     => $this->eventIdsFrom($request),
             'past_event_id' => $request->integer('past_event_id') ?: null,
             'expert_id'     => $request->integer('expert_id') ?: null,
             'content_id'    => $request->integer('content_id') ?: null,
             'granularity'   => $this->resolveGranularity($request),
         ];
+    }
+
+    /**
+     * Événements demandés. Accepte une valeur seule (anciens liens) ou un
+     * tableau `event_id[]` (sélection multiple).
+     */
+    private function eventIdsFrom(Request $request): array
+    {
+        $raw = $request->input('event_id', []);
+        $ids = is_array($raw) ? $raw : [$raw];
+
+        return array_values(array_unique(array_filter(array_map('intval', $ids))));
     }
 
     /**
@@ -816,19 +840,19 @@ class MediaController extends Controller
 
     /* ===================== QUERIES DE BASE ===================== */
 
-    /**
-     * Contenus de type flash, filtrés par événement / édition / auteur / vidéo.
+        /**
+     * Contenus de type flash, filtrés par événements / édition / auteur / vidéo.
      */
     private function baseContentQuery(array $f)
     {
-        $eventId     = $f['event_id'] ?? null;
+        $eventIds    = $f['event_ids'] ?? [];
         $pastEventId = $f['past_event_id'] ?? null;
         $expertId    = $f['expert_id'] ?? null;
         $contentId   = $f['content_id'] ?? null;
 
         return DB::table('content')
             ->where('content.type', self::CONTENT_TYPE)
-            ->when($eventId, fn($q) => $q->where('content.event_id', $eventId))
+            ->when(!empty($eventIds), fn($q) => $q->whereIn('content.event_id', $eventIds))
             ->when($pastEventId, fn($q) => $q->where('content.id_past_event', $pastEventId))
             ->when($contentId, fn($q) => $q->where('content.id_content', $contentId))
             ->when($expertId, fn($q) => $q->whereIn('content.id_content', function ($sub) use ($expertId) {
@@ -839,11 +863,13 @@ class MediaController extends Controller
     }
 
     /**
-     * Vues (log brut) filtrées par période + événement + auteur + vidéo.
+     * Vues (log brut) filtrées par période + événements + auteur + vidéo.
      */
     private function viewsQuery(array $f)
     {
         [$start, $end] = $this->storageBounds($f['from'], $f['to']);
+
+        $eventIds = $f['event_ids'] ?? [];
 
         return DB::table('trk_content_views as v')
             ->where('v.type', self::CONTENT_TYPE)
@@ -854,11 +880,11 @@ class MediaController extends Controller
                     ->select('content_id')
                     ->where('expert_id', $f['expert_id']);
             }))
-            ->when($f['event_id'] || $f['past_event_id'], fn($q) => $q->whereIn('v.content_id', function ($sub) use ($f) {
+            ->when(!empty($eventIds) || $f['past_event_id'], fn($q) => $q->whereIn('v.content_id', function ($sub) use ($f, $eventIds) {
                 $sub->from('content')
                     ->select('id_content')
                     ->where('type', self::CONTENT_TYPE)
-                    ->when($f['event_id'], fn($s) => $s->where('event_id', $f['event_id']))
+                    ->when(!empty($eventIds), fn($s) => $s->whereIn('event_id', $eventIds))
                     ->when($f['past_event_id'], fn($s) => $s->where('id_past_event', $f['past_event_id']));
             }));
     }
@@ -1170,14 +1196,14 @@ class MediaController extends Controller
 
     /**
      * Options "édition". $withEventName : affiche le nom de l'événement
-     * après l'année (formulaire), sinon l'année seule (filtres).
+     * après l'année, sinon l'année seule.
      * `event_id` sert au filtrage en cascade.
      */
-    private function pastEventOptions(?int $eventId = null, bool $withEventName = false)
+    private function pastEventOptions(?array $eventIds = null, bool $withEventName = false)
     {
         return DB::table('past_events as pe')
             ->join('events as e', 'e.id', '=', 'pe.id_event')
-            ->when($eventId, fn($q) => $q->where('pe.id_event', $eventId))
+            ->when(!empty($eventIds), fn($q) => $q->whereIn('pe.id_event', $eventIds))
             ->select('pe.id', 'pe.id_event', 'pe.edition_year', 'e.name')
             ->orderByDesc('pe.edition_year')
             ->orderBy('e.name')
@@ -1414,8 +1440,12 @@ class MediaController extends Controller
      */
     public function list(Request $request)
     {
+        $eventIds = $this->eventIdsFrom($request);
+
         $f = [
-            'event_id'      => $request->integer('event_id') ?: null,
+            'event_ids'     => $eventIds,
+            // Conservé pour la vue, qui propose un seul événement
+            'event_id'      => $eventIds[0] ?? null,
             'past_event_id' => $request->integer('past_event_id') ?: null,
             'expert_id'     => $request->integer('expert_id') ?: null,
             'content_id'    => $request->integer('content_id') ?: null,

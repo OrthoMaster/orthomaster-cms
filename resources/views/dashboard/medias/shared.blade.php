@@ -1,9 +1,12 @@
+@php
+    $eventNames = $events->pluck('name')->implode(' · ');
+@endphp
 <!doctype html>
 <html lang="fr">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>{{ $event->name }} — Rapport médias</title>
+    <title>{{ $eventNames }} — Rapport médias</title>
 
     <link rel="stylesheet" href="{{ voyager_asset('css/app.css') }}">
     <link rel="stylesheet" href="{{ asset('css/custom-pagination.css') }}">
@@ -14,9 +17,17 @@
         .shared-header { background: #fff; border-bottom: 1px solid #e3e6ec; padding: 18px 0; margin-bottom: 24px; }
         .shared-header h1 { margin: 0; font-size: 22px; }
         .shared-header small { color: #8a9199; }
+
+        /* Événements imposés par le lien : affichés, non modifiables */
         .event-locked {
-            display: block; padding: 7px 12px; background: #f4f6f9;
-            border: 1px solid #e3e6ec; border-radius: 4px; font-weight: 600;
+            display: flex; flex-wrap: wrap; gap: 6px;
+            padding: 5px 8px; min-height: 34px;
+            background: #f4f6f9; border: 1px solid #e3e6ec; border-radius: 4px;
+        }
+        .event-locked-item {
+            padding: 2px 10px; border-radius: 12px;
+            background: #fff; border: 1px solid #d6dce6;
+            font-size: 12px; font-weight: 600; line-height: 20px;
         }
     </style>
 </head>
@@ -24,7 +35,7 @@
 
 <div class="shared-header">
     <div class="container-fluid">
-        <h1>{{ $event->name }} <small>— Rapport médias</small></h1>
+        <h1>{{ $eventNames }} <small>— Rapport médias</small></h1>
     </div>
 </div>
 
@@ -40,8 +51,12 @@
                 <div class="panel-body">
                     <form class="row" action="{{ route('medias.shared', $code) }}" method="GET">
                         <div class="col-md-3">
-                            <label>Événement</label>
-                            <span class="event-locked">{{ $event->name }}</span>
+                            <label>{{ $events->count() > 1 ? 'Événements' : 'Événement' }}</label>
+                            <div class="event-locked">
+                                @foreach ($events as $event)
+                                    <span class="event-locked-item">{{ $event->name }}</span>
+                                @endforeach
+                            </div>
                         </div>
 
                         <div class="col-md-3">
@@ -137,6 +152,7 @@
 
         $('#past_event_id').select2({ width: '100%' });
 
+        // Les événements sont imposés côté serveur : seule l'édition est transmise
         function eventParams() {
             return { past_event_id: $('#past_event_id').val() || '' };
         }
