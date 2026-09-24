@@ -61,3 +61,6 @@ Schedule::command('emails:remind-managers')
 Schedule::command('emails:ad-provider')
     ->dailyAt('10:00')
     ->timezone('Europe/Paris');
+Schedule::command('video-ads:snapshot')
+    ->monthlyOn(now()->endOfMonth()->day, '23:00')
+    ->timezone('Europe/Paris');

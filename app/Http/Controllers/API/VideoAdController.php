@@ -16,18 +16,17 @@ class VideoAdController extends Controller
 
     /**
      * Query params:
-     *  - profession_id (optional): filter by profession
      *  - limit (optional): default 4
      */
     public function feed(Request $request)
     {
         $validated = $request->validate([
-            'profession_id' => ['nullable', 'integer'],
-            'limit'         => ['nullable', 'integer', 'min:1', 'max:20'],
+            'limit' => ['nullable', 'integer', 'min:1', 'max:20'],
         ]);
 
+        // Le ciblage repose sur la profession et les sujets de l'utilisateur
         $videos = $this->service->getFeed(
-            professionId: $validated['profession_id'] ?? null,
+            user: $request->user(),
             limit: $validated['limit'] ?? VideoAdService::FEED_SIZE
         );
 

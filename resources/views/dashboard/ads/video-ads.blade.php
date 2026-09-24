@@ -3,6 +3,8 @@
 @section('content')
     <div class="page-content">
         <div class="analytics-container">
+
+            {{-- ============ FILTRES + KPI ============ --}}
             <div class="row">
                 <div class="col-md-12 col-lg-12">
                     <div class="panel panel-bordered">
@@ -33,7 +35,6 @@
                                     <input type="hidden" id="filterCompany" value="{{ $companyId }}">
                                 @endif
 
-                                {{-- Video: cả hai đều chọn được. Trống = tổng hợp --}}
                                 <select id="filterVideo" class="form-control input-sm" style="width: auto;">
                                     <option value="">Toutes les vidéos (cumul)</option>
                                     @foreach ($videoAds as $v)
@@ -44,11 +45,12 @@
                                     @endforeach
                                 </select>
 
-                                {{-- Granularité: par jour / semaine / mois --}}
                                 <select id="filterGranularity" class="form-control input-sm" style="width: auto;">
                                     <option value="day" {{ $granularity === 'day' ? 'selected' : '' }}>Par jour</option>
-                                    <option value="week" {{ $granularity === 'week' ? 'selected' : '' }}>Par semaine</option>
-                                    <option value="month" {{ $granularity === 'month' ? 'selected' : '' }}>Par mois</option>
+                                    <option value="week" {{ $granularity === 'week' ? 'selected' : '' }}>Par semaine
+                                    </option>
+                                    <option value="month" {{ $granularity === 'month' ? 'selected' : '' }}>Par mois
+                                    </option>
                                 </select>
 
                                 <input type="date" id="filterFrom" class="form-control input-sm" style="width: auto;"
@@ -60,90 +62,132 @@
                                     Appliquer
                                 </button>
 
-                                <button type="button" id="shareBtn" class="btn btn-sm btn-default">
-                                    <i class="voyager-share"></i> Partager
-                                </button>
+                                @if ($isAdmin)
+                                    <button type="button" id="shareBtn" class="btn btn-sm btn-default">
+                                        <i class="voyager-share"></i> Partager
+                                    </button>
+                                @endif
                             </div>
                         </div>
 
                         {{-- ===== Ligne de résumé : 4 KPI ===== --}}
-                        <div class="panel-body" style="padding-bottom: 0;">
+                        <div class="panel-body">
                             <div class="row vad-kpi-row">
                                 <div class="col-md-3 col-sm-6">
                                     <div class="vad-kpi">
                                         <div class="vad-kpi-label">Impressions</div>
-                                        <div class="vad-kpi-value" id="kpiImpressions">{{ number_format($summary['impressions'], 0, ',', ' ') }}</div>
+                                        <div class="vad-kpi-value" id="kpiImpressions">
+                                            {{ number_format($summary['impressions'], 0, ',', ' ') }}</div>
                                     </div>
                                 </div>
                                 <div class="col-md-3 col-sm-6">
                                     <div class="vad-kpi">
                                         <div class="vad-kpi-label">Vues</div>
-                                        <div class="vad-kpi-value" id="kpiViews">{{ number_format($summary['views'], 0, ',', ' ') }}</div>
+                                        <div class="vad-kpi-value" id="kpiViews">
+                                            {{ number_format($summary['views'], 0, ',', ' ') }}</div>
                                     </div>
                                 </div>
                                 <div class="col-md-3 col-sm-6">
                                     <div class="vad-kpi">
                                         <div class="vad-kpi-label">Vues complètes</div>
-                                        <div class="vad-kpi-value" id="kpiCompleted">{{ number_format($summary['completed_views'], 0, ',', ' ') }}</div>
+                                        <div class="vad-kpi-value" id="kpiCompleted">
+                                            {{ number_format($summary['completed_views'], 0, ',', ' ') }}</div>
                                     </div>
                                 </div>
                                 <div class="col-md-3 col-sm-6">
                                     <div class="vad-kpi">
                                         <div class="vad-kpi-label">Contacts</div>
-                                        <div class="vad-kpi-value" id="kpiContacted">{{ number_format($summary['contacted'], 0, ',', ' ') }}</div>
+                                        <div class="vad-kpi-value" id="kpiContacted">
+                                            {{ number_format($summary['contacted'], 0, ',', ' ') }}</div>
                                     </div>
                                 </div>
                             </div>
                         </div>
-
-                        <div class="panel-body">
-                            <div style="min-height: 500px; max-height: 650px">
-                                <canvas id="videoAdsChart"></canvas>
-                            </div>
-                        </div>
                     </div>
                 </div>
             </div>
 
+            {{-- ============ ONGLETS ============ --}}
             <div class="row">
                 <div class="col-md-12 col-lg-12">
-                    <div class="panel panel-bordered">
-                        <div class="panel-heading">
-                            <h3 class="panel-title" id="vadTableTitle">Détail par jour</h3>
-                        </div>
-                        <div class="panel-body">
-                            <div class="vad-table-wrap">
-                                <table class="table table-bordered table-hover vad-table">
-                                    <thead>
-                                        <tr>
-                                            <th class="vad-sticky-col" id="vadTablePeriodHead">Date</th>
-                                            <th>Impressions</th>
-                                            <th>Vues</th>
-                                            <th>CTR</th>
-                                            <th>Vues complètes</th>
-                                            <th>Contacts</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="vadTableBody"></tbody>
-                                </table>
-                            </div>
+                    <div class="vad-tabs">
+                        <button type="button" class="vad-tab is-active" data-tab="stats">
+                            <i class="voyager-bar-chart"></i> Statistiques
+                        </button>
+                        <button type="button" class="vad-tab" data-tab="targeting">
+                            <i class="voyager-crosshairs"></i> Ciblage
+                        </button>
+                    </div>
+                </div>
+            </div>
 
-                            <div class="vad-pagination"
-                                style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px;">
-                                <span id="vadPageInfo" class="text-muted"></span>
-                                <div class="btn-group">
-                                    <button type="button" id="vadPrevPage" class="btn btn-sm btn-default">
-                                        &laquo; Précédent
-                                    </button>
-                                    <button type="button" id="vadNextPage" class="btn btn-sm btn-default">
-                                        Suivant &raquo;
-                                    </button>
+            {{-- ---------- Onglet 1 : courbe et détail ---------- --}}
+            <div class="vad-tab-pane" data-pane="stats">
+                <div class="row">
+                    <div class="col-md-12 col-lg-12">
+                        <div class="panel panel-bordered">
+                            <div class="panel-heading">
+                                <h3 class="panel-title">Évolution sur la période</h3>
+                            </div>
+                            <div class="panel-body">
+                                <div style="min-height: 500px; max-height: 650px">
+                                    <canvas id="videoAdsChart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-12 col-lg-12">
+                        <div class="panel panel-bordered">
+                            <div class="panel-heading">
+                                <h3 class="panel-title" id="vadTableTitle">Détail par jour</h3>
+                            </div>
+                            <div class="panel-body">
+                                <div class="vad-table-wrap">
+                                    <table class="table table-bordered table-hover vad-table">
+                                        <thead>
+                                            <tr>
+                                                <th class="vad-sticky-col" id="vadTablePeriodHead">Date</th>
+                                                <th>Impressions</th>
+                                                <th>Vues</th>
+                                                <th>CTR</th>
+                                                <th>Vues complètes</th>
+                                                <th>Contacts</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="vadTableBody"></tbody>
+                                    </table>
+                                </div>
+
+                                <div class="vad-pagination"
+                                    style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px;">
+                                    <span id="vadPageInfo" class="text-muted"></span>
+                                    <div class="btn-group">
+                                        <button type="button" id="vadPrevPage" class="btn btn-sm btn-default">
+                                            &laquo; Précédent
+                                        </button>
+                                        <button type="button" id="vadNextPage" class="btn btn-sm btn-default">
+                                            Suivant &raquo;
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
+
+            {{-- ---------- Onglet 2 : ciblage ---------- --}}
+            <div class="vad-tab-pane" data-pane="targeting" style="display: none">
+                <div class="row">
+                    <div class="col-md-12 col-lg-12">
+                        @include('dashboard.ads._video-ads-targeting')
+                    </div>
+                </div>
+            </div>
+
         </div>
     </div>
 
@@ -177,6 +221,7 @@
         .vad-kpi-row {
             margin-bottom: 4px;
         }
+
         .vad-kpi {
             background: #fff;
             border: 1px solid #e2e8f0;
@@ -185,6 +230,7 @@
             margin-bottom: 16px;
             box-shadow: 0 1px 2px rgba(0, 0, 0, .04);
         }
+
         .vad-kpi-label {
             font-size: 12px;
             font-weight: 600;
@@ -192,12 +238,160 @@
             text-transform: uppercase;
             letter-spacing: .5px;
         }
+
         .vad-kpi-value {
             font-size: 26px;
             font-weight: 700;
             color: #1d3557;
             margin-top: 6px;
             line-height: 1;
+        }
+
+        /* Onglets : deux pastilles dans un même bloc */
+        .vad-tabs {
+            display: inline-flex;
+            gap: 4px;
+            margin-bottom: 18px;
+            padding: 4px;
+            border-radius: 12px;
+            background: #fff;
+            border: 1px solid #e2e8f0;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, .05);
+        }
+
+        .vad-tab {
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            padding: 8px 20px;
+            border: none;
+            border-radius: 9px;
+            background: transparent;
+            color: #94a3b8;
+            font-size: 13px;
+            font-weight: 600;
+            line-height: 1.2;
+            transition: background .15s, color .15s;
+        }
+
+        .vad-tab:hover {
+            color: #1d3557;
+            background: #f4f7fb;
+        }
+
+        .vad-tab.is-active {
+            background: #1d3557;
+            color: #fff;
+            box-shadow: 0 2px 6px rgba(29, 53, 87, .28);
+        }
+
+        .vad-tab.is-active:hover {
+            background: #1d3557;
+            color: #fff;
+        }
+
+        .vad-tab i {
+            font-size: 14px;
+        }
+
+        /* Ciblage */
+        .vad-points-total {
+            margin-left: 8px;
+            color: #94a3b8;
+            font-weight: 600;
+        }
+
+        .vad-period+.vad-period {
+            margin-top: 28px;
+            padding-top: 20px;
+            border-top: 1px solid #eceff3;
+        }
+
+        .vad-period-title {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            margin: 0 0 14px;
+            font-size: 15px;
+            font-weight: 700;
+            color: #1d3557;
+        }
+
+        .vad-period-title>span:first-child {
+            flex: 1;
+        }
+
+        .vad-axis-head {
+            margin-bottom: 8px;
+            font-size: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: .04em;
+            color: #94a3b8;
+        }
+
+        .vad-axis-empty {
+            margin: 0;
+            padding: 18px 0;
+            font-size: 13px;
+            color: #94a3b8;
+        }
+
+        .vad-target-table {
+            margin-bottom: 0;
+            font-size: 12.5px;
+            table-layout: fixed;
+            width: 100%;
+        }
+
+        .vad-target-table td,
+        .vad-target-table th {
+            padding: 6px 7px;
+        }
+
+        /* Les en-têtes tiennent sur deux lignes : la table reste dans la carte */
+        .vad-target-table th {
+            height: 42px;
+            white-space: normal;
+            line-height: 1.25;
+            vertical-align: middle;
+        }
+
+        .vad-target-table td {
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        /* La colonne des libellés prend la place restante */
+        .vad-target-table th:first-child,
+        .vad-target-table td:first-child {
+            width: 26%;
+            white-space: nowrap;
+        }
+
+        .vad-target-table th:not(:first-child),
+        .vad-target-table td:not(:first-child) {
+            min-width: 11%;
+        }
+
+        .vad-target-table tfoot td {
+            font-weight: 700;
+            background: #f7f9fc;
+        }
+
+        .vad-gap.is-up {
+            color: #2ECC71;
+        }
+
+        .vad-gap.is-down {
+            color: #E74C3C;
+        }
+
+        .vad-axis-scroll {
+            max-height: 420px;
+            overflow-y: auto;
+            overflow-x: hidden;
         }
     </style>
 @stop
@@ -211,17 +405,41 @@
             isShared: @json($isShared),
             fixedCompanyId: @json($companyId),
             signature: @json($signature),
-            // URL gốc (không ký) của trang shared cho công ty đang xem.
-            // companyId luôn có giá trị ở cả 2 chế độ.
-            shareBaseUrl: @json($companyId ? url('dashboard/video-ads/shared/' . $companyId) : null),
+            shareBaseUrl: @json($shareBaseUrl),
         };
 
-        // Libellé de la période selon la granularité (pour l'en-tête du tableau)
         const PERIOD_LABELS = {
-            day: { title: 'Détail par jour', head: 'Date', unit: 'jour(s)' },
-            week: { title: 'Détail par semaine', head: 'Semaine', unit: 'semaine(s)' },
-            month: { title: 'Détail par mois', head: 'Mois', unit: 'mois' },
+            day: {
+                title: 'Détail par jour',
+                head: 'Date',
+                unit: 'jour(s)'
+            },
+            week: {
+                title: 'Détail par semaine',
+                head: 'Semaine',
+                unit: 'semaine(s)'
+            },
+            month: {
+                title: 'Détail par mois',
+                head: 'Mois',
+                unit: 'mois'
+            },
         };
+
+        /* ---------- Onglets ---------- */
+        document.querySelectorAll('.vad-tab').forEach(function(button) {
+            button.addEventListener('click', function() {
+                const target = this.dataset.tab;
+
+                document.querySelectorAll('.vad-tab').forEach(function(tab) {
+                    tab.classList.toggle('is-active', tab === button);
+                });
+
+                document.querySelectorAll('.vad-tab-pane').forEach(function(pane) {
+                    pane.style.display = pane.dataset.pane === target ? '' : 'none';
+                });
+            });
+        });
 
         let videoAdsChartInstance;
         const videoAdsCanvas = document.getElementById('videoAdsChart');
@@ -300,7 +518,6 @@
 
         // ---------- Ligne KPI ----------
         function renderSummary(payload) {
-            // Si l'API renvoie summary, on l'utilise ; sinon on calcule côté client.
             const s = payload.summary || {
                 impressions: payload.impressions.reduce((a, b) => a + b, 0),
                 views: payload.views.reduce((a, b) => a + b, 0),
@@ -315,7 +532,7 @@
 
         // ---------- Bảng chi tiết + phân trang ----------
         const VAD_PAGE_SIZE = 15;
-        let vadRows = []; // [{period, impressions, views, ctr, completed, contacted}]
+        let vadRows = [];
         let vadPage = 1;
         let vadUnit = 'jour(s)';
 
@@ -324,11 +541,9 @@
             const meta = PERIOD_LABELS[g] || PERIOD_LABELS.day;
             vadUnit = meta.unit;
 
-            // En-têtes dynamiques
             document.getElementById('vadTableTitle').textContent = meta.title;
             document.getElementById('vadTablePeriodHead').textContent = meta.head;
 
-            // Gộp các mảng song song thành mảng dòng. Mới nhất lên đầu.
             vadRows = payload.labels.map((label, i) => {
                 const imp = payload.impressions[i] || 0;
                 const vw = payload.views[i] || 0;
@@ -390,11 +605,8 @@
             drawTablePage();
         });
 
-        // Render lần đầu với dữ liệu server-side
         renderChart(@json($chart));
 
-        // Khi đổi công ty (admin): nạp lại danh sách video tương ứng bằng cách
-        // reload trang để controller lọc video theo công ty.
         const companyEl = document.getElementById('filterCompany');
         if (VAD_CONFIG.isAdmin && companyEl) {
             companyEl.addEventListener('change', function() {
@@ -420,7 +632,6 @@
                 params.set('video_ads_id', videoVal);
             }
 
-            // Admin gửi kèm company; đối tác KHÔNG gửi (đã fix theo link signed)
             if (VAD_CONFIG.isAdmin) {
                 const cVal = companyEl ? companyEl.value : '';
                 if (cVal) {
@@ -428,7 +639,6 @@
                 }
             }
 
-            // Giữ chữ ký hợp lệ cho link đối tác
             if (VAD_CONFIG.isShared && VAD_CONFIG.signature) {
                 params.set('signature', VAD_CONFIG.signature);
             }
@@ -436,62 +646,55 @@
             return params;
         }
 
+        // L'onglet Ciblage est rendu côté serveur : un rechargement complet
+        // garde les deux onglets cohérents avec les filtres
         document.getElementById('applyFilters').addEventListener('click', function() {
-            const url = VAD_CONFIG.dataUrl + '?' + buildParams().toString();
-
-            fetch(url)
-                .then(r => {
-                    if (!r.ok) throw new Error('HTTP ' + r.status);
-                    return r.json();
-                })
-                .then(data => renderChart(data))
-                .catch(err => {
-                    console.error('Erreur:', err);
-                    alert('Erreur lors du chargement des données');
-                });
+            window.location.search = buildParams().toString();
         });
 
-        // ----- Nút Partager : sinh link công ty đang xem + filter hiện tại -----
+        // ----- Nút Partager -----
         function buildShareUrl() {
-            const params = new URLSearchParams();
+            const url = new URL(VAD_CONFIG.shareBaseUrl);
 
-            params.set('from', document.getElementById('filterFrom').value);
-            params.set('to', document.getElementById('filterTo').value);
-            params.set('granularity', document.getElementById('filterGranularity').value);
+            url.searchParams.set('from', document.getElementById('filterFrom').value);
+            url.searchParams.set('to', document.getElementById('filterTo').value);
+            url.searchParams.set('granularity', document.getElementById('filterGranularity').value);
 
             const videoVal = document.getElementById('filterVideo').value;
             if (videoVal) {
-                params.set('video_ads_id', videoVal);
+                url.searchParams.set('video_ads_id', videoVal);
             }
 
-            const qs = params.toString();
-            return VAD_CONFIG.shareBaseUrl + (qs ? '?' + qs : '');
+            return url.toString();
         }
 
-        document.getElementById('shareBtn').addEventListener('click', function() {
-            if (!VAD_CONFIG.shareBaseUrl) {
-                alert('Veuillez sélectionner une entreprise avant de partager.');
-                return;
-            }
+        const shareBtn = document.getElementById('shareBtn');
 
-            const shareUrl = buildShareUrl();
+        if (shareBtn) {
+            shareBtn.addEventListener('click', function() {
+                if (!VAD_CONFIG.shareBaseUrl) {
+                    alert('Veuillez sélectionner une entreprise avant de partager.');
+                    return;
+                }
 
-            const done = () => {
-                const btn = document.getElementById('shareBtn');
-                const original = btn.innerHTML;
-                btn.innerHTML = '<i class="voyager-check"></i> Lien copié !';
-                setTimeout(() => {
-                    btn.innerHTML = original;
-                }, 2000);
-            };
+                const shareUrl = buildShareUrl();
 
-            if (navigator.clipboard && window.isSecureContext) {
-                navigator.clipboard.writeText(shareUrl).then(done).catch(() => {
+                const done = () => {
+                    const original = shareBtn.innerHTML;
+                    shareBtn.innerHTML = '<i class="voyager-check"></i> Lien copié !';
+                    setTimeout(() => {
+                        shareBtn.innerHTML = original;
+                    }, 2000);
+                };
+
+                if (navigator.clipboard && window.isSecureContext) {
+                    navigator.clipboard.writeText(shareUrl).then(done).catch(() => {
+                        window.prompt('Copiez le lien :', shareUrl);
+                    });
+                } else {
                     window.prompt('Copiez le lien :', shareUrl);
-                });
-            } else {
-                window.prompt('Copiez le lien :', shareUrl);
-            }
-        });
+                }
+            });
+        }
     </script>
 @stop

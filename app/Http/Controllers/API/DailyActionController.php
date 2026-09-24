@@ -23,7 +23,8 @@ class DailyActionController extends Controller
         try {
             // Daily questions
             if (in_array($user->role->name, ['admin', 'directeur', 'manager'])) {
-                $dailyQuestions = DailyQuestion::whereDate('expired_at', '>=', today())
+                $dailyQuestions = DailyQuestion::whereDate('published_at', '>=', today())
+                    ->whereDate('expired_at', '>=', today())
                     ->with([
                         'topic',
                         'answers',
@@ -67,7 +68,8 @@ class DailyActionController extends Controller
 
             // Podcasts
             if (in_array($user->role->name, ['admin', 'directeur', 'manager'])) {
-                $podcasts = Podcast::whereDate('expired_at', '>=', today())
+                $podcasts = Podcast::whereDate('published_at', '>=', today())
+                    ->whereDate('expired_at', '>=', today())
                     ->with('topic')
                     ->orderBy('published_at', 'desc')
                     ->get();
@@ -100,7 +102,8 @@ class DailyActionController extends Controller
 
             // Infographics
             if (in_array($user->role->name, ['admin', 'directeur', 'manager'])) {
-                $infographics = Infographic::whereDate('expired_at', '>=', today())
+                $infographics = Infographic::whereDate('published_at', '>=', today())
+                    ->whereDate('expired_at', '>=', today())
                     ->with('topic')
                     ->orderBy('published_at', 'desc')
                     ->get();

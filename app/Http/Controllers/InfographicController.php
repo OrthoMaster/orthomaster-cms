@@ -80,7 +80,7 @@ class InfographicController extends Controller
             ->selectRaw("{$viewers} as viewers")
             ->selectRaw("{$favourites} as favourites")
             ->when($search !== '', fn($q) => $q->where('i.title', 'like', '%' . $search . '%'))
-            ->orderByDesc('i.created_at')
+            ->orderByDesc('i.published_at')
             ->orderByDesc('i.id')
             ->paginate(25)
             ->withQueryString();

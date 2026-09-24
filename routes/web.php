@@ -229,6 +229,18 @@ Route::group(['prefix' => 'admin', 'middleware' => ['cmsAdmin']], function () {
             Route::get('/data', [DashboardVideoAdsController::class, 'chartData'])
                 ->name('dashboard.video-ads.data');
         });
+    Route::prefix('dashboard/video-ads/{videoAd}/targets')
+        ->group(function () {
+            Route::get('/', [DashboardVideoAdsController::class, 'targets'])
+                ->name('dashboard.video-ads.targets');
+
+            Route::post('/', [DashboardVideoAdsController::class, 'storeTargets'])
+                ->name('dashboard.video-ads.targets.store');
+
+            Route::delete('/{effectiveFrom}', [DashboardVideoAdsController::class, 'destroyTargets'])
+                ->name('dashboard.video-ads.targets.destroy');
+        });
+
 
     // Videos views
     Route::prefix('reports/video-views')
@@ -362,16 +374,6 @@ Route::group(['prefix' => 'admin', 'middleware' => ['cmsAdmin']], function () {
 });
 
 
-Route::prefix('dashboard/video-ads/shared/{company}')
-    ->group(function () {
-        Route::get('/', [DashboardVideoAdsController::class, 'shared'])
-            ->name('dashboard.video-ads.shared');
-
-        Route::get('/data', [DashboardVideoAdsController::class, 'sharedChartData'])
-            ->name('dashboard.video-ads.shared.data');
-    });
-
-
 // Demo
 Route::get('/00e7eb2a475/chat', [AiController::class, 'view']);
 Route::post('/api/ask-notebook', [AiController::class, 'ask']);
@@ -385,6 +387,16 @@ Route::post('/api/ask-notebook', [AiController::class, 'ask']);
 Route::get('/quiz/{slug}', [QuizController::class, 'show'])->name('quiz.show');
 Route::post('/quiz/{slug}/submit', [QuizController::class, 'submit'])->name('quiz.submit');
 Route::post('/submissions/{submission}/contact', [QuizController::class, 'contact'])->name('quiz.contact');
+
+// Video Ads partagé : HORS de tout middleware admin/auth ----
+Route::prefix('dashboard/video-ads/shared/{company}')
+        ->group(function () {
+            Route::get('/', [DashboardVideoAdsController::class, 'shared'])
+                ->name('dashboard.video-ads.shared');
+
+            Route::get('/data', [DashboardVideoAdsController::class, 'sharedChartData'])
+                ->name('dashboard.video-ads.shared.data');
+        });
 
 // ---- Rapport partagé : HORS de tout middleware admin/auth ----
 Route::get('medias/shared/{code}', [MediaController::class, 'shared'])
