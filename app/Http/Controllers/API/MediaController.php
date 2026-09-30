@@ -17,7 +17,7 @@ class MediaController extends Controller
     public function getEvents(Request $request)
     {
         try {
-            $events = Event::get();
+            $events = Event::where('active_flg', '1')->get();
 
             return response()->json([
                 'success' => true,
@@ -333,6 +333,7 @@ class MediaController extends Controller
         try {
             $pastEvents = DB::table('past_events')
                 ->where('id_event', $id)
+                ->where('active_flg', '1')
                 ->orderBy('id', 'desc')
                 ->get();
 

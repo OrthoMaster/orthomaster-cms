@@ -14,6 +14,7 @@ use App\Http\Controllers\CompanyController;
 use App\Http\Controllers\DailyQuestionController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DashboardDailyActionController;
+use App\Http\Controllers\DashboardEventController;
 use App\Http\Controllers\DashboardLessonController;
 use App\Http\Controllers\DashboardReportController;
 use App\Http\Controllers\DashboardUserController;
@@ -23,6 +24,7 @@ use App\Http\Controllers\GenerateDocumentController;
 use App\Http\Controllers\GuideController;
 use App\Http\Controllers\InfographicController;
 use App\Http\Controllers\IntEmpTrackerController;
+use App\Http\Controllers\InvoiceController;
 use App\Http\Controllers\MediaController;
 use App\Http\Controllers\MktShortLinkController;
 use App\Http\Controllers\MktToolsController;
@@ -117,6 +119,50 @@ Route::group(['prefix' => 'admin', 'middleware' => ['cmsAdmin']], function () {
             Route::get('/{id}/linked/{type}', [MediaController::class, 'linkedList'])->name('linked');
         });
     Route::get('medias/list', [MediaController::class, 'list'])->name('medias.list');
+
+    // Events
+    Route::get('dashboard/events', [DashboardEventController::class, 'index'])
+        ->name('dashboard.events');
+    Route::prefix('dashboard/events/{pastEvent}/prepare')
+        ->group(function () {
+            Route::get('/', [DashboardEventController::class, 'prepare'])
+                ->name('dashboard.events.prepare');
+
+            Route::post('/sponsors', [DashboardEventController::class, 'addSponsor'])
+                ->name('dashboard.events.prepare.sponsors.add');
+
+            Route::delete('/sponsors/{company}', [DashboardEventController::class, 'removeSponsor'])
+                ->name('dashboard.events.prepare.sponsors.remove');
+
+            Route::post('/participants', [DashboardEventController::class, 'addParticipant'])
+                ->name('dashboard.events.prepare.participants.add');
+
+            Route::delete('/participants/{user}', [DashboardEventController::class, 'removeParticipant'])
+                ->name('dashboard.events.prepare.participants.remove');
+
+            Route::post('/settings', [DashboardEventController::class, 'saveSettings'])
+                ->name('dashboard.events.prepare.settings');
+
+            Route::get('/search-companies', [DashboardEventController::class, 'searchCompanies'])
+                ->name('dashboard.events.prepare.search-companies');
+
+            Route::get('/search-users', [DashboardEventController::class, 'searchUsers'])
+                ->name('dashboard.events.prepare.search-users');
+
+            Route::post('/complete', [DashboardEventController::class, 'completeEdition'])
+                ->name('dashboard.events.prepare.complete');
+        });
+
+    // Invoices
+    Route::prefix('dashboard/invoices')
+        ->group(function () {
+            Route::get('/', [InvoiceController::class, 'list'])
+                ->name('invoices.list');
+
+            Route::post('/{invoiceId}/virement', [InvoiceController::class, 'markAsVirement'])
+                ->name('invoices.virement');
+        });
+
 
     // Reports
     Route::prefix('dashboard/reports')
@@ -390,13 +436,13 @@ Route::post('/submissions/{submission}/contact', [QuizController::class, 'contac
 
 // Video Ads partagé : HORS de tout middleware admin/auth ----
 Route::prefix('dashboard/video-ads/shared/{company}')
-        ->group(function () {
-            Route::get('/', [DashboardVideoAdsController::class, 'shared'])
-                ->name('dashboard.video-ads.shared');
+    ->group(function () {
+        Route::get('/', [DashboardVideoAdsController::class, 'shared'])
+            ->name('dashboard.video-ads.shared');
 
-            Route::get('/data', [DashboardVideoAdsController::class, 'sharedChartData'])
-                ->name('dashboard.video-ads.shared.data');
-        });
+        Route::get('/data', [DashboardVideoAdsController::class, 'sharedChartData'])
+            ->name('dashboard.video-ads.shared.data');
+    });
 
 // ---- Rapport partagé : HORS de tout middleware admin/auth ----
 Route::get('medias/shared/{code}', [MediaController::class, 'shared'])

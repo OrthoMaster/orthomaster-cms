@@ -2,11 +2,13 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\API\CartController;
 use App\Http\Controllers\Odoo\OdooInvoiceController;
 use App\Mail\SendFifplCompletedDocumentMail;
 use App\Models\Cart;
 use App\Models\Contract;
 use App\Models\Invoice;
+use App\Models\SystemNotification;
 use App\Models\User;
 use App\Organization;
 use App\Services\OdooService;
@@ -14,9 +16,146 @@ use Exception;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Http\Request;
 
 class InvoiceController extends Controller
 {
+    /** Nombre de factures par page */
+    private const PER_PAGE = 25;
+
+    /** Statuts possibles d'une facture */
+    private const STATUSES = [
+        'paid'       => ['label' => 'Payée',      'class' => 'is-paid'],
+        'processing' => ['label' => 'En cours',   'class' => 'is-processing'],
+        'pending'    => ['label' => 'En attente', 'class' => 'is-pending'],
+    ];
+
+    /**
+     * Liste des factures.
+     * GET /invoices/list
+     */
+    public function list(Request $request)
+    {
+        $search = trim((string) $request->query('q', ''));
+        $status = $request->query('status');
+
+        if (!array_key_exists($status, self::STATUSES)) {
+            $status = null;
+        }
+
+        $invoices = DB::table('invoices as i')
+            ->leftJoin('users as u', 'u.id', '=', 'i.user_id')
+            ->select(
+                'i.id',
+                'i.no',
+                'i.user_id',
+                'i.amount',
+                'i.currency',
+                'i.status',
+                'i.created_at',
+                'i.client_name',
+                'i.client_email',
+                'i.client_company',
+                'i.client_address',
+                'i.payment_method',
+                'i.stripe_payment_intent_id',
+                'i.failed_reason',
+                'i.paid_at',
+                'i.document',
+                'i.certification',
+                'u.email as user_email'
+            )
+            ->when($search !== '', function ($q) use ($search) {
+                $q->where(function ($sub) use ($search) {
+                    $sub->where('i.no', 'like', '%' . $search . '%')
+                        ->orWhere('i.client_name', 'like', '%' . $search . '%')
+                        ->orWhere('i.client_email', 'like', '%' . $search . '%');
+                });
+            })
+            ->when($status, fn($q) => $q->where('i.status', $status))
+            ->orderByDesc('i.created_at')
+            ->orderByDesc('i.id')
+            ->paginate(self::PER_PAGE)
+            ->withQueryString();
+
+        return view('invoices.list', [
+            'invoices' => $invoices,
+            'search'   => $search,
+            'status'   => $status,
+            'statuses' => self::STATUSES,
+        ]);
+    }
+
+    /**
+     * Enregistre un règlement par virement.
+     *
+     * Le paiement par carte est traité automatiquement ; un virement,
+     * lui, ne se constate qu'après coup, à la date du relevé bancaire.
+     *
+     * POST /invoices/{invoice}/virement
+     */
+    public function markAsVirement(Request $request, int $invoiceId)
+    {
+        $invoice = DB::table('invoices')->where('id', $invoiceId)->first();
+
+        abort_if(!$invoice, 404);
+
+        if ($invoice->status === 'paid') {
+            return back()
+                ->with('message', 'Cette facture est déjà réglée.')
+                ->with('alert-type', 'warning');
+        }
+
+        $data = $request->validate([
+            'paid_at' => ['required', 'date', 'before_or_equal:today'],
+        ], [
+            'paid_at.before_or_equal' => 'La date de règlement ne peut pas être dans le futur.',
+        ]);
+
+        DB::table('invoices')
+            ->where('id', $invoiceId)
+            ->update([
+                'payment_method' => 'virement',
+                'status'         => 'paid',
+                'paid_at'        => Carbon::parse($data['paid_at'])->toDateTimeString(),
+                'failed_reason'  => null,
+                'updated_at'     => now(),
+            ]);
+
+        // Update invoice & send email with certification
+        // Not FIFPL Invoice
+        if (!$invoice->id_odoo) {
+            // Disable cart to sync and create invoice paper
+            $cartController = new CartController();
+            $cartController->complete($invoice->id);
+
+            // Sync and create document
+            $invoiceId = $invoice->id;
+            dispatch(function () use ($invoiceId) {
+                $invController = new InvoiceController();
+                $invController->generateInvoiceDocument($invoiceId);
+            })->afterResponse();
+        } else { // FIFPL
+            // Clear notification
+            SystemNotification::where('user_id', $invoice->user_id)
+                ->where('entity_type', 'FifplInvoice')
+                ->where('entity_id', $invoice->id)->delete();
+
+            $invoiceId = $invoice->id;
+            dispatch(function () use ($invoiceId) {
+                // Create FIFPL Invoice & Certification
+                $invController = new InvoiceController();
+                $invController->generateFifplInvoiceDocument($invoiceId);
+            })->afterResponse();
+        }
+
+        return redirect()
+            ->route('invoices.list')
+            ->with('message', 'Facture ' . $invoice->no . ' marquée comme réglée par virement.')
+            ->with('alert-type', 'success');
+    }
+
     // Generate normal invoice
     public function generateInvoiceDocument($id)
     {

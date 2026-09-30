@@ -143,7 +143,6 @@ class PaymentController extends Controller
                     })->afterResponse();
                 }
 
-
                 return response()->json([
                     'success' => true,
                     'message' => 'Paiement réussi !',
