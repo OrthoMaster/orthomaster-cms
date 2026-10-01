@@ -188,6 +188,7 @@ class VideoAdService
     {
         return DB::table('topic_user')
             ->where('user_id', $user->id)
+            ->orderBy('topic_id')
             ->pluck('topic_id')
             ->map(fn($id) => (int) $id)
             ->all();
@@ -228,6 +229,8 @@ class VideoAdService
 
     public function recordImpression(VideoAds $videoAd, ?int $userId = null, ?int $contentId = null): VideoAdImpression
     {
+        // Les impressions d'un même affichage arrivent en parallèle :
+        // un verrou croisé se résout en rejouant la transaction
         return DB::transaction(function () use ($videoAd, $userId, $contentId) {
             // Sans contenu d'origine, la consultation est facturée comme avant
             $isFree = $this->isFreeConsultation($videoAd, $userId, $contentId);
@@ -248,7 +251,7 @@ class VideoAdService
             $this->bumpDailyStat($videoAd, impressions: 1, freeImpressions: $isFree ? 1 : 0);
 
             return $impression;
-        });
+        }, 5);
     }
 
     public function recordView(

@@ -167,6 +167,8 @@ class SearchController extends Controller
                 ));
 
                 $videosQuery = OldContent::where('type', 'flash')
+                    ->select('content.*')
+                    ->selectRaw('content.author as expert_names')
                     ->whereIn('id_content', $allVideoIds)
                     ->when(!$isAdmin, fn($q) => $q->where('published', '1'));
 
