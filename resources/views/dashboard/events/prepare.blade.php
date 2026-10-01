@@ -65,8 +65,7 @@
                         <div class="panel-body">
                             @unless ($locked)
                                 <form class="prep-add"
-                                    action="{{ route('dashboard.events.prepare.sponsors.add', $edition->id) }}"
-                                    method="POST">
+                                    action="{{ route('dashboard.events.prepare.sponsors.add', $edition->id) }}" method="POST">
                                     @csrf
                                     <select class="form-control" name="ads_company_id" id="sponsor-select" required></select>
                                     <button type="submit" class="btn btn-success">
@@ -168,14 +167,13 @@
                             <h3 class="panel-title">Avantage consenti aux sponsors</h3>
                         </div>
                         <div class="panel-body">
-                            <form action="{{ route('dashboard.events.prepare.settings', $edition->id) }}"
-                                method="POST">
+                            <form action="{{ route('dashboard.events.prepare.settings', $edition->id) }}" method="POST">
                                 @csrf
 
                                 <div class="form-group">
                                     <label for="ads_multiplier">Coefficient d'affichage</label>
-                                    <input type="number" class="form-control" id="ads_multiplier"
-                                        name="ads_multiplier" min="1" max="10" step="0.5"
+                                    <input type="number" class="form-control" id="ads_multiplier" name="ads_multiplier"
+                                        min="1" max="10" step="0.5"
                                         value="{{ old('ads_multiplier', $settings->ads_multiplier) }}"
                                         @disabled($locked) required>
                                     <p class="help-block">
@@ -187,8 +185,8 @@
                                 <div class="form-group">
                                     <label for="ads_months">Durée de l'avantage</label>
                                     <div class="input-group">
-                                        <input type="number" class="form-control" id="ads_months"
-                                            name="ads_months" min="1" max="60" step="1"
+                                        <input type="number" class="form-control" id="ads_months" name="ads_months"
+                                            min="1" max="60" step="1"
                                             value="{{ old('ads_months', $settings->ads_months) }}"
                                             @disabled($locked) required>
                                         <span class="input-group-addon">mois</span>
@@ -222,8 +220,8 @@
 
         {{-- Clôture de l'édition --}}
         @unless ($locked)
-            <form action="{{ route('dashboard.events.prepare.complete', $edition->id) }}"
-                method="POST" id="complete-form" style="display:none">
+            <form action="{{ route('dashboard.events.prepare.complete', $edition->id) }}" method="POST" id="complete-form"
+                style="display:none">
                 @csrf
             </form>
         @endunless
@@ -344,7 +342,7 @@
             padding: 10px 14px;
         }
 
-        .prep-row + .prep-row {
+        .prep-row+.prep-row {
             border-top: 1px solid #f2f4f7;
         }
 
@@ -376,12 +374,64 @@
             font-size: 12px;
             color: #8a9199;
         }
+
+        /* --- Pagination --- */
+        .prep-pagination nav {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+        }
+
+        .prep-pagination p,
+        .prep-pagination .hidden {
+            margin: 0;
+            font-size: 12px;
+            color: #8a9199;
+        }
+
+        .prep-pagination a,
+        .prep-pagination span {
+            display: inline-flex;
+            align-items: center;
+            padding: 6px 14px;
+            border: 1px solid #dfe3e9;
+            border-radius: 7px;
+            background: #fff;
+            font-size: 13px;
+            color: #37474f;
+            text-decoration: none;
+            transition: background .15s, border-color .15s;
+        }
+
+        .prep-pagination a:hover {
+            background: #f4f7fb;
+            border-color: #c6ccd4;
+            color: #1d3557;
+        }
+
+        /* Bouton inactif en début ou fin de liste */
+        .prep-pagination span[aria-disabled="true"],
+        .prep-pagination .cursor-default {
+            color: #c6ccd4;
+            background: #fafbfc;
+        }
+
+        /* Page courante */
+        .prep-pagination span[aria-current="page"] span {
+            border-color: #1d3557;
+            background: #1d3557;
+            color: #fff;
+        }
+        .flex {
+            border: 0px;
+        }
     </style>
 @stop
 
 @section('javascript')
     <script>
-        $(document).ready(function () {
+        $(document).ready(function() {
 
             /* ---------- Onglets ---------- */
             function showTab(name) {
@@ -392,12 +442,12 @@
                 $('.prep-tab').removeClass('is-active');
                 $tab.addClass('is-active');
 
-                $('.prep-pane').each(function () {
+                $('.prep-pane').each(function() {
                     $(this).toggle($(this).data('pane') === name);
                 });
             }
 
-            $('.prep-tab').on('click', function () {
+            $('.prep-tab').on('click', function() {
                 var name = $(this).data('tab');
 
                 // L'onglet courant survit au rechargement qui suit un envoi
@@ -416,15 +466,27 @@
                     placeholder: 'Rechercher une entreprise',
                     allowClear: true,
                     language: {
-                        noResults: function () { return 'Aucun résultat'; },
-                        searching: function () { return 'Recherche…'; }
+                        noResults: function() {
+                            return 'Aucun résultat';
+                        },
+                        searching: function() {
+                            return 'Recherche…';
+                        }
                     },
                     ajax: {
                         url: '{{ route('dashboard.events.prepare.search-companies', $edition->id) }}',
                         dataType: 'json',
                         delay: 250,
-                        data: function (params) { return { q: params.term }; },
-                        processResults: function (data) { return { results: data }; },
+                        data: function(params) {
+                            return {
+                                q: params.term
+                            };
+                        },
+                        processResults: function(data) {
+                            return {
+                                results: data
+                            };
+                        },
                         cache: true
                     }
                 });
@@ -438,23 +500,37 @@
                     allowClear: true,
                     minimumInputLength: 3,
                     language: {
-                        inputTooShort: function () { return 'Saisissez au moins 3 caractères'; },
-                        noResults: function () { return 'Aucun résultat'; },
-                        searching: function () { return 'Recherche…'; }
+                        inputTooShort: function() {
+                            return 'Saisissez au moins 3 caractères';
+                        },
+                        noResults: function() {
+                            return 'Aucun résultat';
+                        },
+                        searching: function() {
+                            return 'Recherche…';
+                        }
                     },
                     ajax: {
                         url: '{{ route('dashboard.events.prepare.search-users', $edition->id) }}',
                         dataType: 'json',
                         delay: 250,
-                        data: function (params) { return { q: params.term }; },
-                        processResults: function (data) { return { results: data }; },
+                        data: function(params) {
+                            return {
+                                q: params.term
+                            };
+                        },
+                        processResults: function(data) {
+                            return {
+                                results: data
+                            };
+                        },
                         cache: true
                     }
                 });
             }
 
             /* ---------- Retrait ---------- */
-            $('.prep-remove').on('click', function () {
+            $('.prep-remove').on('click', function() {
                 if (!confirm('Retirer ' + $(this).data('label') + ' ?')) {
                     return;
                 }
@@ -463,7 +539,7 @@
             });
 
             /* ---------- Clôture ---------- */
-            $('#btn-complete').on('click', function () {
+            $('#btn-complete').on('click', function() {
                 // La clôture fige la préparation : elle mérite une confirmation
                 if (!confirm('Terminer cette édition ? La préparation ne sera plus modifiable.')) {
                     return;

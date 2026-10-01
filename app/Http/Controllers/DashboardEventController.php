@@ -358,4 +358,72 @@ class DashboardEventController extends Controller
             ? $name . ' — ' . $user->email
             : $user->email;
     }
+
+        /* ===================== STATISTIQUES D'UNE ÉDITION ===================== */
+
+    /** Nombre de contenus affichés par page */
+    private const MEDIAS_PER_PAGE = 25;
+
+    /** type dans la table `content` */
+    private const CONTENT_TYPE = 'flash';
+
+    /**
+     * Bilan d'une édition close.
+     * GET /dashboard/events/{pastEvent}/stats
+     */
+    public function stats(Request $request, int $pastEvent)
+    {
+        $edition = $this->editionOrFail($pastEvent);
+
+        return view('dashboard.events.stats', [
+            'edition'      => $edition,
+            'medias'       => $this->mediasOf($edition->id),
+            'sponsors'     => $this->sponsorsOf($edition->id),
+            'participants' => $this->participantsOf($edition->id),
+            'settings'     => $this->settingsOf($edition->id),
+            'summary'      => $this->statsSummary($edition->id),
+        ]);
+    }
+
+    /**
+     * Trois chiffres d'ensemble : sponsors, participants et contenus.
+     */
+    private function statsSummary(int $editionId): array
+    {
+        return [
+            'sponsors' => DB::table('past_event_sponsors')
+                ->where('past_event_id', $editionId)
+                ->count(),
+
+            'participants' => DB::table('past_event_users')
+                ->where('past_event_id', $editionId)
+                ->count(),
+
+            'medias' => DB::table('content')
+                ->where('type', self::CONTENT_TYPE)
+                ->where('id_past_event', $editionId)
+                ->count(),
+        ];
+    }
+
+    /**
+     * Contenus issus de l'édition, les plus consultés en tête.
+     */
+    private function mediasOf(int $editionId)
+    {
+        $authorSub = "(SELECT GROUP_CONCAT(e.name ORDER BY e.name SEPARATOR ' - ')
+                       FROM expert_video ev
+                       JOIN experts e ON e.id = ev.expert_id
+                       WHERE ev.content_id = content.id_content)";
+
+        return DB::table('content')
+            ->select('content.id_content', 'content.title', 'content.views')
+            ->selectRaw("{$authorSub} as author")
+            ->where('content.type', self::CONTENT_TYPE)
+            ->where('content.id_past_event', $editionId)
+            ->orderByDesc('content.views')
+            ->orderBy('content.title')
+            ->paginate(self::MEDIAS_PER_PAGE)
+            ->withQueryString();
+    }
 }

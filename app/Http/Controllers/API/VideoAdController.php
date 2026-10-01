@@ -17,17 +17,21 @@ class VideoAdController extends Controller
     /**
      * Query params:
      *  - limit (optional): default 4
+     *  - content_id (optional): contenu depuis lequel la publicité est présentée
      */
     public function feed(Request $request)
     {
         $validated = $request->validate([
-            'limit' => ['nullable', 'integer', 'min:1', 'max:20'],
+            'limit'      => ['nullable', 'integer', 'min:1', 'max:20'],
+            'content_id' => ['nullable', 'integer'],
         ]);
 
-        // Le ciblage repose sur la profession et les sujets de l'utilisateur
+        // Le ciblage repose sur la profession et les sujets de l'utilisateur ;
+        // le contenu d'origine détermine les éventuels parrainages
         $videos = $this->service->getFeed(
             user: $request->user(),
-            limit: $validated['limit'] ?? VideoAdService::FEED_SIZE
+            limit: $validated['limit'] ?? VideoAdService::FEED_SIZE,
+            contentId: $validated['content_id'] ?? null
         );
 
         return response()->json([
@@ -50,18 +54,20 @@ class VideoAdController extends Controller
         $videoAd = VideoAds::findOrFail($id);
 
         $validated = $request->validate([
-            'user_id' => ['nullable', 'integer'],
+            'user_id'    => ['nullable', 'integer'],
+            'content_id' => ['nullable', 'integer'],
         ]);
 
         if (Auth::check() && in_array(Auth::user()->role->name, ['user', 'user-manager'])) {
             $this->service->recordImpression(
                 $videoAd,
-                userId: $validated['user_id'] ?? $request->user()?->id
+                userId: $validated['user_id'] ?? $request->user()?->id,
+                contentId: $validated['content_id'] ?? null
             );
         }
 
         return response()->json([
-            'video_ads_id'       => $videoAd->id,
+            'video_ads_id'      => $videoAd->id,
             'total_impressions' => $videoAd->fresh()->total_impressions,
         ]);
     }
@@ -76,13 +82,14 @@ class VideoAdController extends Controller
             $this->service->recordView(
                 $videoAd,
                 isCompleted: $data['is_completed'] ?? false,
-                userId: $data['user_id'] ?? $request->user()?->id
+                userId: $data['user_id'] ?? $request->user()?->id,
+                contentId: $data['content_id'] ?? null
             );
         }
 
         return response()->json([
             'video_ads_id' => $videoAd->id,
-            'total_views' => $videoAd->fresh()->total_views,
+            'total_views'  => $videoAd->fresh()->total_views,
         ]);
     }
 
@@ -98,6 +105,7 @@ class VideoAdController extends Controller
                 isCompleted: true,
                 userId: $data['user_id'] ?? $request->user()?->id,
                 isContacted: $data['is_contacted'] ?? false,
+                contentId: $data['content_id'] ?? null
             );
         }
 

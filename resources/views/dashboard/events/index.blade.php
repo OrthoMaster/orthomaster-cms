@@ -125,17 +125,12 @@
 
                                                         <span class="edition-spacer"></span>
 
-                                                        @if ($done)
+                                                                                                                @if ($done)
                                                             {{-- L'édition close se consulte plutôt qu'elle ne se prépare --}}
                                                             <a href="{{ route('dashboard.events.prepare', $edition->id) }}"
                                                                 class="btn btn-sm btn-default">
                                                                 <i class="voyager-tools"></i>
                                                                 <span class="hidden-xs hidden-sm">Préparer</span>
-                                                            </a>
-                                                            <a href="#" class="btn btn-sm btn-success btn-stats"
-                                                                data-edition="{{ $edition->id }}">
-                                                                <i class="voyager-bar-chart"></i>
-                                                                <span class="hidden-xs hidden-sm">Statistiques</span>
                                                             </a>
                                                         @else
                                                             <a href="{{ route('dashboard.events.prepare', $edition->id) }}"
@@ -144,6 +139,12 @@
                                                                 <span class="hidden-xs hidden-sm">Préparer</span>
                                                             </a>
                                                         @endif
+
+                                                        <a href="{{ route('dashboard.events.stats', $edition->id) }}"
+                                                            class="btn btn-sm btn-default">
+                                                            <i class="voyager-list"></i>
+                                                            <span class="hidden-xs hidden-sm">Statistiques</span>
+                                                        </a>
 
                                                         <a href="{{ route('voyager.past-events.edit', $edition->id) }}"
                                                             target="_blank" class="btn btn-sm btn-primary">
@@ -407,13 +408,6 @@
                 $block.find('.event-toggle').attr('aria-expanded', open);
             });
 
-            /* ---------- Statistiques d'une édition ---------- */
-            $('.btn-stats').on('click', function(e) {
-                e.preventDefault();
-
-                // L'action reste à définir
-                console.log('Statistiques', $(this).data('edition'));
-            });
         });
     </script>
 @stop

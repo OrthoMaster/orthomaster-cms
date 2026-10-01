@@ -27,8 +27,12 @@ class VideoAdService
      *
      * Toutes les publicités concourent : les points ne filtrent pas,
      * ils augmentent la probabilité d'être tirée pour un profil donné.
+     *
+     * Lorsque le contenu d'origine est connu, les annonceurs qui ont
+     * parrainé l'édition dont il est issu voient leur score multiplié,
+     * pour la durée convenue lors de la préparation.
      */
-    public function getFeed(?User $user = null, int $limit = self::FEED_SIZE)
+    public function getFeed(?User $user = null, int $limit = self::FEED_SIZE, ?int $contentId = null)
     {
         $ads = VideoAds::query()
             ->with('adsCompany')
@@ -45,13 +49,29 @@ class VideoAdService
         $targets = $this->targetsFor($adIds);
         $budgets = $this->budgetsFor($adIds);
 
-        $scored = $ads->map(function (VideoAds $ad) use ($targets, $budgets, $professionId, $topicIds) {
-            $ad->setAttribute('selection_score', $this->scoreFor(
+        [$sponsorIds, $multiplier] = $this->sponsorBoostFor($contentId);
+
+        $scored = $ads->map(function (VideoAds $ad) use (
+            $targets,
+            $budgets,
+            $professionId,
+            $topicIds,
+            $sponsorIds,
+            $multiplier
+        ) {
+            $score = $this->scoreFor(
                 $targets[$ad->id] ?? [],
                 $budgets[$ad->id] ?? 0,
                 $professionId,
                 $topicIds
-            ));
+            );
+
+            // Le parrainage ne change pas le ciblage : il amplifie le tout
+            if ($multiplier > 1 && in_array($ad->ads_company_id, $sponsorIds, true)) {
+                $score *= $multiplier;
+            }
+
+            $ad->setAttribute('selection_score', $score);
 
             return $ad;
         });
@@ -206,18 +226,26 @@ class VideoAdService
         return collect($selected);
     }
 
-    public function recordImpression(VideoAds $videoAd, ?int $userId = null): VideoAdImpression
+    public function recordImpression(VideoAds $videoAd, ?int $userId = null, ?int $contentId = null): VideoAdImpression
     {
-        return DB::transaction(function () use ($videoAd, $userId) {
+        return DB::transaction(function () use ($videoAd, $userId, $contentId) {
+            // Sans contenu d'origine, la consultation est facturée comme avant
+            $isFree = $this->isFreeConsultation($videoAd, $userId, $contentId);
+
             $impression = VideoAdImpression::create([
                 'video_ads_id' => $videoAd->id,
                 'user_id'      => $userId,
+                'is_free'      => $isFree,
             ]);
 
             $videoAd->incrementImpressions();
 
-            $this->recordTargetedStats($videoAd, $userId, ['impressions_count' => 1]);
-            $this->bumpDailyStat($videoAd, impressions: 1);
+            $this->recordTargetedStats($videoAd, $userId, [
+                'impressions_count'      => 1,
+                'free_impressions_count' => $isFree ? 1 : 0,
+            ]);
+
+            $this->bumpDailyStat($videoAd, impressions: 1, freeImpressions: $isFree ? 1 : 0);
 
             return $impression;
         });
@@ -228,33 +256,44 @@ class VideoAdService
         bool $isCompleted = false,
         ?int $userId = null,
         ?bool $isContacted = false,
+        ?int $contentId = null,
     ): VideoAdView {
         return DB::transaction(function () use (
             $videoAd,
             $isCompleted,
             $userId,
-            $isContacted
+            $isContacted,
+            $contentId
         ) {
+            $isFree = $this->isFreeConsultation($videoAd, $userId, $contentId);
+
             $view = VideoAdView::create([
                 'video_ads_id' => $videoAd->id,
                 'user_id'      => $userId,
                 'is_completed' => $isCompleted,
-                'is_contacted' => $isContacted
+                'is_contacted' => $isContacted,
+                'is_free'      => $isFree,
             ]);
 
             $videoAd->incrementViews();
 
             $this->recordTargetedStats($videoAd, $userId, [
-                'views_count'           => 1,
-                'completed_views_count' => $isCompleted ? 1 : 0,
-                'contacted_count'       => $isContacted ? 1 : 0,
+                'views_count'                => 1,
+                'free_views_count'           => $isFree ? 1 : 0,
+                'completed_views_count'      => $isCompleted ? 1 : 0,
+                'free_completed_views_count' => ($isCompleted && $isFree) ? 1 : 0,
+                'contacted_count'            => $isContacted ? 1 : 0,
+                'free_contacted_count'       => ($isContacted && $isFree) ? 1 : 0,
             ]);
 
             $this->bumpDailyStat(
                 $videoAd,
                 views: 1,
+                freeViews: $isFree ? 1 : 0,
                 completedViews: $isCompleted ? 1 : 0,
-                contactedActions: $isContacted ? 1 : 0
+                freeCompletedViews: ($isCompleted && $isFree) ? 1 : 0,
+                contactedActions: $isContacted ? 1 : 0,
+                freeContactedActions: ($isContacted && $isFree) ? 1 : 0
             );
 
             return $view;
@@ -264,9 +303,13 @@ class VideoAdService
     protected function bumpDailyStat(
         VideoAds $videoAd,
         int $impressions = 0,
+        int $freeImpressions = 0,
         int $views = 0,
+        int $freeViews = 0,
         int $completedViews = 0,
-        int $contactedActions = 0
+        int $freeCompletedViews = 0,
+        int $contactedActions = 0,
+        int $freeContactedActions = 0
     ): void {
         $today = Carbon::today()->toDateString();
 
@@ -276,11 +319,15 @@ class VideoAdService
                 'stat_date'    => $today,
             ],
             [
-                'ads_company_id'        => $videoAd->ads_company_id,
-                'impressions_count'     => 0,
-                'views_count'           => 0,
-                'completed_views_count' => 0,
-                'contacted_count'       => 0,
+                'ads_company_id'             => $videoAd->ads_company_id,
+                'impressions_count'          => 0,
+                'free_impressions_count'     => 0,
+                'views_count'                => 0,
+                'free_views_count'           => 0,
+                'completed_views_count'      => 0,
+                'free_completed_views_count' => 0,
+                'contacted_count'            => 0,
+                'free_contacted_count'       => 0,
             ]
         );
 
@@ -288,10 +335,14 @@ class VideoAdService
             ->where('video_ads_id', $videoAd->id)
             ->where('stat_date', $today)
             ->incrementEach([
-                'impressions_count'     => $impressions,
-                'views_count'           => $views,
-                'completed_views_count' => $completedViews,
-                'contacted_count'       => $contactedActions,
+                'impressions_count'          => $impressions,
+                'free_impressions_count'     => $freeImpressions,
+                'views_count'                => $views,
+                'free_views_count'           => $freeViews,
+                'completed_views_count'      => $completedViews,
+                'free_completed_views_count' => $freeCompletedViews,
+                'contacted_count'            => $contactedActions,
+                'free_contacted_count'       => $freeContactedActions,
             ]);
     }
 
@@ -363,5 +414,150 @@ class VideoAdService
              ON DUPLICATE KEY UPDATE " . implode(', ', $increments),
             array_values($row)
         );
+    }
+
+        /* ===================== GRATUITÉ ===================== */
+
+    /**
+     * Détermine si une consultation échappe à la facturation.
+     *
+     * Deux cas l'exonèrent : l'auteur du contenu, qui ne saurait générer
+     * de recette sur sa propre production, et le participant d'une édition
+     * dont l'annonceur est partenaire — dans la limite de durée convenue.
+     *
+     * Sans contenu d'origine, la consultation reste facturable : c'est le
+     * comportement des clients qui ne transmettent pas encore ce contexte.
+     */
+    private function isFreeConsultation(VideoAds $videoAd, ?int $userId, ?int $contentId): bool
+    {
+        if (!$userId || !$contentId) {
+            return false;
+        }
+
+        $content = DB::table('content')
+            ->select('id_content', 'id_past_event', 'video_id')
+            ->where('id_content', $contentId)
+            ->first();
+
+        if (!$content) {
+            return false;
+        }
+
+        if ($this->isAuthorOf($content->id_content, $userId)) {
+            return true;
+        }
+
+        return $this->isSponsoredParticipant($videoAd, $content, $userId);
+    }
+
+    /**
+     * L'utilisateur figure-t-il parmi les auteurs du contenu ?
+     */
+    private function isAuthorOf(int $contentId, int $userId): bool
+    {
+        return DB::table('expert_video as ev')
+            ->join('experts as e', 'e.id', '=', 'ev.expert_id')
+            ->where('ev.content_id', $contentId)
+            ->where('e.user_id', $userId)
+            ->exists();
+    }
+
+    /**
+     * L'utilisateur a-t-il participé à l'édition dont l'annonceur est
+     * partenaire, et le contenu est-il encore dans sa période d'avantage ?
+     */
+    private function isSponsoredParticipant(VideoAds $videoAd, $content, int $userId): bool
+    {
+        if (!$content->id_past_event || !$videoAd->ads_company_id) {
+            return false;
+        }
+
+        $sponsored = DB::table('past_event_sponsors')
+            ->where('past_event_id', $content->id_past_event)
+            ->where('ads_company_id', $videoAd->ads_company_id)
+            ->exists();
+
+        if (!$sponsored) {
+            return false;
+        }
+
+        $participant = DB::table('past_event_users')
+            ->where('past_event_id', $content->id_past_event)
+            ->where('user_id', $userId)
+            ->exists();
+
+        if (!$participant) {
+            return false;
+        }
+
+        return $this->isWithinAdvantagePeriod($content->id_past_event, $content->video_id);
+    }
+
+    /**
+     * L'avantage court à partir de la publication du contenu, pour la
+     * durée fixée lors de la préparation de l'édition.
+     */
+    private function isWithinAdvantagePeriod(int $pastEventId, ?int $videoId): bool
+    {
+        if (!$videoId) {
+            return false;
+        }
+
+        $publishedAt = DB::table('videos')->where('id', $videoId)->value('published_at');
+
+        if (!$publishedAt) {
+            return false;
+        }
+
+        $months = DB::table('past_event_settings')
+            ->where('past_event_id', $pastEventId)
+            ->value('ads_months') ?? 1;
+
+        return Carbon::parse($publishedAt)->addMonths((int) $months)->isFuture();
+    }
+
+    /**
+     * Annonceurs parrainant l'édition dont relève le contenu, et
+     * coefficient dont profitent leurs publicités.
+     *
+     * L'avantage s'éteint passé le délai convenu, compté depuis la
+     * publication du contenu.
+     *
+     * @return array{0: int[], 1: float}
+     */
+    private function sponsorBoostFor(?int $contentId): array
+    {
+        if (!$contentId) {
+            return [[], 1.0];
+        }
+
+        $content = DB::table('content')
+            ->select('id_past_event', 'video_id')
+            ->where('id_content', $contentId)
+            ->first();
+
+        if (!$content || !$content->id_past_event) {
+            return [[], 1.0];
+        }
+
+        if (!$this->isWithinAdvantagePeriod($content->id_past_event, $content->video_id)) {
+            return [[], 1.0];
+        }
+
+        $sponsorIds = DB::table('past_event_sponsors')
+            ->where('past_event_id', $content->id_past_event)
+            ->pluck('ads_company_id')
+            ->map(fn($id) => (int) $id)
+            ->all();
+
+        if (empty($sponsorIds)) {
+            return [[], 1.0];
+        }
+
+        $multiplier = DB::table('past_event_settings')
+            ->where('past_event_id', $content->id_past_event)
+            ->value('ads_multiplier') ?? 2;
+
+        return [$sponsorIds, (float) $multiplier];
     }
 }

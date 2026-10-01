@@ -151,6 +151,9 @@ Route::group(['prefix' => 'admin', 'middleware' => ['cmsAdmin']], function () {
 
             Route::post('/complete', [DashboardEventController::class, 'completeEdition'])
                 ->name('dashboard.events.prepare.complete');
+
+            Route::get('/stats', [DashboardEventController::class, 'stats'])
+                ->name('dashboard.events.stats');
         });
 
     // Invoices

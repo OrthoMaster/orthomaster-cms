@@ -332,6 +332,7 @@ class DashboardVideoAdsController extends Controller
                     'period'       => $month,
                     'label'        => Carbon::createFromFormat('Y-m', $month)->translatedFormat('F Y'),
                     'points_total' => $points['points_total'],
+                    'billing'      => $this->billingFor($ad->id, $month, $from, $to),
                     'axes'         => $this->axesFor($ad->id, $points['points'], $month, $from, $to),
                 ];
             }
@@ -372,9 +373,9 @@ class DashboardVideoAdsController extends Controller
      * Les deux axes d'une publicité pour un mois : points attribués d'un côté,
      * retombées de l'autre.
      *
-     * Les cibles dotées viennent en premier, suivies de celles qui ont capté
-     * de l'audience sans avoir reçu de points — ce second groupe suggère où
-     * porter l'effort le mois suivant.
+     * Le total ne porte que sur les cibles dotées de points : c'est à elles
+     * que se compare la répartition prévue. Les autres sont listées à part,
+     * comme indication pour le mois suivant.
      */
     private function axesFor(int $adId, array $points, string $period, string $from, string $to): array
     {
@@ -400,11 +401,27 @@ class DashboardVideoAdsController extends Controller
 
             $names = DB::table($config['ref'])->whereIn('id', $ids)->pluck('name', 'id');
 
-            $totalPoints      = array_sum($points[$type] ?? []);
-            $totalImpressions = array_sum(array_column($stats, 'impressions'));
+            $targetedIds = array_keys(array_filter($points[$type] ?? [], fn($p) => $p > 0));
+
+            $totalPoints = array_sum($points[$type] ?? []);
+
+            // Seules les cibles dotées entrent dans le total : la part réelle
+            // se lit alors en regard de la part prévue
+            $totalImpressions = 0;
+
+            foreach ($targetedIds as $id) {
+                $totalImpressions += $stats[$id]['impressions'] ?? 0;
+            }
 
             $targeted = [];
             $others   = [];
+            $totals   = [
+                'points'      => $totalPoints,
+                'impressions' => 0,
+                'views'       => 0,
+                'completed'   => 0,
+                'contacted'   => 0,
+            ];
 
             foreach ($ids as $id) {
                 $p    = (int) ($points[$type][$id] ?? 0);
@@ -415,15 +432,12 @@ class DashboardVideoAdsController extends Controller
                     'contacted' => 0,
                 ];
 
-                $expected = $totalPoints > 0 ? $p / $totalPoints * 100 : null;
-                $actual   = $totalImpressions > 0 ? $stat['impressions'] / $totalImpressions * 100 : null;
-
                 $row = [
                     'name'        => $names[$id] ?? '—',
                     'points'      => $p,
-                    'expected'    => $expected,
+                    'expected'    => $totalPoints > 0 ? $p / $totalPoints * 100 : null,
                     'impressions' => $stat['impressions'],
-                    'actual'      => $actual,
+                    'actual'      => null,
                     'views'       => $stat['views'],
                     'ctr'         => $stat['impressions'] > 0
                         ? $stat['views'] / $stat['impressions'] * 100
@@ -433,6 +447,15 @@ class DashboardVideoAdsController extends Controller
                 ];
 
                 if ($p > 0) {
+                    $row['actual'] = $totalImpressions > 0
+                        ? $stat['impressions'] / $totalImpressions * 100
+                        : null;
+
+                    $totals['impressions'] += $stat['impressions'];
+                    $totals['views']       += $stat['views'];
+                    $totals['completed']   += $stat['completed'];
+                    $totals['contacted']   += $stat['contacted'];
+
                     $targeted[] = $row;
                 } elseif ($stat['impressions'] > 0) {
                     $others[] = $row;
@@ -446,13 +469,7 @@ class DashboardVideoAdsController extends Controller
                 'label'    => $config['label'],
                 'targeted' => $targeted,
                 'others'   => $others,
-                'totals'   => [
-                    'points'      => $totalPoints,
-                    'impressions' => $totalImpressions,
-                    'views'       => array_sum(array_column($stats, 'views')),
-                    'completed'   => array_sum(array_column($stats, 'completed')),
-                    'contacted'   => array_sum(array_column($stats, 'contacted')),
-                ],
+                'totals'   => $totals,
             ];
         }
 
@@ -521,11 +538,7 @@ class DashboardVideoAdsController extends Controller
      */
     private function statsFor(int $adId, array $config, string $period, string $from, string $to): array
     {
-        $start = Carbon::createFromFormat('Y-m', $period)->startOfMonth()->toDateString();
-        $end   = Carbon::createFromFormat('Y-m', $period)->endOfMonth()->toDateString();
-
-        $start = max($start, $from);
-        $end   = min($end, $to);
+        [$start, $end] = $this->periodWindow($period, $from, $to);
 
         $rows = DB::table($config['table'])
             ->select($config['key'] . ' as target_id')
@@ -550,6 +563,47 @@ class DashboardVideoAdsController extends Controller
         }
 
         return $map;
+    }
+
+    /**
+     * Bornes d'un mois, ramenées à la période demandée.
+     */
+    private function periodWindow(string $period, string $from, string $to): array
+    {
+        $start = Carbon::createFromFormat('Y-m', $period)->startOfMonth()->toDateString();
+        $end   = Carbon::createFromFormat('Y-m', $period)->endOfMonth()->toDateString();
+
+        return [max($start, $from), min($end, $to)];
+    }
+
+    /**
+     * Volumes réels du mois, pris sur le cumul quotidien.
+     *
+     * Une consultation y compte une fois, quels que soient le nombre de
+     * centres d'intérêt de son auteur : c'est la seule base valable pour
+     * ce qui sera facturé.
+     */
+    private function billingFor(int $adId, string $period, string $from, string $to): array
+    {
+        [$start, $end] = $this->periodWindow($period, $from, $to);
+
+        $row = DB::table('video_ad_daily_stats')
+            ->selectRaw('COALESCE(SUM(views_count), 0) as views')
+            ->selectRaw('COALESCE(SUM(free_views_count), 0) as free_views')
+            ->selectRaw('COALESCE(SUM(impressions_count), 0) as impressions')
+            ->where('video_ads_id', $adId)
+            ->whereBetween('stat_date', [$start, $end])
+            ->first();
+
+        $views = (int) ($row->views ?? 0);
+        $free  = (int) ($row->free_views ?? 0);
+
+        return [
+            'impressions' => (int) ($row->impressions ?? 0),
+            'views'       => $views,
+            'free_views'  => $free,
+            'credits'     => $views - $free,
+        ];
     }
 
         /* ===================== RÉPARTITION DES POINTS ===================== */
@@ -608,8 +662,8 @@ class DashboardVideoAdsController extends Controller
             'topic.*'        => ['nullable', 'integer', 'min:0'],
         ]);
 
-        $professions = array_filter($data['profession'] ?? [], fn ($p) => (int) $p > 0);
-        $topics      = array_filter($data['topic'] ?? [], fn ($p) => (int) $p > 0);
+        $professions = array_filter($data['profession'] ?? [], fn($p) => (int) $p > 0);
+        $topics      = array_filter($data['topic'] ?? [], fn($p) => (int) $p > 0);
 
         // Chaque axe dispose de l'enveloppe entière
         $max = $data['points_total'];

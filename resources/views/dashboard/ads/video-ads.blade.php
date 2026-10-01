@@ -324,7 +324,7 @@
 
         .vad-axis-head {
             margin-bottom: 8px;
-            font-size: 12px;
+            font-size: 11px;
             font-weight: 700;
             text-transform: uppercase;
             letter-spacing: .04em;
@@ -340,7 +340,7 @@
 
         .vad-target-table {
             margin-bottom: 0;
-            font-size: 12.5px;
+            font-size: 12px;
             table-layout: fixed;
             width: 100%;
         }
@@ -366,7 +366,7 @@
         /* La colonne des libellés prend la place restante */
         .vad-target-table th:first-child,
         .vad-target-table td:first-child {
-            width: 26%;
+            width: 24%;
             white-space: nowrap;
         }
 
@@ -375,9 +375,11 @@
             min-width: 11%;
         }
 
-        .vad-target-table tfoot td {
+        .vad-total-body td {
             font-weight: 700;
             background: #f7f9fc;
+            border-top: 2px solid #dfe3e9;
+            border-bottom: 2px solid #dfe3e9;
         }
 
         .vad-gap.is-up {
@@ -392,6 +394,46 @@
             max-height: 420px;
             overflow-y: auto;
             overflow-x: hidden;
+        }
+
+                /* Volumes du mois : ce qui sera facturé se lit ici, pas dans les tableaux */
+        .vad-billing {
+            display: flex;
+            gap: 28px;
+            margin-bottom: 16px;
+            padding: 12px 16px;
+            border-radius: 8px;
+            background: #f7f9fc;
+            border: 1px solid #eceff3;
+        }
+
+        .vad-billing-item {
+            display: flex;
+            align-items: baseline;
+            gap: 6px;
+        }
+
+        .vad-billing-value {
+            font-size: 18px;
+            font-weight: 700;
+            color: #1d3557;
+        }
+
+        .vad-billing-label {
+            font-size: 12px;
+            color: #94a3b8;
+        }
+
+        .vad-billing-item.is-free .vad-billing-value {
+            color: #27ae60;
+        }
+
+        .vad-billing-item.is-credit .vad-billing-value {
+            color: #d68910;
+        }
+
+        .vad-others-body {
+            border-top: 2px solid #eceff3;
         }
     </style>
 @stop

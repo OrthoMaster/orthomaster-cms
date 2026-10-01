@@ -1,7 +1,7 @@
 {{-- Onglet Ciblage : points attribués et retombées, par publicité et par mois --}}
 @php
-    $pct = fn ($value) => is_null($value) ? '—' : number_format($value, 1, ',', ' ') . ' %';
-    $num = fn ($value) => number_format($value, 0, ',', ' ');
+    $pct = fn($value) => is_null($value) ? '—' : number_format($value, 1, ',', ' ') . ' %';
+    $num = fn($value) => number_format($value, 0, ',', ' ');
 @endphp
 
 @if (empty($targeting))
@@ -32,6 +32,22 @@
                             @endif
                         </div>
 
+                        {{-- Volumes réels du mois : une consultation n'y compte qu'une fois --}}
+                        <div class="vad-billing">
+                            <div class="vad-billing-item">
+                                <span class="vad-billing-value">{{ $num($period['billing']['views']) }}</span>
+                                <span class="vad-billing-label">vues</span>
+                            </div>
+                            <div class="vad-billing-item is-free">
+                                <span class="vad-billing-value">{{ $num($period['billing']['free_views']) }}</span>
+                                <span class="vad-billing-label">offertes</span>
+                            </div>
+                            <div class="vad-billing-item is-credit">
+                                <span class="vad-billing-value">{{ $num($period['billing']['credits']) }}</span>
+                                <span class="vad-billing-label">facturables</span>
+                            </div>
+                        </div>
+
                         <div class="row vad-axes">
                             @php $axisIndex = 0; @endphp
                             @foreach ($period['axes'] as $axis)
@@ -51,9 +67,9 @@
                                                         <tr>
                                                             <th>Cible</th>
                                                             <th class="text-right">Points</th>
-                                                            <th class="text-right">Prévue</th>
+                                                            <th class="text-right">%Prévue</th>
                                                             <th class="text-right">Impr.</th>
-                                                            <th class="text-right">Réelle</th>
+                                                            <th class="text-right">%Réelle</th>
                                                             <th class="text-right">Vues</th>
                                                             <th class="text-right">CTR</th>
                                                             <th class="text-right">Contacts</th>
@@ -64,19 +80,47 @@
                                                             <tr>
                                                                 <td>{{ $row['name'] }}</td>
                                                                 <td class="text-right">{{ $row['points'] }}</td>
-                                                                <td class="text-right">{{ $pct($row['expected']) }}</td>
-                                                                <td class="text-right">{{ $num($row['impressions']) }}</td>
+                                                                <td class="text-right">{{ $pct($row['expected']) }}
+                                                                </td>
+                                                                <td class="text-right">{{ $num($row['impressions']) }}
+                                                                </td>
                                                                 <td class="text-right">{{ $pct($row['actual']) }}</td>
                                                                 <td class="text-right">{{ $num($row['views']) }}</td>
                                                                 <td class="text-right">{{ $pct($row['ctr']) }}</td>
-                                                                <td class="text-right">{{ $num($row['contacted']) }}</td>
+                                                                <td class="text-right">{{ $num($row['contacted']) }}
+                                                                </td>
                                                             </tr>
                                                         @endforeach
+                                                    </tbody>
 
-                                                        @if (!empty($axis['others']))
+                                                    {{-- Le total s'arrête aux cibles dotées : c'est à elles
+                                                         que la répartition prévue se compare --}}
+                                                    <tbody class="vad-total-body">
+                                                        <tr>
+                                                            <td>Total ciblé</td>
+                                                            <td class="text-right">{{ $axis['totals']['points'] }}</td>
+                                                            <td class="text-right">100,0 %</td>
+                                                            <td class="text-right">
+                                                                {{ $num($axis['totals']['impressions']) }}</td>
+                                                            <td class="text-right">100,0 %</td>
+                                                            <td class="text-right">{{ $num($axis['totals']['views']) }}
+                                                            </td>
+                                                            <td class="text-right">
+                                                                {{ $axis['totals']['impressions'] > 0
+                                                                    ? $pct(($axis['totals']['views'] / $axis['totals']['impressions']) * 100)
+                                                                    : '—' }}
+                                                            </td>
+                                                            <td class="text-right">
+                                                                {{ $num($axis['totals']['contacted']) }}</td>
+                                                        </tr>
+                                                    </tbody>
+
+                                                    @if (!empty($axis['others']))
+                                                        <tbody class="vad-others-body">
                                                             <tr class="vad-others-head">
                                                                 <td colspan="8">
-                                                                    Hors ciblage &mdash; audience captée sans points attribués
+                                                                    Hors ciblage &mdash; audience captée sans points
+                                                                    attribués
                                                                 </td>
                                                             </tr>
 
@@ -85,31 +129,18 @@
                                                                     <td>{{ $row['name'] }}</td>
                                                                     <td class="text-right">0</td>
                                                                     <td class="text-right">—</td>
-                                                                    <td class="text-right">{{ $num($row['impressions']) }}</td>
-                                                                    <td class="text-right">{{ $pct($row['actual']) }}</td>
-                                                                    <td class="text-right">{{ $num($row['views']) }}</td>
+                                                                    <td class="text-right">
+                                                                        {{ $num($row['impressions']) }}</td>
+                                                                    <td class="text-right">—</td>
+                                                                    <td class="text-right">{{ $num($row['views']) }}
+                                                                    </td>
                                                                     <td class="text-right">{{ $pct($row['ctr']) }}</td>
-                                                                    <td class="text-right">{{ $num($row['contacted']) }}</td>
+                                                                    <td class="text-right">
+                                                                        {{ $num($row['contacted']) }}</td>
                                                                 </tr>
                                                             @endforeach
-                                                        @endif
-                                                    </tbody>
-                                                    <tfoot>
-                                                        <tr>
-                                                            <td>Total</td>
-                                                            <td class="text-right">{{ $axis['totals']['points'] }}</td>
-                                                            <td class="text-right">—</td>
-                                                            <td class="text-right">{{ $num($axis['totals']['impressions']) }}</td>
-                                                            <td class="text-right">—</td>
-                                                            <td class="text-right">{{ $num($axis['totals']['views']) }}</td>
-                                                            <td class="text-right">
-                                                                {{ $axis['totals']['impressions'] > 0
-                                                                    ? $pct($axis['totals']['views'] / $axis['totals']['impressions'] * 100)
-                                                                    : '—' }}
-                                                            </td>
-                                                            <td class="text-right">{{ $num($axis['totals']['contacted']) }}</td>
-                                                        </tr>
-                                                    </tfoot>
+                                                        </tbody>
+                                                    @endif
                                                 </table>
                                             </div>
                                         @endif
