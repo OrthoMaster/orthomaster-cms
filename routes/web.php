@@ -54,7 +54,16 @@ Route::get('/', function () {
         return redirect('/register');
     }
 
+    if ($domain === 'expert.orthomaster.fr') {
+        return redirect('/demo');
+    }
+
     return redirect()->away('https://orthomaster.fr', 301);
+});
+
+// Demo
+Route::get('/demo', function() {
+    return view('demo.orthomaster');
 });
 
 Route::get('/login', function () {

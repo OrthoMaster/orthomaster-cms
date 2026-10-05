@@ -23,6 +23,11 @@ class CustomExceptionHandler
             return null;
         }
 
+        // With Expert
+        if (str_starts_with($host, 'expert.')) {
+            return null;
+        }
+
         // Short link domain
         if (str_starts_with($host, 'go.')) {
             return redirect()->away('https://orthomaster.fr');
