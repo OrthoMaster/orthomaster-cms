@@ -91,6 +91,7 @@ class MediaController extends Controller
                 ->where('ev.content_id', $content->id_content)
                 ->orderBy('e.name')
                 ->get(['e.id', 'e.name']);
+            $content->expert_names = $content->experts->implode('name', ' - ');
         }
 
         // Add thumbnail

@@ -1,0 +1,358 @@
+/*
+ * Éditeur /demo/{slug} : édition en place, enregistrement automatique (AJAX JSON -> {slug}.xml).
+ * Chargé après app.js (qui expose window.OrthoBrochure.setModel / refreshTimeline).
+ */
+const bar = document.getElementById('edBar');
+const panel = document.getElementById('picker');
+const html = document.documentElement;
+const $ = (sel, root = document) => root.querySelector(sel);
+const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
+
+if (bar && panel) init();
+
+function init() {
+    const saveUrl = bar.dataset.saveUrl;
+    const avatarUrl = bar.dataset.avatarUrl;
+    const exportUrl = bar.dataset.exportUrl || null;
+    const csrf = $('meta[name="csrf-token"]')?.content || '';
+    const AUTOSAVE_DELAY = 1500;
+
+    // ---------- contenteditable : texte brut, une seule ligne ----------
+    const probe = document.createElement('div');
+    probe.contentEditable = 'plaintext-only';
+    const EDITABLE = probe.contentEditable === 'plaintext-only' ? 'plaintext-only' : 'true';
+    const prepare = root => $$('[data-placeholder]', root).forEach(el => { el.contentEditable = EDITABLE; });
+
+    const isEditable = el => el instanceof HTMLElement && el.isContentEditable;
+    const tidy = el => { if (el.textContent.trim() === '') el.textContent = ''; }; // garde :empty pour le placeholder
+
+    document.addEventListener('keydown', e => {
+        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); saveNow(); return; }
+        if (e.key === 'Enter' && isEditable(e.target)) { e.preventDefault(); e.target.blur(); }
+    });
+    document.addEventListener('paste', e => {
+        if (!isEditable(e.target)) return;
+        e.preventDefault();
+        const text = (e.clipboardData?.getData('text/plain') || '').replace(/\s+/g, ' ');
+        document.execCommand('insertText', false, text);
+    });
+    document.addEventListener('input', e => { if (isEditable(e.target)) changed(); });
+    document.addEventListener('focusout', e => { if (isEditable(e.target)) tidy(e.target); });
+
+    // ---------- modes Édition / Aperçu ----------
+    const modeBtns = $$('.ed-seg-btn', bar);
+    function setMode(mode) {
+        const edit = mode === 'edit';
+        document.body.classList.toggle('ed-mode', edit);
+        document.body.classList.toggle('ed-preview', !edit);
+        modeBtns.forEach(b => b.setAttribute('aria-pressed', String(b.dataset.mode === mode)));
+        $$('[data-placeholder]').forEach(el => { el.contentEditable = edit ? EDITABLE : 'false'; });
+        if (!edit && document.activeElement && isEditable(document.activeElement)) document.activeElement.blur();
+        refreshTimeline();
+    }
+    modeBtns.forEach(b => b.addEventListener('click', () => setMode(b.dataset.mode)));
+    setMode('edit');
+
+    // ---------- enregistrement automatique ----------
+    const status = $('#edStatus');
+    const statusTxt = $('.ed-save-txt', status);
+    function setStatus(state, text) {
+        status.dataset.state = state; // idle | pending | saving | saved | error
+        statusTxt.textContent = text;
+    }
+
+    let dirty = false, saving = false, again = false, timer = null;
+
+    function changed() {
+        dirty = true;
+        setStatus('pending', 'Modifications en attente…');
+        clearTimeout(timer);
+        timer = setTimeout(saveNow, AUTOSAVE_DELAY);
+    }
+
+    async function saveNow() {
+        clearTimeout(timer);
+        if (saving) { again = true; return false; }
+        if (!dirty) return true;
+        saving = true;
+        dirty = false;
+        setStatus('saving', 'Enregistrement…');
+        let ok = false;
+        try {
+            const res = await post(collect());
+            if (res.status === 419) { dirty = true; setStatus('error', 'Session expirée : rechargez la page.'); return false; }
+            if (res.status === 403) { dirty = true; setStatus('error', 'Lien expiré ou non valide.'); return false; }
+            if (res.status === 429) { dirty = true; setStatus('error', 'Trop d’enregistrements, nouvel essai dans 10 s…'); timer = setTimeout(saveNow, 10000); return false; }
+            if (!res.ok) throw new Error(String(res.status));
+            const json = await res.json();
+            ok = true;
+            setStatus('saved', `Enregistré à ${json.saved_at}`);
+            return true;
+        } catch (err) {
+            dirty = true;
+            setStatus('error', 'Échec de l’enregistrement, nouvel essai dans 5 s…');
+            timer = setTimeout(saveNow, 5000);
+            return false;
+        } finally {
+            saving = false;
+            if (again) { again = false; if (dirty) saveNow(); }
+            else if (ok && dirty) changed(); // modifié pendant l'envoi
+        }
+    }
+
+    function post(data, keepalive = false) {
+        return fetch(saveUrl, {
+            method: 'POST',
+            credentials: 'same-origin',
+            keepalive,
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-CSRF-TOKEN': csrf,
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+            body: JSON.stringify(data),
+        });
+    }
+
+    // Quitter la page : envoyer ce qui reste, et prévenir si un envoi est en cours
+    addEventListener('pagehide', () => { if (dirty) post(collect(), true); });
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden' && dirty) saveNow(); });
+    addEventListener('beforeunload', e => { if (saving) { e.preventDefault(); e.returnValue = ''; } });
+
+    // ---------- panneau : ouvrir / fermer ----------
+    const toggle = $('#pkToggle');
+    const setOpen = open => { panel.dataset.open = open; toggle.setAttribute('aria-expanded', open); };
+    toggle.addEventListener('click', () => setOpen(panel.dataset.open !== 'true'));
+    if (innerWidth < 820) setOpen(false);
+
+    // ---------- couleur ----------
+    const swatches = $$('.sw', panel);
+    swatches.forEach((b, i) => {
+        b.addEventListener('click', () => {
+            swatches.forEach(x => x.setAttribute('aria-checked', String(x === b)));
+            html.dataset.palette = b.dataset.palette;
+            $('#palName').textContent = b.dataset.label;
+            changed();
+        });
+        b.addEventListener('keydown', e => {
+            const d = ['ArrowRight', 'ArrowDown'].includes(e.key) ? 1 : ['ArrowLeft', 'ArrowUp'].includes(e.key) ? -1 : 0;
+            if (!d) return;
+            e.preventDefault();
+            const n = swatches[(i + d + swatches.length) % swatches.length];
+            n.focus();
+            n.click();
+        });
+    });
+
+    // ---------- modèle 3D ----------
+    const modelSelect = $('#edModel');
+    const credit = $('[data-model-credit]');
+    modelSelect.addEventListener('change', () => {
+        window.OrthoBrochure?.setModel?.(modelSelect.value);
+        if (credit) credit.hidden = credit.dataset.modelCredit !== modelSelect.value;
+        changed();
+    });
+
+    // ---------- liens : le bouton n'apparaît que si l'adresse est valide ----------
+    $$('input[data-link]', panel).forEach(input => {
+        const btn = $(`[data-link-btn="${input.dataset.link}"]`);
+        input.addEventListener('input', () => {
+            const v = input.value.trim();
+            const ok = /^https?:\/\/[^\s.]+\.\S+$/i.test(v);
+            btn.href = ok ? v : '#';
+            btn.hidden = !ok;
+            input.setCustomValidity(v === '' || ok ? '' : 'Adresse commençant par https://');
+            changed();
+        });
+    });
+
+    // ---------- listes : ajouter, déplacer, supprimer ----------
+    const tplEntry = $('#tplEntry'), tplPill = $('#tplPill'), tplPlace = $('#tplPlace');
+    const MAX_PLACES = 4, MAX_PILLS = 12;
+    function refreshTimeline() { window.OrthoBrochure?.refreshTimeline?.(); }
+    const clone = tpl => {
+        const node = tpl.content.firstElementChild.cloneNode(true);
+        prepare(node);
+        return node;
+    };
+
+    document.addEventListener('click', e => {
+        if (!document.body.classList.contains('ed-mode')) return;
+        const add = e.target.closest('[data-add]');
+        if (add) {
+            const node = clone(tplEntry);
+            $(`ol[data-list="${add.dataset.add}"]`).prepend(node); // de la plus récente à la plus ancienne
+            refreshTimeline();
+            $('[contenteditable]', node).focus();
+            changed();
+            return;
+        }
+        if (e.target.closest('[data-add-place]')) {
+            const ul = $('ul[data-list="places"]');
+            if (ul.children.length >= MAX_PLACES) return;
+            const node = clone(tplPlace);
+            ul.append(node);
+            updatePlacesButton();
+            $('[contenteditable]', node).focus();
+            changed();
+            return;
+        }
+        const act = e.target.closest('[data-act]');
+        const item = act?.closest('[data-entry], [data-pill], [data-place]');
+        if (!item) return;
+        if (act.dataset.act === 'del') {
+            const filled = item.matches('[data-entry], [data-place]') && item.textContent.trim() !== '';
+            if (filled && !confirm(item.matches('[data-place]') ? 'Supprimer ce lieu ?' : 'Supprimer cette entrée ?')) return;
+            if (item.matches('[data-pill]')) setChecked(item.dataset.id, false);
+            item.remove();
+            updatePlacesButton();
+        } else if (act.dataset.act === 'up' && item.previousElementSibling) {
+            item.parentNode.insertBefore(item, item.previousElementSibling);
+            act.focus();
+        } else if (act.dataset.act === 'down' && item.nextElementSibling) {
+            item.parentNode.insertBefore(item.nextElementSibling, item);
+            act.focus();
+        } else {
+            return;
+        }
+        if (item.matches('[data-entry]')) refreshTimeline();
+        changed();
+    });
+
+    // ---------- lieux d'exercice ----------
+    const addPlaceBtn = $('[data-add-place]');
+    function updatePlacesButton() {
+        addPlaceBtn.hidden = $('ul[data-list="places"]').children.length >= MAX_PLACES;
+    }
+    updatePlacesButton();
+
+    // ---------- domaines d'expertise : choix dans la liste ----------
+    const pillsUl = $('ul[data-list="expertise"]');
+    const pop = $('#edExpertise'), popBtn = $('#edExpertiseBtn'), search = $('#edExpertiseSearch');
+    const boxes = $$('input[type="checkbox"]', pop);
+    const count = $('#edExpertiseCount');
+    const setChecked = (id, on) => { const b = boxes.find(x => x.value === String(id)); if (b) b.checked = on; refreshPop(); };
+    function refreshPop() {
+        const n = boxes.filter(b => b.checked).length;
+        count.textContent = `${n} / ${MAX_PILLS} sélectionné${n > 1 ? 's' : ''}`;
+        boxes.forEach(b => { b.disabled = !b.checked && n >= MAX_PILLS; });
+    }
+    function openPop(open) {
+        pop.hidden = !open;
+        popBtn.setAttribute('aria-expanded', String(open));
+        if (open) { search.value = ''; filter(''); search.focus(); }
+    }
+    function filter(q) {
+        const norm = v => v.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+        const nq = norm(q.trim());
+        boxes.forEach(b => { b.closest('.ed-opt').hidden = nq !== '' && !norm(b.dataset.label).includes(nq); });
+    }
+    popBtn.addEventListener('click', e => { e.stopPropagation(); openPop(pop.hidden); });
+    $('#edExpertiseClose').addEventListener('click', () => { openPop(false); popBtn.focus(); });
+    search.addEventListener('input', () => filter(search.value));
+    document.addEventListener('click', e => { if (!pop.hidden && !pop.contains(e.target) && e.target !== popBtn) openPop(false); });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape' && !pop.hidden) { openPop(false); popBtn.focus(); } });
+    boxes.forEach(b => b.addEventListener('change', () => {
+        const pill = $(`[data-pill][data-id="${b.value}"]`, pillsUl);
+        if (b.checked && !pill) {
+            const node = tplPill.content.firstElementChild.cloneNode(true);
+            node.dataset.id = b.value;
+            $('span', node).textContent = b.dataset.label;
+            pillsUl.insertBefore(node, $('.ed-add-li', pillsUl));
+        } else if (!b.checked && pill) {
+            pill.remove();
+        }
+        refreshPop();
+        changed();
+    }));
+    refreshPop();
+
+    // ---------- avatar : upload direct, l'ancien fichier est supprimé côté serveur ----------
+    const avatarBox = $('#edAvatar'), avatarInput = $('#edAvatarInput');
+    const avatarImg = $('img', avatarBox), avatarSil = $('.silhouette', avatarBox);
+    avatarInput.addEventListener('change', async () => {
+        const file = avatarInput.files[0];
+        avatarInput.value = '';
+        if (!file) return;
+        if (!/^image\/(jpeg|png|webp)$/.test(file.type)) { setStatus('error', 'Formats acceptés : JPG, PNG ou WebP.'); return; }
+        if (file.size > 5 * 1024 * 1024) { setStatus('error', 'L’image ne doit pas dépasser 5 Mo.'); return; }
+
+        const previous = { src: avatarImg.getAttribute('src'), hidden: avatarImg.hidden };
+        const preview = URL.createObjectURL(file);
+        avatarImg.src = preview; avatarImg.hidden = false; avatarSil.hidden = true;
+        avatarBox.classList.add('is-uploading');
+        setStatus('saving', 'Envoi de la photo…');
+
+        const form = new FormData();
+        form.append('avatar', file);
+        try {
+            const res = await fetch(avatarUrl, {
+                method: 'POST', credentials: 'same-origin', body: form,
+                headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': csrf, 'X-Requested-With': 'XMLHttpRequest' },
+            });
+            const json = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                const msg = json.errors?.avatar?.[0] || (res.status === 419 ? 'Session expirée : rechargez la page.' : res.status === 403 ? 'Lien expiré ou non valide.' : 'Échec de l’envoi de la photo.');
+                throw new Error(msg);
+            }
+            if (json.url) avatarImg.src = json.url;
+            setStatus('saved', 'Photo enregistrée');
+        } catch (err) {
+            if (previous.src) avatarImg.src = previous.src;
+            avatarImg.hidden = previous.hidden; avatarSil.hidden = !previous.hidden;
+            setStatus('error', err.message || 'Échec de l’envoi de la photo.');
+        } finally {
+            avatarBox.classList.remove('is-uploading');
+            URL.revokeObjectURL(preview);
+        }
+    });
+
+    // ---------- collecte des données ----------
+    const text = el => (el?.textContent || '').trim();
+    const entries = key => $$(`ol[data-list="${key}"] > li[data-entry]`).map(li => ({
+        year: text($('[data-k="year"]', li)),
+        title: text($('[data-k="title"]', li)),
+        place: text($('[data-k="place"]', li)),
+    }));
+    function collect() {
+        const data = {
+            palette: html.dataset.palette,
+            model: modelSelect.value,
+            honorific: text($('[data-field="honorific"]')),
+            credentials: text($('[data-field="credentials"]')),
+            lede: text($('[data-field="lede"]')),
+            expertise: $$('ul[data-list="expertise"] [data-pill]').map(li => Number(li.dataset.id)).filter(Boolean),
+            places: $$('ul[data-list="places"] > li[data-place]').map(li => ({
+                name: text($('[data-k="name"]', li)),
+                address: text($('[data-k="address"]', li)),
+                city: text($('[data-k="city"]', li)),
+            })),
+            titles: {},
+        };
+        $$('input[data-link]', panel).forEach(i => { data[i.dataset.link] = i.value.trim(); });
+        $$('[data-title]').forEach(h => { data.titles[h.dataset.title] = text(h); });
+        $$('ol[data-list]').forEach(ol => { data[ol.dataset.list] = entries(ol.dataset.list); });
+        return data;
+    }
+
+    // ---------- administration ----------
+    $('#edShare')?.addEventListener('click', async e => {
+        const btn = e.currentTarget, url = btn.dataset.url;
+        try {
+            await navigator.clipboard.writeText(url);
+            btn.textContent = 'Lien copié ✓';
+            setTimeout(() => { btn.textContent = 'Copier le lien pour le médecin'; }, 2500);
+        } catch {
+            prompt('Lien à envoyer au médecin :', url);
+        }
+    });
+    $('#edExport')?.addEventListener('click', async e => {
+        e.preventDefault();
+        const href = exportUrl || e.currentTarget.href;
+        // exporter la dernière version : attendre l'enregistrement en cours puis enregistrer le reste
+        while (saving) await new Promise(r => setTimeout(r, 150));
+        if (dirty && !(await saveNow())) return;
+        location.href = href;
+    });
+}

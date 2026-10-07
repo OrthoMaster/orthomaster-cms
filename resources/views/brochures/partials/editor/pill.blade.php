@@ -1,0 +1,1 @@
+<li data-pill data-id="{{ $id ?? '' }}"><span>{{ $label ?? '' }}</span><button type="button" class="ed-x" data-act="del" aria-label="Retirer ce domaine" title="Retirer">×</button></li>

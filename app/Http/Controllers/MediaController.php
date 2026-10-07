@@ -135,8 +135,12 @@ class MediaController extends Controller
             'expert_id'     => $request->integer('expert_id') ?: null,
             'content_id'    => null,
         ])
+            ->leftJoin('videos as v', 'v.id', '=', 'content.video_id')
             ->select('content.id_content as id', 'content.title as text')
-            ->where('content.title', 'like', '%' . $term . '%')
+            ->where(function ($q) use ($term) {
+                $q->where('content.title', 'like', '%' . $term . '%')
+                    ->orWhere('v.code', 'like', '%' . $term . '%');
+            })
             ->orderBy('content.title')
             ->limit(20)
             ->get();
@@ -1172,13 +1176,15 @@ class MediaController extends Controller
         return $this->baseContentQuery($f)
             ->leftJoin('past_events as pe', 'pe.id', '=', 'content.id_past_event')
             ->leftJoin('events as ev2', 'ev2.id', '=', 'pe.id_event')
+            ->leftJoin('videos as v', 'v.id', '=', 'content.video_id')
             ->select(
                 'content.id_content',
                 'content.title',
                 'content.version',
                 'content.video_id',
                 'pe.edition_year',
-                'ev2.name as event_name'
+                'ev2.name as event_name',
+                'v.code as video_code'
             )
             ->selectRaw("{$authorSub} as author")
             ->orderByDesc('content.id_content')

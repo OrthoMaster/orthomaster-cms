@@ -10,6 +10,8 @@ use App\Http\Controllers\HealthcareProfessionalController;
 use App\Http\Controllers\ImageController;
 use App\Http\Controllers\LessonController;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\BrochureController;
+use App\Http\Controllers\BrochureDemoController;
 use App\Http\Controllers\CompanyController;
 use App\Http\Controllers\DailyQuestionController;
 use App\Http\Controllers\DashboardController;
@@ -62,8 +64,27 @@ Route::get('/', function () {
 });
 
 // Demo
-Route::get('/demo', function() {
+Route::get('/demo', function () {
     return view('demo.orthomaster');
+});
+Route::get('/exp/{expert:slug}', [BrochureController::class, 'show'])
+    ->where('expert', '[a-z0-9-]+');
+Route::domain(config('brochures.domain'))->group(function () {
+    // Éditeur (lien signé pour le médecin, ou admin connecté)
+    Route::get('/demo/{expert:slug}', [BrochureDemoController::class, 'show'])
+        ->name('brochures.demo');
+    Route::post('/demo/{expert:slug}', [BrochureDemoController::class, 'save'])
+        ->middleware('throttle:60,1')
+        ->name('brochures.demo.save');
+    Route::post('/demo/{expert:slug}/avatar', [BrochureDemoController::class, 'avatar'])
+        ->middleware('throttle:10,1')
+        ->name('brochures.demo.avatar');
+    Route::get('/demo/{expert:slug}/export', [BrochureDemoController::class, 'export'])
+        ->name('brochures.demo.export');
+
+    Route::get('/{expert:slug}', [BrochureController::class, 'show'])
+        ->where('expert', '[a-z0-9-]+')
+        ->name('brochures.show');
 });
 
 Route::get('/login', function () {

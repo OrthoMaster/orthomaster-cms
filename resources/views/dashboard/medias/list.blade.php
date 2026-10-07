@@ -118,16 +118,21 @@
                                         @foreach ($medias as $media)
                                             <tr>
                                                 <td>{{ $media->id_content }}</td>
-                                                <td><b>{{ $media->title }}</b></td>
+                                                <td>
+                                                    <b>{{ $media->title }}</b>
+                                                    @if ($media->video_code)
+                                                        <div style="padding-top: 4px">
+                                                            <span class="media-code">{{ $media->video_code }}</span>
+                                                        </div>
+                                                    @endif
+                                                </td>
                                                 <td>{{ $media->author ?: '—' }}</td>
                                                 <td>
-                                                    {{ $media->edition_year
-                                                        ? $media->edition_year . ' — ' . $media->event_name
-                                                        : '—' }}
+                                                    {{ $media->edition_year ? $media->edition_year . ' — ' . $media->event_name : '—' }}
                                                 </td>
                                                 <td class="no-sort no-click text-right">
                                                     <a href="{{ route('medias.edit', $media->id_content) }}"
-                                                       class="btn btn-sm btn-primary edit">
+                                                        class="btn btn-sm btn-primary edit">
                                                         <i class="voyager-edit"></i>
                                                         <span class="hidden-xs hidden-sm">Modifier</span>
                                                     </a>
@@ -151,24 +156,36 @@
 
 @section('css')
     <link rel="stylesheet" href="{{ asset('css/custom-pagination.css') }}" />
+    <style>
+        .media-code {
+            padding: 2px 9px;
+            border: 1px solid #dfe3e9;
+            border-radius: 7px;
+            font-size: 11px;
+            font-weight: 400;
+            letter-spacing: .04em;
+            color: #8a9199;
+            background: #fafbfc;
+        }
+    </style>
 @stop
 
 @section('javascript')
     <script>
-        $(document).ready(function () {
+        $(document).ready(function() {
 
             /* ---------- Événement + édition (cascade) ---------- */
-            var $event      = $('#event_id'),
-                $pastEvent  = $('#past_event_id'),
+            var $event = $('#event_id'),
+                $pastEvent = $('#past_event_id'),
                 allEditions = $pastEvent.find('option[data-event]').clone();
 
             function refreshEditions() {
-                var eid     = $event.val(),
+                var eid = $event.val(),
                     current = $pastEvent.val();
 
                 $pastEvent.find('option[data-event]').remove();
 
-                allEditions.each(function () {
+                allEditions.each(function() {
                     if (!eid || $(this).data('event') == eid) {
                         $pastEvent.append($(this).clone());
                     }
@@ -178,8 +195,12 @@
                 $pastEvent.trigger('change.select2');
             }
 
-            $event.select2({ width: '100%' });
-            $pastEvent.select2({ width: '100%' });
+            $event.select2({
+                width: '100%'
+            });
+            $pastEvent.select2({
+                width: '100%'
+            });
 
             function eventParams() {
                 return {
@@ -195,18 +216,30 @@
                 allowClear: true,
                 minimumInputLength: 3,
                 language: {
-                    inputTooShort: function () { return 'Saisissez au moins 3 caractères'; },
-                    noResults: function () { return 'Aucun résultat'; },
-                    searching: function () { return 'Recherche…'; }
+                    inputTooShort: function() {
+                        return 'Saisissez au moins 3 caractères';
+                    },
+                    noResults: function() {
+                        return 'Aucun résultat';
+                    },
+                    searching: function() {
+                        return 'Recherche…';
+                    }
                 },
                 ajax: {
                     url: '{{ route('medias.search-experts') }}',
                     dataType: 'json',
                     delay: 250,
-                    data: function (params) {
-                        return $.extend({ q: params.term }, eventParams());
+                    data: function(params) {
+                        return $.extend({
+                            q: params.term
+                        }, eventParams());
                     },
-                    processResults: function (data) { return { results: data }; },
+                    processResults: function(data) {
+                        return {
+                            results: data
+                        };
+                    },
                     cache: true
                 }
             });
@@ -228,18 +261,31 @@
                     allowClear: true,
                     minimumInputLength: 3,
                     language: {
-                        inputTooShort: function () { return 'Saisissez au moins 3 caractères'; },
-                        noResults: function () { return 'Aucun résultat'; },
-                        searching: function () { return 'Recherche…'; }
+                        inputTooShort: function() {
+                            return 'Saisissez au moins 3 caractères';
+                        },
+                        noResults: function() {
+                            return 'Aucun résultat';
+                        },
+                        searching: function() {
+                            return 'Recherche…';
+                        }
                     },
                     ajax: {
                         url: '{{ route('medias.search-videos') }}',
                         dataType: 'json',
                         delay: 250,
-                        data: function (params) {
-                            return $.extend({ q: params.term, expert_id: $('#expert_id').val() }, eventParams());
+                        data: function(params) {
+                            return $.extend({
+                                q: params.term,
+                                expert_id: $('#expert_id').val()
+                            }, eventParams());
                         },
-                        processResults: function (data) { return { results: data }; },
+                        processResults: function(data) {
+                            return {
+                                results: data
+                            };
+                        },
                         cache: true
                     }
                 });
@@ -252,14 +298,14 @@
                 initVideoSelect();
             }
 
-            $event.on('change', function () {
+            $event.on('change', function() {
                 refreshEditions();
                 resetDependents();
             });
 
             $pastEvent.on('change', resetDependents);
 
-            $('#expert_id').on('change', function () {
+            $('#expert_id').on('change', function() {
                 $('#content_id').val(null).find('option[value!=""]').remove();
                 initVideoSelect();
             });

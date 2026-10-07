@@ -1,0 +1,1 @@
+<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect width="24" height="24" rx="6" fill="#1877F2"/><path fill="#fff" d="M15.6 24v-8.5h2.9l.4-3.4h-3.3V9.9c0-1 .3-1.6 1.7-1.6h1.8V5.3c-.3 0-1.4-.1-2.6-.1-2.6 0-4.3 1.6-4.3 4.4v2.5H9.3v3.4h2.9V24z"/></svg>

@@ -108,17 +108,21 @@
   .vbody p{margin:0;font-size:.92rem;color:var(--muted);line-height:1.45}
 
   .connect{padding:6rem 0 5rem}
-  .joinbox{max-width:46rem;padding:clamp(1.6rem,4vw,3rem);border-radius:28px;color:var(--om-ink);position:relative;overflow:hidden;
-    background:var(--om);background:color-mix(in srgb, var(--om) 84%, transparent);
+  /* Join card: soft tint of the doctor's primary colour (OrthoMaster logo keeps the brand orange) */
+  .joinbox{max-width:46rem;padding:clamp(1.6rem,4vw,3rem);border-radius:28px;color:var(--ink);position:relative;overflow:hidden;
+    background:var(--card);
+    background:color-mix(in srgb, color-mix(in srgb, var(--teal) 13%, var(--card)) 88%, transparent);
+    border:1px solid color-mix(in srgb, var(--teal) 24%, transparent);
     -webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
-  .joinbox::after{content:"";position:absolute;right:-6rem;bottom:-7rem;width:18rem;height:18rem;border-radius:50%;border:2.2rem solid currentColor;opacity:.08}
+  .joinbox::after{content:"";position:absolute;right:-6rem;bottom:-7rem;width:18rem;height:18rem;border-radius:50%;border:2.2rem solid var(--teal);opacity:.07}
   .joinbox .om{display:flex;align-items:center;gap:.5rem;font-family:var(--display);font-weight:600;font-size:1.05rem;margin:0 0 1.4rem}
-  .joinbox .om .omlogo{width:1.6rem;height:1.6rem}
+  .joinbox .om .omlogo{width:1.6rem;height:1.6rem;color:var(--om)}
   .joinbox h3{font-family:var(--display);font-weight:800;font-size:clamp(1.9rem,4vw,2.7rem);letter-spacing:-.035em;line-height:1;margin:0;max-width:16ch}
-  .joinbox p{max-width:30rem;margin:1rem 0 1.8rem}
-  .joinbox .btn{border-color:currentColor;color:var(--om-ink)}
-  .joinbox .btn.solid{background:var(--om-ink);color:var(--om);border-color:var(--om-ink)}
-  .joinbox .btn:hover{border-color:currentColor}
+  .joinbox p{max-width:30rem;margin:1rem 0 1.8rem;color:var(--muted)}
+  .joinbox .btn{border-color:color-mix(in srgb, var(--ink) 30%, transparent);color:var(--ink)}
+  .joinbox .btn.solid{background:var(--teal);color:var(--teal-ink);border-color:var(--teal)}
+  .joinbox .btn:hover{border-color:var(--ink)}
+  .joinbox .btn.solid:hover{filter:brightness(1.08);border-color:var(--teal)}
   footer{padding:2rem 0 3rem;color:var(--muted);font-size:.85rem;border-top:1px solid var(--line)}
 
   /* ---------- Demo picker ---------- */
@@ -194,7 +198,7 @@
         <div class="avatar fade" aria-hidden="true">
           <svg viewBox="0 0 100 100" fill="currentColor"><circle cx="50" cy="38" r="19"/><path d="M12 100c0-22 17-37 38-37s38 15 38 37z"/></svg>
         </div>
-        <p class="partner fade">Médecin partenaire <b>OrthoMaster</b></p>
+        <p class="partner fade">Partenaire <b>OrthoMaster</b></p>
         <h1 class="fade d2"><span class="dr">Docteur</span><span class="ln">Prénom</span><span class="ln">Nom</span></h1>
         <p class="role creds fade d3">MB BS, PM&amp;R SAS, MSc Sports Performance, CSL, PhD</p>
         <ul class="expertise fade d3" aria-label="Domaines d’expertise">
