@@ -64,13 +64,11 @@ Route::get('/', function () {
 });
 
 // Demo
-Route::get('/demo', function () {
-    return view('demo.orthomaster');
-});
+Route::get('/demo', [BrochureController::class, 'sample'])
+    ->name('brochures.sample');
 Route::get('/exp/{expert:slug}', [BrochureController::class, 'show'])
     ->where('expert', '[a-z0-9-]+');
 Route::domain(config('brochures.domain'))->group(function () {
-    // Éditeur (lien signé pour le médecin, ou admin connecté)
     Route::get('/demo/{expert:slug}', [BrochureDemoController::class, 'show'])
         ->name('brochures.demo');
     Route::post('/demo/{expert:slug}', [BrochureDemoController::class, 'save'])
@@ -79,6 +77,9 @@ Route::domain(config('brochures.domain'))->group(function () {
     Route::post('/demo/{expert:slug}/avatar', [BrochureDemoController::class, 'avatar'])
         ->middleware('throttle:10,1')
         ->name('brochures.demo.avatar');
+    Route::post('/demo/{expert:slug}/domain', [BrochureDemoController::class, 'addDomain'])
+        ->middleware('throttle:20,1')
+        ->name('brochures.demo.domain');
     Route::get('/demo/{expert:slug}/export', [BrochureDemoController::class, 'export'])
         ->name('brochures.demo.export');
 

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Expert;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\View;
+use App\Support\Brochures\DemoExpert;
 
 class BrochureController extends Controller
 {
@@ -17,7 +18,7 @@ class BrochureController extends Controller
         // affichés sans paramètre inapp, ou avec ?inapp=WEB. Masqués pour toute autre valeur (IOS, ANDROID…).
         $inapp = (string) $request->query('inapp', '');
         $showOrthoMaster = $inapp === '' || strtoupper($inapp) === 'WEB';
-        
+
         return view($view, [
             'expert'          => $expert,
             'showOrthoMaster' => $showOrthoMaster,
@@ -35,5 +36,24 @@ class BrochureController extends Controller
     protected function videosFor(string $expert): array
     {
         return [];
+    }
+
+    /**
+     * Page de démonstration avec des données fictives : /expert_demo
+     * Même règle ?inapp que les pages officielles.
+     */
+    public function sample(Request $request)
+    {
+        $inapp = (string) $request->query('inapp', '');
+        $showOrthoMaster = $inapp === '' || strtoupper($inapp) === 'WEB';
+
+        return view('brochures.expert_demo', [
+            'name'            => DemoExpert::NAME,
+            'demo'            => DemoExpert::data(),
+            'showOrthoMaster' => $showOrthoMaster,
+            'videos'          => $showOrthoMaster ? DemoExpert::videos() : [],
+            'registerUrl'     => config('brochures.register_url'),
+            'orthomasterUrl'  => config('brochures.orthomaster_url'),
+        ]);
     }
 }

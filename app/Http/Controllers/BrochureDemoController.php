@@ -2,13 +2,15 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Domain;
 use App\Models\Expert;
-use App\Support\Brochure\BrochureDraft;
-use App\Support\Brochure\ExpertiseCatalog;
-use App\Support\Brochure\ExpertVideos;
+use App\Support\Brochures\BrochureDraft;
+use App\Support\Brochures\ExpertiseCatalog;
+use App\Support\Brochures\ExpertVideos;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\URL;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Éditeur /demo/{slug} : le médecin modifie sa page, le brouillon est enregistré en XML.
@@ -25,6 +27,13 @@ class BrochureDemoController extends Controller
         $draft = $this->load($expert);
         $isAdmin = $this->isAdmin();
 
+        // Domaines : lus depuis la base (domain_expert).
+        // Ancien brouillon avec des domaines dans le XML et rien en base : on les reprend, ils seront enregistrés au prochain enregistrement.
+        $dbDomains = $expert->domains()->pluck('domains.id')->all();
+        if ($dbDomains || empty($draft['expertise'])) {
+            $draft['expertise'] = $dbDomains;
+        }
+
         return view('brochures.demo', [
             'expert'           => $expert,
             'identity'         => $this->identity($expert),
@@ -36,6 +45,7 @@ class BrochureDemoController extends Controller
             'isAdmin'          => $isAdmin,
             'saveUrl'          => URL::signedRoute('brochures.demo.save', $expert),
             'avatarUrl'        => URL::signedRoute('brochures.demo.avatar', $expert),
+            'domainUrl'        => URL::signedRoute('brochures.demo.domain', $expert),
             'exportUrl'        => $isAdmin ? route('brochures.demo.export', $expert) : null,
             'shareUrl'         => $isAdmin ? URL::signedRoute('brochures.demo', $expert) : null,
             'savedAt'          => $this->savedAt($expert),
@@ -51,13 +61,23 @@ class BrochureDemoController extends Controller
         ]);
     }
 
-    /** Enregistrement AJAX (JSON) du brouillon dans {slug}.xml */
+    /** Enregistrement AJAX : domaines en base (domain_expert), le reste dans {slug}.xml */
     public function save(Request $request, Expert $expert)
     {
         $this->authorizeAccess($request);
 
         $data = BrochureDraft::normalize($request->json()->all());
-        Storage::disk(config('brochures.drafts_disk'))->put($this->path($expert), BrochureDraft::toXml($data));
+
+        DB::transaction(function () use ($expert, $data) {
+            $expert->domains()->sync(
+                collect($data['expertise'])
+                    ->values()
+                    ->mapWithKeys(fn($id, $i) => [$id => ['position' => $i]])
+                    ->all()
+            );
+        });
+
+        Storage::disk('s3')->put($this->path($expert), BrochureDraft::toXml($data));
 
         return response()->json(['ok' => true, 'saved_at' => now()->format('H:i')]);
     }
@@ -92,6 +112,39 @@ class BrochureDemoController extends Controller
         }
 
         return response()->json(['ok' => true, 'url' => $expert->avatar_url]);
+    }
+
+    /**
+     * Ajout AJAX d'un domaine d'expertise absent de la liste.
+     * Si un domaine de même libellé existe déjà (sans tenir compte de la casse), il est renvoyé tel quel.
+     */
+    public function addDomain(Request $request, Expert $expert)
+    {
+        $this->authorizeAccess($request);
+
+        $label = preg_replace('/[\x00-\x1F\x7F]+/u', ' ', (string) $request->input('label', ''));
+        $label = trim(preg_replace('/\s+/u', ' ', $label) ?? '');
+        $request->merge(['label' => $label]);
+
+        $request->validate([
+            'label' => ['required', 'string', 'min:2', 'max:60'],
+        ], [
+            'label.required' => 'Saisissez un domaine.',
+            'label.min'      => 'Le domaine doit comporter au moins 2 caractères.',
+            'label.max'      => 'Le domaine ne doit pas dépasser 60 caractères.',
+        ]);
+
+        $domain = Domain::whereRaw('LOWER(label) = ?', [mb_strtolower($label)])->first()
+            ?? Domain::createOrFirst(
+                ['label' => $label],
+                ['sort_order' => (int) Domain::max('sort_order') + 1]
+            );
+
+        return response()->json([
+            'id'      => $domain->id,
+            'label'   => $domain->label,
+            'created' => $domain->wasRecentlyCreated,
+        ]);
     }
 
     /** Téléchargement de index.blade.php généré depuis le brouillon enregistré (admin). */
@@ -137,14 +190,14 @@ class BrochureDemoController extends Controller
 
     protected function load(Expert $expert): array
     {
-        $disk = Storage::disk(config('brochures.drafts_disk'));
+        $disk = Storage::disk('s3');
 
         return BrochureDraft::fromXml($disk->exists($this->path($expert)) ? $disk->get($this->path($expert)) : null);
     }
 
     protected function savedAt(Expert $expert): ?string
     {
-        $disk = Storage::disk(config('brochures.drafts_disk'));
+        $disk = Storage::disk('s3');
 
         return $disk->exists($this->path($expert))
             ? date('d/m/Y H:i', $disk->lastModified($this->path($expert)))

@@ -17,6 +17,13 @@ class Expert extends Model
             : null);
     }
 
+    public function domains()
+    {
+        return $this->belongsToMany(Domain::class)
+            ->withPivot('position')
+            ->orderByPivot('position');
+    }
+
     public function videos()
     {
         return $this->belongsToMany(Video::class);

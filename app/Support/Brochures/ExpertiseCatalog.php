@@ -1,39 +1,25 @@
 <?php
 
-namespace App\Support\Brochure;
+namespace App\Support\Brochures;
+
+use App\Models\Domain;
 
 /**
- * Liste des domaines d'expertise proposés dans l'éditeur.
- * Plus tard : remplacer all() par une requête, par exemple
- *   return Expertise::orderBy('label')->pluck('label', 'id')->all();
+ * Domaines d'expertise, lus depuis la table `domains`.
+ * Mis en cache pour la durée de la requête.
  */
 class ExpertiseCatalog
 {
+    private static ?array $cache = null;
+
     /** @return array<int, string> id => libellé */
     public static function all(): array
     {
-        return [
-            1  => 'Rééducation orthopédique',
-            2  => 'Médecine du sport',
-            3  => 'Médecine régénérative',
-            4  => 'Médecine physique et de réadaptation',
-            5  => 'Rhumatologie',
-            6  => 'Rhumatismes inflammatoires',
-            7  => 'Échographie musculo-squelettique',
-            8  => 'Infiltrations écho-guidées',
-            9  => 'Traumatologie du sport',
-            10 => 'Pathologies tendineuses',
-            11 => 'Arthroscopie',
-            12 => 'Prothèses articulaires',
-            13 => 'Chirurgie du genou',
-            14 => 'Chirurgie de l’épaule',
-            15 => 'Chirurgie de la hanche',
-            16 => 'Chirurgie de la main et du poignet',
-            17 => 'Chirurgie du pied et de la cheville',
-            18 => 'Chirurgie du rachis',
-            19 => 'Podologie médicale',
-            20 => 'Ostéoporose',
-        ];
+        return self::$cache ??= Domain::query()
+            ->orderBy('sort_order')
+            ->orderBy('label')
+            ->pluck('label', 'id')
+            ->all();
     }
 
     /**

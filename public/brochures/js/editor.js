@@ -13,6 +13,7 @@ if (bar && panel) init();
 function init() {
     const saveUrl = bar.dataset.saveUrl;
     const avatarUrl = bar.dataset.avatarUrl;
+    const domainUrl = bar.dataset.domainUrl;
     const exportUrl = bar.dataset.exportUrl || null;
     const csrf = $('meta[name="csrf-token"]')?.content || '';
     const AUTOSAVE_DELAY = 1500;
@@ -227,33 +228,41 @@ function init() {
     }
     updatePlacesButton();
 
-    // ---------- domaines d'expertise : choix dans la liste ----------
+    // ---------- domaines d'expertise : choix dans la liste, ou ajout d'un nouveau domaine ----------
     const pillsUl = $('ul[data-list="expertise"]');
     const pop = $('#edExpertise'), popBtn = $('#edExpertiseBtn'), search = $('#edExpertiseSearch');
-    const boxes = $$('input[type="checkbox"]', pop);
+    const optList = $('.ed-pop-list', pop), newBtn = $('#edExpertiseNew');
     const count = $('#edExpertiseCount');
-    const setChecked = (id, on) => { const b = boxes.find(x => x.value === String(id)); if (b) b.checked = on; refreshPop(); };
+    const boxes = () => $$('input[type="checkbox"]', optList);
+    const norm = v => v.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+
+    const setChecked = (id, on) => { const b = boxes().find(x => x.value === String(id)); if (b) b.checked = on; refreshPop(); };
     function refreshPop() {
-        const n = boxes.filter(b => b.checked).length;
+        const all = boxes(), n = all.filter(b => b.checked).length;
         count.textContent = `${n} / ${MAX_PILLS} sélectionné${n > 1 ? 's' : ''}`;
-        boxes.forEach(b => { b.disabled = !b.checked && n >= MAX_PILLS; });
+        all.forEach(b => { b.disabled = !b.checked && n >= MAX_PILLS; });
+        newBtn.disabled = n >= MAX_PILLS;
+    }
+    function filter(q) {
+        const nq = norm(q);
+        let exact = false;
+        boxes().forEach(b => {
+            const l = norm(b.dataset.label);
+            b.closest('.ed-opt').hidden = nq !== '' && !l.includes(nq);
+            if (l === nq) exact = true;
+        });
+        // proposer l'ajout seulement si le texte ne correspond exactement à aucun domaine
+        const label = q.trim().replace(/\s+/g, ' ');
+        newBtn.hidden = label.length < 2 || exact;
+        newBtn.dataset.label = label;
+        newBtn.textContent = `+ Ajouter « ${label} »`;
     }
     function openPop(open) {
         pop.hidden = !open;
         popBtn.setAttribute('aria-expanded', String(open));
         if (open) { search.value = ''; filter(''); search.focus(); }
     }
-    function filter(q) {
-        const norm = v => v.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-        const nq = norm(q.trim());
-        boxes.forEach(b => { b.closest('.ed-opt').hidden = nq !== '' && !norm(b.dataset.label).includes(nq); });
-    }
-    popBtn.addEventListener('click', e => { e.stopPropagation(); openPop(pop.hidden); });
-    $('#edExpertiseClose').addEventListener('click', () => { openPop(false); popBtn.focus(); });
-    search.addEventListener('input', () => filter(search.value));
-    document.addEventListener('click', e => { if (!pop.hidden && !pop.contains(e.target) && e.target !== popBtn) openPop(false); });
-    document.addEventListener('keydown', e => { if (e.key === 'Escape' && !pop.hidden) { openPop(false); popBtn.focus(); } });
-    boxes.forEach(b => b.addEventListener('change', () => {
+    function togglePill(b) {
         const pill = $(`[data-pill][data-id="${b.value}"]`, pillsUl);
         if (b.checked && !pill) {
             const node = tplPill.content.firstElementChild.cloneNode(true);
@@ -263,9 +272,76 @@ function init() {
         } else if (!b.checked && pill) {
             pill.remove();
         }
+    }
+
+    async function addDomain() {
+        const label = newBtn.dataset.label;
+        if (!label || newBtn.hidden || newBtn.disabled) return;
+        newBtn.disabled = true;
+        try {
+            const res = await fetch(domainUrl, {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': csrf,
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: JSON.stringify({ label }),
+            });
+            const json = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                throw new Error(json.errors?.label?.[0]
+                    || (res.status === 419 ? 'Session expirée : rechargez la page.'
+                    : res.status === 403 ? 'Lien expiré ou non valide.'
+                    : 'Impossible d’ajouter ce domaine.'));
+            }
+            // domaine nouveau (ou déjà existant) : l'ajouter à la liste s'il n'y est pas, puis le cocher
+            let b = boxes().find(x => x.value === String(json.id));
+            if (!b) {
+                const opt = document.createElement('label');
+                opt.className = 'ed-opt';
+                b = document.createElement('input');
+                b.type = 'checkbox';
+                b.value = String(json.id);
+                b.dataset.label = json.label;
+                const span = document.createElement('span');
+                span.textContent = json.label;
+                opt.append(b, span);
+                optList.append(opt);
+            }
+            if (!b.checked) {
+                b.checked = true;
+                togglePill(b);
+                changed();
+            }
+            search.value = '';
+            filter('');
+            search.focus();
+        } catch (err) {
+            setStatus('error', err.message);
+        } finally {
+            refreshPop();
+        }
+    }
+
+    popBtn.addEventListener('click', e => { e.stopPropagation(); openPop(pop.hidden); });
+    $('#edExpertiseClose').addEventListener('click', () => { openPop(false); popBtn.focus(); });
+    search.addEventListener('input', () => filter(search.value));
+    search.addEventListener('keydown', e => {
+        if (e.key === 'Enter') { e.preventDefault(); addDomain(); }
+    });
+    newBtn.addEventListener('click', addDomain);
+    document.addEventListener('click', e => { if (!pop.hidden && !pop.contains(e.target) && e.target !== popBtn) openPop(false); });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape' && !pop.hidden) { openPop(false); popBtn.focus(); } });
+    optList.addEventListener('change', e => {
+        const b = e.target;
+        if (!(b instanceof HTMLInputElement) || b.type !== 'checkbox') return;
+        togglePill(b);
         refreshPop();
         changed();
-    }));
+    });
     refreshPop();
 
     // ---------- avatar : upload direct, l'ancien fichier est supprimé côté serveur ----------

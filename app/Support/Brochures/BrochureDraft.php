@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Support\Brochure;
+namespace App\Support\Brochures;
 
 use DOMDocument;
 use DOMElement;
@@ -170,11 +170,6 @@ class BrochureDraft
             self::el($doc, $links, $link, $data[$link]);
         }
 
-        $expertise = self::el($doc, $root, 'expertise');
-        foreach ($data['expertise'] as $id) {
-            self::el($doc, $expertise, 'item')->setAttribute('id', (string) $id);
-        }
-
         $places = self::el($doc, $root, 'places');
         foreach ($data['places'] as $place) {
             $node = self::el($doc, $places, 'place');
@@ -275,7 +270,6 @@ class BrochureDraft
                 'honorific'   => $d['honorific'],
                 'name'        => $name,
                 'credentials' => $d['credentials'],
-                'expertise'   => $d['expertise'],   // ids : libellés résolus par ExpertiseCatalog
                 'lede'        => $d['lede'],
                 'places'      => $d['places'],
                 'doctolib'    => $d['doctolib'],

@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Support\Brochure;
+namespace App\Support\Brochures;
 
 use App\Models\Expert;
 

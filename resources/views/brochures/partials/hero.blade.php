@@ -1,23 +1,10 @@
-{{--
-    Hero standard (facultatif : un expert peut écrire son propre hero).
-
-    @include('brochures.partials.hero', [
-        'honorific'   => 'Docteur',                          // facultatif (Docteur, Professeur…), vide = masqué
-        'name'        => 'Etienne Dahan',
-        'credentials' => 'MB BS, PhD',                       // facultatif
-        'expertise'   => [2, 7],                             // facultatif : ids de ExpertiseCatalog (ou libellés)
-        'lede'        => 'Courte présentation.',             // facultatif
-        'places'      => [['name' => '…', 'address' => '…', 'city' => '75005 Paris']],   // facultatif
-        'doctolib'    => 'https://www.doctolib.fr/…',        // facultatif
-        'linkedin'    => 'https://www.linkedin.com/in/…',    // facultatif
-        'facebook'    => 'https://www.facebook.com/…',       // facultatif
-        'avatar'      => null,   // facultatif : par défaut $expert->avatar_url (storage), sinon silhouette
-    ])
---}}
 @php
     $avatar = $avatar ?? (isset($expert) ? $expert->avatar_url : null);
     $honorific = $honorific ?? 'Docteur';
-    $expertiseLabels = \App\Support\Brochures\ExpertiseCatalog::labels($expertise ?? []);
+    // 'expertise' passé explicitement (pages anciennes, /expert_demo) ; sinon les domaines de l'expert en base
+    $expertiseLabels = isset($expertise)
+        ? \App\Support\Brochures\ExpertiseCatalog::labels($expertise)
+        : (isset($expert) ? $expert->domains->pluck('label')->all() : []);
 @endphp
 <section class="hero">
     <div class="col">

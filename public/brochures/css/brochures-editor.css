@@ -163,7 +163,7 @@ ol.tl li:hover .ed-tools, ol.tl li:focus-within .ed-tools{opacity:1}
 .expertise [data-pill] span{min-width:0}
 
 /* ---------- Lieux d'exercice : édition ---------- */
-.workplaces li[data-place]{position:relative;padding-right:1.6rem}
+.workplaces li[data-place]{position:relative;padding-right:1.6rem;padding-bottom:1.6rem}
 .workplaces li[data-place] .ed-x{position:absolute;right:0;top:0;opacity:0;transition:opacity .15s;border-color:var(--line);background:var(--card)}
 .workplaces li[data-place]:hover .ed-x,.workplaces li[data-place]:focus-within .ed-x{opacity:1}
 .ed-mode .wp-lines [contenteditable]{min-width:10rem}
@@ -172,3 +172,11 @@ ol.tl li:hover .ed-tools, ol.tl li:focus-within .ed-tools{opacity:1}
 .ed-preview li[data-place]:not(:has([data-k]:not(:empty))){display:none}
 .ed-preview .workplaces li[data-place]{padding-right:0}
 @media (hover:none){ .workplaces li[data-place] .ed-x{opacity:1} }
+
+/* Ajout d'un domaine absent de la liste */
+.ed-opt-new{all:unset;box-sizing:border-box;cursor:pointer;display:block;width:100%;margin:0 0 .5rem;padding:.5rem .6rem;border-radius:8px;
+  border:1.5px dashed color-mix(in srgb, var(--teal) 55%, transparent);color:var(--teal);font:600 .88rem/1.3 var(--body);overflow-wrap:anywhere}
+.ed-opt-new:hover{background:color-mix(in srgb, var(--teal) 9%, transparent)}
+.ed-opt-new:focus-visible{outline:2px solid var(--teal);outline-offset:2px}
+.ed-opt-new[hidden]{display:none}
+.ed-opt-new:disabled{opacity:.5;cursor:not-allowed}
