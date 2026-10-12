@@ -3,49 +3,38 @@
 namespace App\Http\Controllers;
 
 use App\Models\Expert;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\View;
+use App\Support\Brochures\BrochureDraft;
 use App\Support\Brochures\DemoExpert;
+use App\Support\Brochures\ExpertVideos;
+use Illuminate\Http\Request;
 
 class BrochureController extends Controller
 {
+    /**
+     * Page publique : https://expert.orthomaster.fr/{slug}
+     * Lit la version publiée (colonnes de experts + experts.brochure). 404 tant que rien n'a été publié.
+     */
     public function show(Request $request, Expert $expert)
     {
-        $view = "brochures.experts.{$expert->id}.index";
-        abort_unless(View::exists($view), 404);
+        abort_unless($expert->brochure_published_at, 404);
 
-        // Blocs OrthoMaster (vidéos, « Toutes ses vidéos », bouton OrthoMaster) :
-        // affichés sans paramètre inapp, ou avec ?inapp=WEB. Masqués pour toute autre valeur (IOS, ANDROID…).
-        $inapp = (string) $request->query('inapp', '');
-        $showOrthoMaster = $inapp === '' || strtoupper($inapp) === 'WEB';
+        $showOrthoMaster = $this->showOrthoMaster($request);
+        $expert->loadMissing('domains');
 
-        return view($view, [
+        return view('brochures.expert', [
             'expert'          => $expert,
+            'brochure'        => BrochureDraft::fromRecord($expert, 'brochure'),
             'showOrthoMaster' => $showOrthoMaster,
-            'videos'          => $showOrthoMaster ? $this->videosFor($expert) : [],
-            'registerUrl'     => 'https://auth.orthomaster.fr/register',
-            'orthomasterUrl'  => 'https://www.orthomaster.fr/',
+            'videos'          => $showOrthoMaster ? ExpertVideos::for($expert) : [],
+            'registerUrl'     => config('brochures.register_url'),
+            'orthomasterUrl'  => config('brochures.orthomaster_url'),
         ]);
     }
 
-    /**
-     * Vidéos de l'expert sur OrthoMaster.
-     * À brancher sur vos modèles (ex. Expert::findOrFail($expert)->videos).
-     * Chaque vidéo : title, description, duration, url, thumbnail (facultatif).
-     */
-    protected function videosFor(string $expert): array
-    {
-        return [];
-    }
-
-    /**
-     * Page de démonstration avec des données fictives : /expert_demo
-     * Même règle ?inapp que les pages officielles.
-     */
+    /** Page de démonstration avec des données fictives : /expert_demo */
     public function sample(Request $request)
     {
-        $inapp = (string) $request->query('inapp', '');
-        $showOrthoMaster = $inapp === '' || strtoupper($inapp) === 'WEB';
+        $showOrthoMaster = $this->showOrthoMaster($request);
 
         return view('brochures.expert_demo', [
             'name'            => DemoExpert::NAME,
@@ -55,5 +44,13 @@ class BrochureController extends Controller
             'registerUrl'     => config('brochures.register_url'),
             'orthomasterUrl'  => config('brochures.orthomaster_url'),
         ]);
+    }
+
+    /** Blocs OrthoMaster : affichés sans paramètre inapp ou avec ?inapp=WEB, masqués sinon. */
+    protected function showOrthoMaster(Request $request): bool
+    {
+        $inapp = (string) $request->query('inapp', '');
+
+        return $inapp === '' || strtoupper($inapp) === 'WEB';
     }
 }

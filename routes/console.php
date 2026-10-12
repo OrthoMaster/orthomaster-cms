@@ -64,3 +64,7 @@ Schedule::command('emails:ad-provider')
 Schedule::command('video-ads:snapshot')
     ->monthlyOn(now()->endOfMonth()->day, '23:00')
     ->timezone('Europe/Paris');
+
+// AI Search
+Schedule::command('ai-search:index')->dailyAt('02:30')->withoutOverlapping();
+Schedule::command('queue:work --queue=ai-search --stop-when-empty')->everyMinute()->withoutOverlapping();

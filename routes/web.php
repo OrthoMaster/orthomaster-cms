@@ -38,6 +38,8 @@ use App\Http\Controllers\QuizController;
 use App\Http\Controllers\SaleAssignmentController;
 use App\Http\Controllers\TrainingPermissionController;
 use App\Http\Controllers\WebController;
+use App\Http\Controllers\Booking\ConfigController;
+use App\Http\Controllers\Booking\ExpertSetupController;
 use Illuminate\Support\Facades\Route;
 use TCG\Voyager\Facades\Voyager;
 
@@ -63,30 +65,6 @@ Route::get('/', function () {
     return redirect()->away('https://orthomaster.fr', 301);
 });
 
-// Demo
-Route::get('/demo', [BrochureController::class, 'sample'])
-    ->name('brochures.sample');
-Route::get('/exp/{expert:slug}', [BrochureController::class, 'show'])
-    ->where('expert', '[a-z0-9-]+');
-Route::domain(config('brochures.domain'))->group(function () {
-    Route::get('/demo/{expert:slug}', [BrochureDemoController::class, 'show'])
-        ->name('brochures.demo');
-    Route::post('/demo/{expert:slug}', [BrochureDemoController::class, 'save'])
-        ->middleware('throttle:60,1')
-        ->name('brochures.demo.save');
-    Route::post('/demo/{expert:slug}/avatar', [BrochureDemoController::class, 'avatar'])
-        ->middleware('throttle:10,1')
-        ->name('brochures.demo.avatar');
-    Route::post('/demo/{expert:slug}/domain', [BrochureDemoController::class, 'addDomain'])
-        ->middleware('throttle:20,1')
-        ->name('brochures.demo.domain');
-    Route::get('/demo/{expert:slug}/export', [BrochureDemoController::class, 'export'])
-        ->name('brochures.demo.export');
-
-    Route::get('/{expert:slug}', [BrochureController::class, 'show'])
-        ->where('expert', '[a-z0-9-]+')
-        ->name('brochures.show');
-});
 
 Route::get('/login', function () {
     return redirect()->route('voyager.login');
@@ -109,6 +87,33 @@ Route::post('/group/register/{code}/draft', [AuthCompanyRequestController::class
 Route::get('/group/members', [AuthCompanyRequestController::class, 'redirectRegisterView'])->name('register.company.redirect');
 
 Route::get('/legal-notice', [WebController::class, 'legalNotice'])->name('web.legal-notice');
+
+// Demo
+Route::get('/demo', [BrochureController::class, 'sample'])
+    ->name('brochures.sample');
+Route::get('/experts/{expert:slug}', [BrochureController::class, 'show'])
+    ->where('expert', '[a-z0-9-]+');
+Route::domain(config('brochures.domain'))->group(function () {
+    Route::get('/demo/{expert:slug}', [BrochureDemoController::class, 'show'])
+        ->name('brochures.demo');
+    Route::post('/demo/{expert:slug}', [BrochureDemoController::class, 'save'])
+        ->middleware('throttle:60,1')
+        ->name('brochures.demo.save');
+    Route::post('/demo/{expert:slug}/avatar', [BrochureDemoController::class, 'avatar'])
+        ->middleware('throttle:10,1')
+        ->name('brochures.demo.avatar');
+    Route::post('/demo/{expert:slug}/domain', [BrochureDemoController::class, 'addDomain'])
+        ->middleware('throttle:20,1')
+        ->name('brochures.demo.domain');
+    Route::post('/demo/{expert:slug}/publish', [BrochureDemoController::class, 'publish'])
+        ->name('brochures.demo.publish');
+    Route::get('/demo/{expert:slug}/export', [BrochureDemoController::class, 'export'])
+        ->name('brochures.demo.export');
+
+    Route::get('experts/{expert:slug}', [BrochureController::class, 'show'])
+        ->where('expert', '[a-z0-9-]+')
+        ->name('brochures.show');
+});
 
 Route::group(['prefix' => 'admin', 'middleware' => ['cmsAdmin']], function () {
     Route::get('/', [DashboardUserController::class, 'index'])->name('voyager.dashboard');
@@ -450,6 +455,53 @@ Route::group(['prefix' => 'admin', 'middleware' => ['cmsAdmin']], function () {
             Route::get('/test/devices/{userId}', [NotificationTestController::class, 'devices'])->name('test.devices');
             Route::get('/test/targets/{type}', [NotificationTestController::class, 'targets'])->name('test.targets');
             Route::post('/test', [NotificationTestController::class, 'send'])->name('test.send');
+        });
+
+
+
+    /* ===================== RENDEZ-VOUS EXPERTS ===================== */
+    Route::prefix('booking')
+        ->name('booking.')
+        ->group(function () {
+            /* --- Experts --- */
+            Route::controller(ExpertSetupController::class)
+                ->prefix('experts')
+                ->name('experts.')
+                ->group(function () {
+                    Route::get('/', 'index')->name('index');
+
+                    Route::prefix('{expertId}')->whereNumber('expertId')->group(function () {
+                        Route::get('/', 'show')->name('show');
+                        Route::put('settings', 'updateSettings')->name('settings.update');
+
+                        Route::post('offers', 'storeOffer')->name('offers.store');
+                        Route::put('offers/{offer}', 'updateOffer')->name('offers.update');
+                        Route::delete('offers/{offer}', 'destroyOffer')->name('offers.destroy');
+
+                        Route::post('rules', 'storeRules')->name('rules.store');
+                        Route::delete('rules/{rule}', 'destroyRule')->name('rules.destroy');
+
+                        Route::post('exceptions', 'storeExceptions')->name('exceptions.store');
+                        Route::delete('exceptions/{exception}', 'destroyException')->name('exceptions.destroy');
+                    });
+                });
+
+            /* --- Configuration générale --- */
+            Route::controller(ConfigController::class)
+                ->prefix('config')
+                ->name('config.')
+                ->group(function () {
+                    Route::get('/', 'index')->name('index');
+
+                    Route::post('policies', 'storePolicy')->name('policies.store');
+                    Route::delete('policies/{policy}', 'destroyPolicy')->name('policies.destroy');
+
+                    Route::post('commissions', 'storeCommission')->name('commissions.store');
+                    Route::delete('commissions/{commission}', 'destroyCommission')->name('commissions.destroy');
+
+                    Route::post('reasons', 'storeReason')->name('reasons.store');
+                    Route::put('reasons/{reason}', 'updateReason')->name('reasons.update');
+                });
         });
 });
 

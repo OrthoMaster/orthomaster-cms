@@ -20,7 +20,7 @@
     {{-- ---------------- Barre de mode : Édition / Aperçu + état de l'enregistrement ---------------- --}}
     <div class="ed-bar" id="edBar" data-save-url="{{ $saveUrl }}" data-avatar-url="{{ $avatarUrl }}"
         data-domain-url="{{ $domainUrl }}"
-        @if ($exportUrl) data-export-url="{{ $exportUrl }}" @endif>
+        @if ($publishUrl) data-publish-url="{{ $publishUrl }}" @endif>
         <div class="ed-seg" role="group" aria-label="Mode d’affichage">
             <button type="button" class="ed-seg-btn" data-mode="edit" aria-pressed="true">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
@@ -93,14 +93,20 @@
                     placeholder="https://www.facebook.com/…" inputmode="url" autocomplete="off">
             </label>
 
-            @if ($isAdmin)
-                <div class="ed-admin">
-                    <p class="pk-h">Administration</p>
+            {{-- Publication : la page publique ne change qu'après « Publier » (admin) --}}
+            <div class="ed-admin">
+                <p class="pk-h">Publication</p>
+                <p class="ed-pub" id="edPubState" data-state="{{ $publication['state'] }}">
+                    <span class="ed-dot" aria-hidden="true"></span><span
+                        class="ed-pub-txt">{{ $publication['label'] }}</span>
+                </p>
+                @if ($isAdmin)
+                    <button type="button" class="ed-btn primary" id="edPublish"
+                        @disabled($publication['state'] === 'published')>Publier</button>
                     <button type="button" class="ed-btn" id="edShare" data-url="{{ $shareUrl }}">Copier le lien
                         pour le médecin</button>
-                    <a class="ed-btn" id="edExport" href="{{ $exportUrl }}">Télécharger index.blade.php</a>
-                </div>
-            @endif
+                @endif
+            </div>
         </div>
     </aside>
 

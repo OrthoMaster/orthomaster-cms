@@ -27,6 +27,9 @@ use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\SystemNotificationController;
 use App\Http\Controllers\Tracking\TrkAppOpenController;
 use App\Http\Controllers\VideoController;
+use App\Http\Controllers\API\BookingExpertController;
+use App\Http\Controllers\API\ExpertBookingSetupController;
+use App\Http\Controllers\API\AiVideoSearchController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -168,6 +171,9 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::post('/search/lesson-openable', [SearchController::class, 'checkOpenableLesson']);
 
         Route::post('/s3-url', [SearchController::class, 'getS3Url']);
+
+        Route::get('/ai-search/status', [AiVideoSearchController::class, 'status']);
+        Route::post('/ai-search', [AiVideoSearchController::class, 'search']);
     });
 
     // Media
@@ -233,6 +239,33 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::post('/ask', [ChatbotController::class, 'ask']);
         Route::get('/history/{conversationId}', [ChatbotController::class, 'history']);
         Route::get('/conversations', [ChatbotController::class, 'conversations']);
+    });
+
+
+    /* ===================== RENDEZ-VOUS EXPERTS ===================== */
+    Route::prefix('booking')->group(function () {
+
+        /* --- Utilisateur : parcourir les experts --- */
+        Route::get('experts', [BookingExpertController::class, 'index']);
+        Route::get('experts/{expertId}', [BookingExpertController::class, 'show'])->whereNumber('expertId');
+        Route::get('experts/{expertId}/availability', [BookingExpertController::class, 'availability'])->whereNumber('expertId');
+
+        /* --- Expert : sa propre configuration --- */
+        Route::controller(ExpertBookingSetupController::class)->prefix('me')->group(function () {
+            Route::get('/', 'show');
+            Route::get('preview', 'preview');
+            Route::put('settings', 'updateSettings');
+
+            Route::post('offers', 'storeOffer');
+            Route::put('offers/{offer}', 'updateOffer');
+            Route::delete('offers/{offer}', 'destroyOffer');
+
+            Route::post('rules', 'storeRules');
+            Route::delete('rules/{rule}', 'destroyRule');
+
+            Route::post('exceptions', 'storeExceptions');
+            Route::delete('exceptions/{exception}', 'destroyException');
+        });
     });
 });
 

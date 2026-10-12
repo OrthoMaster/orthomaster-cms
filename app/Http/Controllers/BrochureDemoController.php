@@ -4,19 +4,22 @@ namespace App\Http\Controllers;
 
 use App\Models\Domain;
 use App\Models\Expert;
+use App\Models\ExpertBrochureDraft;
 use App\Support\Brochures\BrochureDraft;
 use App\Support\Brochures\ExpertiseCatalog;
 use App\Support\Brochures\ExpertVideos;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\URL;
-use Illuminate\Support\Facades\DB;
 
 /**
- * Éditeur /demo/{slug} : le médecin modifie sa page, le brouillon est enregistré en XML.
+ * Éditeur /demo/{slug}.
+ *  - Contenu de la page : enregistré automatiquement dans expert_brochure_drafts (brouillon).
+ *  - « Publier » (admin) : copie le brouillon dans experts (colonnes + experts.brochure).
+ *  - Domaines et avatar : enregistrés directement dans la table principale.
  *
- * Accès : lien signé (envoyé au médecin) OU administrateur connecté (role = 1).
- * Export index.blade.php : administrateur uniquement.
+ * Accès : lien signé (envoyé au médecin) OU administrateur connecté.
  */
 class BrochureDemoController extends Controller
 {
@@ -24,20 +27,19 @@ class BrochureDemoController extends Controller
     {
         $this->authorizeAccess($request);
 
-        $draft = $this->load($expert);
+        $draft = $expert->brochureDraft;
+        $data = match (true) {
+            $draft !== null                      => BrochureDraft::fromRecord($draft, 'data'),
+            $expert->brochure_published_at !== null => BrochureDraft::fromRecord($expert, 'brochure'),
+            default                              => BrochureDraft::defaults(),
+        };
+        $data['expertise'] = $expert->domains()->pluck('domains.id')->all();
         $isAdmin = $this->isAdmin();
-
-        // Domaines : lus depuis la base (domain_expert).
-        // Ancien brouillon avec des domaines dans le XML et rien en base : on les reprend, ils seront enregistrés au prochain enregistrement.
-        $dbDomains = $expert->domains()->pluck('domains.id')->all();
-        if ($dbDomains || empty($draft['expertise'])) {
-            $draft['expertise'] = $dbDomains;
-        }
 
         return view('brochures.demo', [
             'expert'           => $expert,
             'identity'         => $this->identity($expert),
-            'draft'            => $draft,
+            'draft'            => $data,
             'palettes'         => BrochureDraft::PALETTES,
             'models'           => BrochureDraft::MODELS,
             'timelines'        => BrochureDraft::TIMELINES,
@@ -46,14 +48,15 @@ class BrochureDemoController extends Controller
             'saveUrl'          => URL::signedRoute('brochures.demo.save', $expert),
             'avatarUrl'        => URL::signedRoute('brochures.demo.avatar', $expert),
             'domainUrl'        => URL::signedRoute('brochures.demo.domain', $expert),
-            'exportUrl'        => $isAdmin ? route('brochures.demo.export', $expert) : null,
+            'publishUrl'       => $isAdmin ? route('brochures.demo.publish', $expert) : null,
             'shareUrl'         => $isAdmin ? URL::signedRoute('brochures.demo', $expert) : null,
-            'savedAt'          => $this->savedAt($expert),
+            'savedAt'          => $draft?->updated_at?->format('d/m/Y H:i'),
+            'publication'      => $this->publication($expert, $draft),
 
             // données attendues par le gabarit commun
-            'title'            => 'Édition : ' . $this->identity($expert)['name'],
-            'palette'          => $draft['palette'],
-            'model'            => $draft['model'],
+            'title'            => 'Édition : '.$expert->name,
+            'palette'          => $data['palette'],
+            'model'            => $data['model'],
             'showOrthoMaster'  => true,
             'videos'           => ExpertVideos::for($expert),
             'registerUrl'      => config('brochures.register_url'),
@@ -61,29 +64,75 @@ class BrochureDemoController extends Controller
         ]);
     }
 
-    /** Enregistrement AJAX : domaines en base (domain_expert), le reste dans {slug}.xml */
+    /**
+     * Enregistrement AJAX.
+     * Domaines : directement dans domain_expert. Reste : brouillon (colonnes + JSON).
+     * Toute modification du brouillon le repasse en « non publié » (published_at = NULL).
+     */
     public function save(Request $request, Expert $expert)
     {
         $this->authorizeAccess($request);
 
         $data = BrochureDraft::normalize($request->json()->all());
+        [$columns, $json] = BrochureDraft::split($data);
 
-        DB::transaction(function () use ($expert, $data) {
+        $draft = DB::transaction(function () use ($expert, $data, $columns, $json) {
             $expert->domains()->sync(
                 collect($data['expertise'])
                     ->values()
-                    ->mapWithKeys(fn($id, $i) => [$id => ['position' => $i]])
+                    ->mapWithKeys(fn ($id, $i) => [$id => ['position' => $i]])
                     ->all()
             );
+
+            $draft = $expert->brochureDraft()->lockForUpdate()->firstOrNew();
+
+            $changed = ! $draft->exists
+                || $draft->data != $json
+                || $draft->only(BrochureDraft::COLUMNS) != $columns;
+
+            if ($changed) {
+                $draft->forceFill($columns);
+                $draft->data = $json;
+                $draft->published_at = null;
+                $draft->save();
+            }
+
+            return $draft;
         });
 
-        Storage::disk('s3')->put($this->path($expert), BrochureDraft::toXml($data));
+        return response()->json([
+            'ok'        => true,
+            'saved_at'  => now()->format('H:i'),
+            'published' => $draft->isPublished(),
+        ]);
+    }
 
-        return response()->json(['ok' => true, 'saved_at' => now()->format('H:i')]);
+    /** Copie le brouillon dans experts (admin). */
+    public function publish(Expert $expert)
+    {
+        abort_unless($this->isAdmin(), 403);
+
+        $now = now();
+
+        DB::transaction(function () use ($expert, $now) {
+            $draft = $expert->brochureDraft()->lockForUpdate()->first();
+            abort_unless($draft, 422, 'Aucune modification à publier.');
+
+            $expert->forceFill([
+                ...$draft->only(BrochureDraft::COLUMNS),
+                'brochure'              => $draft->data,
+                'brochure_published_at' => $now,
+            ])->save();
+
+            $draft->timestamps = false; // conserver la date du dernier enregistrement
+            $draft->forceFill(['published_at' => $now])->save();
+        });
+
+        return response()->json(['ok' => true, 'published_at' => $now->format('d/m/Y H:i')]);
     }
 
     /**
-     * Upload AJAX de l'avatar (enregistré directement sur l'expert, donc visible aussi sur la page officielle).
+     * Upload AJAX de l'avatar (enregistré directement sur l'expert).
      * L'ancien fichier est supprimé une fois le nouveau enregistré.
      */
     public function avatar(Request $request, Expert $expert)
@@ -147,20 +196,6 @@ class BrochureDemoController extends Controller
         ]);
     }
 
-    /** Téléchargement de index.blade.php généré depuis le brouillon enregistré (admin). */
-    public function export(Expert $expert)
-    {
-        abort_unless($this->isAdmin(), 403);
-
-        $blade = BrochureDraft::toBlade($this->load($expert), $this->identity($expert));
-
-        return response()->streamDownload(
-            fn() => print($blade),
-            'index.blade.php',
-            ['Content-Type' => 'text/plain; charset=UTF-8']
-        );
-    }
-
     // ------------------------------------------------------------------
 
     protected function authorizeAccess(Request $request): void
@@ -173,7 +208,6 @@ class BrochureDemoController extends Controller
         return in_array((int) auth()->user()?->role_id, [1, 3, 7], true);
     }
 
-    /** Nom affiché depuis la base (colonne experts.name). */
     protected function identity(Expert $expert): array
     {
         return [
@@ -183,24 +217,16 @@ class BrochureDemoController extends Controller
         ];
     }
 
-    protected function path(Expert $expert): string
+    /** État de publication affiché dans l'éditeur. */
+    protected function publication(Expert $expert, ?ExpertBrochureDraft $draft): array
     {
-        return trim(config('brochures.drafts_path'), '/') . "/{$expert->slug}.xml";
-    }
+        if ($draft && ! $draft->isPublished()) {
+            return ['state' => 'pending', 'label' => 'Modifications non publiées'];
+        }
+        if ($expert->brochure_published_at) {
+            return ['state' => 'published', 'label' => 'Publié le '.$expert->brochure_published_at->format('d/m/Y H:i')];
+        }
 
-    protected function load(Expert $expert): array
-    {
-        $disk = Storage::disk('s3');
-
-        return BrochureDraft::fromXml($disk->exists($this->path($expert)) ? $disk->get($this->path($expert)) : null);
-    }
-
-    protected function savedAt(Expert $expert): ?string
-    {
-        $disk = Storage::disk('s3');
-
-        return $disk->exists($this->path($expert))
-            ? date('d/m/Y H:i', $disk->lastModified($this->path($expert)))
-            : null;
+        return ['state' => 'new', 'label' => 'Pas encore publié'];
     }
 }

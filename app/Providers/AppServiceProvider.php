@@ -30,5 +30,8 @@ class AppServiceProvider extends ServiceProvider
                 return \TCG\Voyager\Models\Setting::orderBy('order')->get();
             });
         }
+
+        \App\Models\OldContent::observe(\App\Observers\OldContentAiSearchObserver::class);
+        \App\Models\Video::observe(\App\Observers\VideoAiSearchObserver::class);
     }
 }

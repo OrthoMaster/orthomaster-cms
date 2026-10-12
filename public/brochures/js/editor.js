@@ -1,5 +1,5 @@
 /*
- * Éditeur /demo/{slug} : édition en place, enregistrement automatique (AJAX JSON -> {slug}.xml).
+ * Éditeur /demo/{slug} : édition en place, enregistrement automatique (AJAX JSON -> brouillon en base).
  * Chargé après app.js (qui expose window.OrthoBrochure.setModel / refreshTimeline).
  */
 const bar = document.getElementById('edBar');
@@ -14,9 +14,23 @@ function init() {
     const saveUrl = bar.dataset.saveUrl;
     const avatarUrl = bar.dataset.avatarUrl;
     const domainUrl = bar.dataset.domainUrl;
-    const exportUrl = bar.dataset.exportUrl || null;
+    const publishUrl = bar.dataset.publishUrl || null;
     const csrf = $('meta[name="csrf-token"]')?.content || '';
     const AUTOSAVE_DELAY = 1500;
+    const MAX_PLACES = 4, MAX_PILLS = 12;
+
+    const jsonHeaders = {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'X-CSRF-TOKEN': csrf,
+        'X-Requested-With': 'XMLHttpRequest',
+    };
+    const httpError = (res, json, fallback) =>
+        json?.errors ? Object.values(json.errors)[0][0]
+        : json?.message && res.status !== 500 ? json.message
+        : res.status === 419 ? 'Session expirée : rechargez la page.'
+        : res.status === 403 ? 'Lien expiré ou non valide.'
+        : fallback;
 
     // ---------- contenteditable : texte brut, une seule ligne ----------
     const probe = document.createElement('div');
@@ -40,8 +54,29 @@ function init() {
     document.addEventListener('input', e => { if (isEditable(e.target)) changed(); });
     document.addEventListener('focusout', e => { if (isEditable(e.target)) tidy(e.target); });
 
+    // ---------- état de l'enregistrement ----------
+    const status = $('#edStatus');
+    const statusTxt = $('.ed-save-txt', status);
+    function setStatus(state, text) {
+        status.dataset.state = state; // idle | pending | saving | saved | error
+        statusTxt.textContent = text;
+    }
+
+    // ---------- état de la publication ----------
+    const pubState = $('#edPubState');
+    const pubTxt = pubState ? $('.ed-pub-txt', pubState) : null;
+    const publishBtn = $('#edPublish');
+    function setPub(state, label) {
+        if (pubState) {
+            pubState.dataset.state = state; // new | pending | published
+            pubTxt.textContent = label;
+        }
+        if (publishBtn) publishBtn.disabled = state === 'published';
+    }
+
     // ---------- modes Édition / Aperçu ----------
     const modeBtns = $$('.ed-seg-btn', bar);
+    function refreshTimeline() { window.OrthoBrochure?.refreshTimeline?.(); }
     function setMode(mode) {
         const edit = mode === 'edit';
         document.body.classList.toggle('ed-mode', edit);
@@ -55,13 +90,6 @@ function init() {
     setMode('edit');
 
     // ---------- enregistrement automatique ----------
-    const status = $('#edStatus');
-    const statusTxt = $('.ed-save-txt', status);
-    function setStatus(state, text) {
-        status.dataset.state = state; // idle | pending | saving | saved | error
-        statusTxt.textContent = text;
-    }
-
     let dirty = false, saving = false, again = false, timer = null;
 
     function changed() {
@@ -88,6 +116,7 @@ function init() {
             const json = await res.json();
             ok = true;
             setStatus('saved', `Enregistré à ${json.saved_at}`);
+            if (!json.published) setPub('pending', 'Modifications non publiées');
             return true;
         } catch (err) {
             dirty = true;
@@ -106,12 +135,7 @@ function init() {
             method: 'POST',
             credentials: 'same-origin',
             keepalive,
-            headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json',
-                'X-CSRF-TOKEN': csrf,
-                'X-Requested-With': 'XMLHttpRequest',
-            },
+            headers: jsonHeaders,
             body: JSON.stringify(data),
         });
     }
@@ -161,8 +185,10 @@ function init() {
         input.addEventListener('input', () => {
             const v = input.value.trim();
             const ok = /^https?:\/\/[^\s.]+\.\S+$/i.test(v);
-            btn.href = ok ? v : '#';
-            btn.hidden = !ok;
+            if (btn) {
+                btn.href = ok ? v : '#';
+                btn.hidden = !ok;
+            }
             input.setCustomValidity(v === '' || ok ? '' : 'Adresse commençant par https://');
             changed();
         });
@@ -170,8 +196,6 @@ function init() {
 
     // ---------- listes : ajouter, déplacer, supprimer ----------
     const tplEntry = $('#tplEntry'), tplPill = $('#tplPill'), tplPlace = $('#tplPlace');
-    const MAX_PLACES = 4, MAX_PILLS = 12;
-    function refreshTimeline() { window.OrthoBrochure?.refreshTimeline?.(); }
     const clone = tpl => {
         const node = tpl.content.firstElementChild.cloneNode(true);
         prepare(node);
@@ -224,7 +248,7 @@ function init() {
     // ---------- lieux d'exercice ----------
     const addPlaceBtn = $('[data-add-place]');
     function updatePlacesButton() {
-        addPlaceBtn.hidden = $('ul[data-list="places"]').children.length >= MAX_PLACES;
+        if (addPlaceBtn) addPlaceBtn.hidden = $('ul[data-list="places"]').children.length >= MAX_PLACES;
     }
     updatePlacesButton();
 
@@ -236,12 +260,16 @@ function init() {
     const boxes = () => $$('input[type="checkbox"]', optList);
     const norm = v => v.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
 
-    const setChecked = (id, on) => { const b = boxes().find(x => x.value === String(id)); if (b) b.checked = on; refreshPop(); };
+    function setChecked(id, on) {
+        const b = boxes().find(x => x.value === String(id));
+        if (b) b.checked = on;
+        refreshPop();
+    }
     function refreshPop() {
         const all = boxes(), n = all.filter(b => b.checked).length;
         count.textContent = `${n} / ${MAX_PILLS} sélectionné${n > 1 ? 's' : ''}`;
         all.forEach(b => { b.disabled = !b.checked && n >= MAX_PILLS; });
-        newBtn.disabled = n >= MAX_PILLS;
+        if (newBtn) newBtn.disabled = n >= MAX_PILLS;
     }
     function filter(q) {
         const nq = norm(q);
@@ -251,6 +279,7 @@ function init() {
             b.closest('.ed-opt').hidden = nq !== '' && !l.includes(nq);
             if (l === nq) exact = true;
         });
+        if (!newBtn) return;
         // proposer l'ajout seulement si le texte ne correspond exactement à aucun domaine
         const label = q.trim().replace(/\s+/g, ' ');
         newBtn.hidden = label.length < 2 || exact;
@@ -275,6 +304,7 @@ function init() {
     }
 
     async function addDomain() {
+        if (!newBtn || !domainUrl) return;
         const label = newBtn.dataset.label;
         if (!label || newBtn.hidden || newBtn.disabled) return;
         newBtn.disabled = true;
@@ -282,21 +312,12 @@ function init() {
             const res = await fetch(domainUrl, {
                 method: 'POST',
                 credentials: 'same-origin',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json',
-                    'X-CSRF-TOKEN': csrf,
-                    'X-Requested-With': 'XMLHttpRequest',
-                },
+                headers: jsonHeaders,
                 body: JSON.stringify({ label }),
             });
             const json = await res.json().catch(() => ({}));
-            if (!res.ok) {
-                throw new Error(json.errors?.label?.[0]
-                    || (res.status === 419 ? 'Session expirée : rechargez la page.'
-                    : res.status === 403 ? 'Lien expiré ou non valide.'
-                    : 'Impossible d’ajouter ce domaine.'));
-            }
+            if (!res.ok) throw new Error(httpError(res, json, 'Impossible d’ajouter ce domaine.'));
+
             // domaine nouveau (ou déjà existant) : l'ajouter à la liste s'il n'y est pas, puis le cocher
             let b = boxes().find(x => x.value === String(json.id));
             if (!b) {
@@ -332,7 +353,7 @@ function init() {
     search.addEventListener('keydown', e => {
         if (e.key === 'Enter') { e.preventDefault(); addDomain(); }
     });
-    newBtn.addEventListener('click', addDomain);
+    newBtn?.addEventListener('click', addDomain);
     document.addEventListener('click', e => { if (!pop.hidden && !pop.contains(e.target) && e.target !== popBtn) openPop(false); });
     document.addEventListener('keydown', e => { if (e.key === 'Escape' && !pop.hidden) { openPop(false); popBtn.focus(); } });
     optList.addEventListener('change', e => {
@@ -346,43 +367,44 @@ function init() {
 
     // ---------- avatar : upload direct, l'ancien fichier est supprimé côté serveur ----------
     const avatarBox = $('#edAvatar'), avatarInput = $('#edAvatarInput');
-    const avatarImg = $('img', avatarBox), avatarSil = $('.silhouette', avatarBox);
-    avatarInput.addEventListener('change', async () => {
-        const file = avatarInput.files[0];
-        avatarInput.value = '';
-        if (!file) return;
-        if (!/^image\/(jpeg|png|webp)$/.test(file.type)) { setStatus('error', 'Formats acceptés : JPG, PNG ou WebP.'); return; }
-        if (file.size > 5 * 1024 * 1024) { setStatus('error', 'L’image ne doit pas dépasser 5 Mo.'); return; }
+    if (avatarBox && avatarInput) {
+        const avatarImg = $('img', avatarBox), avatarSil = $('.silhouette', avatarBox);
+        avatarInput.addEventListener('change', async () => {
+            const file = avatarInput.files[0];
+            avatarInput.value = '';
+            if (!file) return;
+            if (!/^image\/(jpeg|png|webp)$/.test(file.type)) { setStatus('error', 'Formats acceptés : JPG, PNG ou WebP.'); return; }
+            if (file.size > 5 * 1024 * 1024) { setStatus('error', 'L’image ne doit pas dépasser 5 Mo.'); return; }
 
-        const previous = { src: avatarImg.getAttribute('src'), hidden: avatarImg.hidden };
-        const preview = URL.createObjectURL(file);
-        avatarImg.src = preview; avatarImg.hidden = false; avatarSil.hidden = true;
-        avatarBox.classList.add('is-uploading');
-        setStatus('saving', 'Envoi de la photo…');
+            const previous = { src: avatarImg.getAttribute('src'), hidden: avatarImg.hidden };
+            const preview = URL.createObjectURL(file);
+            avatarImg.src = preview; avatarImg.hidden = false; avatarSil.hidden = true;
+            avatarBox.classList.add('is-uploading');
+            setStatus('saving', 'Envoi de la photo…');
 
-        const form = new FormData();
-        form.append('avatar', file);
-        try {
-            const res = await fetch(avatarUrl, {
-                method: 'POST', credentials: 'same-origin', body: form,
-                headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': csrf, 'X-Requested-With': 'XMLHttpRequest' },
-            });
-            const json = await res.json().catch(() => ({}));
-            if (!res.ok) {
-                const msg = json.errors?.avatar?.[0] || (res.status === 419 ? 'Session expirée : rechargez la page.' : res.status === 403 ? 'Lien expiré ou non valide.' : 'Échec de l’envoi de la photo.');
-                throw new Error(msg);
+            const form = new FormData();
+            form.append('avatar', file);
+            try {
+                const res = await fetch(avatarUrl, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    body: form,
+                    headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': csrf, 'X-Requested-With': 'XMLHttpRequest' },
+                });
+                const json = await res.json().catch(() => ({}));
+                if (!res.ok) throw new Error(httpError(res, json, 'Échec de l’envoi de la photo.'));
+                if (json.url) avatarImg.src = json.url;
+                setStatus('saved', 'Photo enregistrée');
+            } catch (err) {
+                if (previous.src) avatarImg.src = previous.src;
+                avatarImg.hidden = previous.hidden; avatarSil.hidden = !previous.hidden;
+                setStatus('error', err.message || 'Échec de l’envoi de la photo.');
+            } finally {
+                avatarBox.classList.remove('is-uploading');
+                URL.revokeObjectURL(preview);
             }
-            if (json.url) avatarImg.src = json.url;
-            setStatus('saved', 'Photo enregistrée');
-        } catch (err) {
-            if (previous.src) avatarImg.src = previous.src;
-            avatarImg.hidden = previous.hidden; avatarSil.hidden = !previous.hidden;
-            setStatus('error', err.message || 'Échec de l’envoi de la photo.');
-        } finally {
-            avatarBox.classList.remove('is-uploading');
-            URL.revokeObjectURL(preview);
-        }
-    });
+        });
+    }
 
     // ---------- collecte des données ----------
     const text = el => (el?.textContent || '').trim();
@@ -412,6 +434,33 @@ function init() {
         return data;
     }
 
+    // ---------- publication (admin) ----------
+    publishBtn?.addEventListener('click', async () => {
+        if (!publishUrl) {
+            setStatus('error', 'Publication réservée aux administrateurs.');
+            return;
+        }
+        publishBtn.disabled = true;
+        setStatus('saving', 'Publication…');
+        // publier la dernière version : attendre l'enregistrement en cours puis enregistrer le reste
+        while (saving) await new Promise(r => setTimeout(r, 150));
+        if (dirty && !(await saveNow())) { publishBtn.disabled = false; return; }
+        try {
+            const res = await fetch(publishUrl, {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': csrf, 'X-Requested-With': 'XMLHttpRequest' },
+            });
+            const json = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(httpError(res, json, 'Échec de la publication.'));
+            setPub('published', `Publié le ${json.published_at}`);
+            setStatus('saved', 'Page publiée');
+        } catch (err) {
+            setStatus('error', err.message);
+            publishBtn.disabled = false;
+        }
+    });
+
     // ---------- administration ----------
     $('#edShare')?.addEventListener('click', async e => {
         const btn = e.currentTarget, url = btn.dataset.url;
@@ -422,13 +471,5 @@ function init() {
         } catch {
             prompt('Lien à envoyer au médecin :', url);
         }
-    });
-    $('#edExport')?.addEventListener('click', async e => {
-        e.preventDefault();
-        const href = exportUrl || e.currentTarget.href;
-        // exporter la dernière version : attendre l'enregistrement en cours puis enregistrer le reste
-        while (saving) await new Promise(r => setTimeout(r, 150));
-        if (dirty && !(await saveNow())) return;
-        location.href = href;
     });
 }

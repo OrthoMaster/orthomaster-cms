@@ -42,11 +42,11 @@ sudo -u www-data php artisan schedule:list
 sudo crontab -u www-data -e
 * * * * * cd /var/www/laravel && php artisan schedule:run >> /dev/null 2>&1
 
-# Check
-sudo -u www-data php artisan schedule:run
-sudo -u www-data php artisan schedule:list
+# Chat
+php artisan ai-search:index
 
-sudo grep CRON /var/log/syslog | tail -20
+php artisan cache:clear
+php artisan ai-search:chat --user=4
 
 ## SuperVisor
 # Xem status
