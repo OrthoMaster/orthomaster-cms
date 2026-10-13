@@ -47,7 +47,8 @@ class EventMatcher
      *     label?: string,
      *     event_name?: string,
      *     requested?: string,
-     *     available?: array<int, array{label: string, ids: int[]}>
+     *     available?: array<int, array{label: string, ids: int[]}>,
+     *     editions?: array<int, array{label: string, ids: int[]}>
      * }
      *     remaining : saisie débarrassée du congrès, de l'année et du mois reconnus.
      */
@@ -157,6 +158,8 @@ class EventMatcher
                 'filter_key' => 'event_ids',
                 'ids'        => [$event['id']],
                 'label'      => $event['name'],
+                // Pour proposer de choisir l'édition quand le congrès est cité seul.
+                'editions'   => $this->groupByYear($event),
             ];
         }
 

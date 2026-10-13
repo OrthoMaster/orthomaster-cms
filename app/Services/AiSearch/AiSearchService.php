@@ -36,6 +36,25 @@ class AiSearchService
      */
     private const OPTION_EDITION_GROUP = 'edition_group';
 
+    /** Option interne : garder toutes les éditions du congrès déjà filtré. */
+    private const OPTION_ALL_EDITIONS = 'all_editions';
+
+    /**
+     * Mots qui ne disent rien du sujet (« les vidéos de », « montrez-moi ») : une saisie qui
+     * n'en contient pas d'autres équivaut à une saisie vide. Forme normalisée, sans accent.
+     * Sans ce filtre, « les vidéos de CDS » lançait une recherche sur « les vidéos de »
+     * au lieu de parcourir les vidéos du congrès.
+     */
+    private const FILLER_WORDS = [
+        'a', 'au', 'aux', 'avec', 'c', 'ce', 'ces', 'chercher', 'cherche', 'concernant', 'conference',
+        'conferences', 'congre', 'congres', 'contenu', 'contenus', 'd', 'dans', 'de', 'des', 'donne',
+        'donnez', 'du', 'en', 'est', 'et', 'il', 'intervention', 'interventions', 'j', 'je', 'l', 'la',
+        'le', 'les', 'lors', 'm', 'media', 'medias', 'moi', 'montre', 'montrer', 'montrez', 'parle',
+        'pendant', 'peux', 'pouvez', 'presentation', 'presentations', 'quelles', 'quels', 'qui', 'sur',
+        'tous', 'toutes', 'trouve', 'trouver', 'trouvez', 'un', 'une', 'video', 'videos', 'voir',
+        'voudrais', 'vous', 'veux', 'y', 'ya', 'svp', 'stp', 'merci', 'bonjour',
+    ];
+
     /** Nombre max d'entrées par facette envoyées au LLM. */
     private const FACET_LIMIT = 10;
 
@@ -170,10 +189,14 @@ class AiSearchService
     {
         $event = $this->events->match(trim($message));
 
+        // Le nom du congrès est retiré de la requête : il est déjà un filtre strict, et ses mots
+        // (« chirurgie », « sport ») fausseraient la recherche par le sens.
+        $remaining = $this->isFillerOnly($event['remaining']) ? '' : $event['remaining'];
+
         if ($event['status'] === 'edition_not_found') {
             // Le sujet reste en mémoire : après le choix d'une édition, la recherche le reprend.
-            if ($event['remaining'] !== '') {
-                $session->messages[] = $event['remaining'];
+            if ($remaining !== '') {
+                $session->messages[] = $remaining;
             }
 
             return $this->editionNotFound($session, $event);
@@ -182,15 +205,70 @@ class AiSearchService
         if ($event['status'] === 'matched') {
             $session->replaceEventFilter($event['filter_key'], $event['ids']);
             $session->choices[] = $event['label'];
+
+            // Congrès cité seul, sans année ni sujet (« les vidéos de CDS ») : on demande
+            // l'édition plutôt que de mélanger toutes les années.
+            if ($remaining === '' && $session->query() === '' && $event['filter_key'] === 'event_ids') {
+                $question = $this->askEdition($session, $event);
+                if ($question) {
+                    return $question;
+                }
+            }
         }
 
-        // Le nom du congrès est retiré de la requête : il est déjà un filtre strict, et ses mots
-        // (« chirurgie », « sport ») fausseraient la recherche par le sens.
-        if ($event['remaining'] !== '') {
-            $session->messages[] = $event['remaining'];
+        if ($remaining !== '') {
+            $session->messages[] = $remaining;
         }
 
         return null;
+    }
+
+    private function isFillerOnly(string $text): bool
+    {
+        $words = preg_split('/[^a-z0-9]+/', Str::lower(Str::ascii($text)), -1, PREG_SPLIT_NO_EMPTY);
+
+        return ! array_diff($words, self::FILLER_WORDS);
+    }
+
+    /**
+     * Propose les éditions du congrès qui ont des vidéos, plus « toutes les éditions ».
+     * Sans appel LLM. Renvoie null s'il n'y a pas de vrai choix (une seule édition).
+     */
+    private function askEdition(ConversationSession $session, array $event): ?array
+    {
+        $options = [];
+        foreach ($event['editions'] ?? [] as $group) {
+            $count = DB::table('ai_search_documents')->whereIn('past_event_id', $group['ids'])->count();
+            if ($count > 0) {
+                $options[] = [
+                    'type'  => self::OPTION_EDITION_GROUP,
+                    'value' => $group['ids'],
+                    'label' => $group['label'],
+                    'count' => $count,
+                ];
+            }
+        }
+
+        if (count($options) < 2) {
+            return null;
+        }
+
+        $options = array_slice($options, 0, config('ai_search.conversation.max_options') - 1);
+        $options[] = [
+            'type'  => self::OPTION_ALL_EDITIONS,
+            'value' => $event['ids'],
+            'label' => 'Toutes les éditions',
+            'count' => DB::table('ai_search_documents')->whereIn('event_id', $event['ids'])->count(),
+        ];
+
+        return $this->question(
+            $session,
+            "Quelle édition de {$event['label']} vous intéresse ?",
+            $options,
+            null,
+            self::EMPTY_USAGE,
+            'ask_edition'
+        );
     }
 
     /**
@@ -242,10 +320,12 @@ class AiSearchService
             // Un sous-thème précise le sujet : il rejoint la requête de recherche.
             'theme' => $session->messages[] = 'Précision : ' . $option['label'],
             self::OPTION_EDITION_GROUP => $session->replaceEventFilter('past_event_ids', $option['value']),
+            self::OPTION_ALL_EDITIONS => $session->replaceEventFilter('event_ids', $option['value']),
             default => $session->addFilter(self::FACET_FILTER_KEYS[$option['type']], [(int) $option['value']]),
         };
 
-        if ($option['type'] !== 'theme') {
+        // « Toutes les éditions » n'ajoute pas de critère : le congrès figure déjà dans les choix.
+        if (! in_array($option['type'], ['theme', self::OPTION_ALL_EDITIONS], true)) {
             $session->choices[] = $option['label'];
         }
 
