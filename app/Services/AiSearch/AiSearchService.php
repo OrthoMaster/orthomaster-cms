@@ -60,6 +60,12 @@ class AiSearchService
 
     private const EMPTY_USAGE = ['input_tokens' => 0, 'output_tokens' => 0, 'thought_tokens' => 0];
 
+    /**
+     * Mesures du tour en cours, ajoutées au 'meta' de la réponse pour le journal
+     * (ai_search_logs). Remis à zéro au début de chaque tour.
+     */
+    private array $trace = [];
+
     public function __construct(
         private Retriever $retriever,
         private GeminiClient $gemini,
@@ -75,6 +81,15 @@ class AiSearchService
      */
     public function handle(int $userId, ?string $sessionId, array $input): array
     {
+        $this->trace = [
+            'mode'            => null,
+            'candidate_count' => null,
+            'embed_chars'     => 0,
+            'retrieval_ms'    => null,
+            'llm_ms'          => null,
+            'used_llm'        => false,
+        ];
+
         $session = $sessionId
             ? ConversationSession::resume($sessionId, $userId)
             : ConversationSession::start($userId);
@@ -113,6 +128,12 @@ class AiSearchService
             : $this->retriever->search($query, $session->filters);
         $candidates = $retrieval['candidates'];
 
+        $this->trace['mode'] = $browsing ? 'browse' : 'search';
+        $this->trace['candidate_count'] = count($candidates);
+        $this->trace['retrieval_ms'] = $retrieval['timings']['total_ms'];
+        // Gemini ne renvoie pas de décompte pour les embeddings : on garde la taille du texte envoyé.
+        $this->trace['embed_chars'] = $browsing ? 0 : mb_strlen($query);
+
         // Rien trouvé : inutile de payer un appel LLM pour le dire.
         if (empty($candidates)) {
             $session->save();
@@ -121,11 +142,14 @@ class AiSearchService
         }
 
         $facets = $this->facets($candidates);
+        $llmStart = microtime(true);
         $llm = $this->gemini->generateJson(
             $this->prompts->system(),
             $this->prompts->user($session, $candidates, $facets, $browsing),
             $this->prompts->schema()
         );
+        $this->trace['llm_ms'] = (int) round((microtime(true) - $llmStart) * 1000);
+        $this->trace['used_llm'] = true;
         $decision = $this->validate($llm['data'], $candidates, $facets);
 
         // En parcours, chaque candidate a été demandée explicitement : le LLM peut les ordonner
@@ -531,7 +555,7 @@ class AiSearchService
             // null : pas de liste de résultats derrière la question (l'app masque « Voir les résultats »).
             'total'      => $total,
             'usage'      => $usage,
-            'meta'       => ['round' => $session->round, 'action' => $action, 'result_count' => $total ?? 0],
+            'meta'       => ['round' => $session->round, 'action' => $action, 'result_count' => $total ?? 0] + $this->trace,
         ];
     }
 
@@ -568,7 +592,7 @@ class AiSearchService
             'videos'     => $this->videos($ids, $session->lastMatches),
             'total'      => count($session->lastIds),
             'usage'      => $usage,
-            'meta'       => ['round' => $session->round, 'action' => $action, 'result_count' => count($session->lastIds)],
+            'meta'       => ['round' => $session->round, 'action' => $action, 'result_count' => count($session->lastIds)] + $this->trace,
         ];
     }
 

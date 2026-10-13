@@ -70,7 +70,29 @@ return [
         'session_ttl_minutes' => 30,
         'max_message_length'  => 300,
         // Chaque tour coûte un appel LLM : plafond par utilisateur contre les abus.
-        'rate_limit_per_hour' => 30,
+        'rate_limit_per_hour' => (int) env('AI_SEARCH_RATE_LIMIT', 30),
+    ],
+
+    'logging' => [
+        // Une ligne par tour dans ai_search_logs (tokens, latence, résultat), lue par le tableau de bord.
+        'enabled'     => (bool) env('AI_SEARCH_LOGGING', true),
+        // Enregistrer aussi le texte saisi : utile pour voir ce qui ne donne aucun résultat.
+        // Désactivé par défaut : le texte peut contenir des informations personnelles.
+        'log_queries' => (bool) env('AI_SEARCH_LOG_QUERIES', false),
+        // Rôles exclus par défaut des statistiques (tests internes).
+        'staff_roles' => ['admin', 'directeur', 'manager'],
+    ],
+
+    // Tarifs Google en USD par million de tokens, pour le coût estimé du tableau de bord.
+    // À mettre à jour si Google change ses prix ou si l'on change de modèle.
+    'pricing' => [
+        // Le tableau de bord affiche les coûts en euros : taux de conversion USD → EUR,
+        // à ajuster de temps en temps (le montant facturé réel est dans Google AI Studio).
+        'usd_to_eur'  => (float) env('AI_SEARCH_USD_TO_EUR', 0.86),
+        'chat_input'  => (float) env('AI_SEARCH_PRICE_CHAT_INPUT', 0.30),
+        // Les tokens de réflexion sont facturés au tarif de sortie.
+        'chat_output' => (float) env('AI_SEARCH_PRICE_CHAT_OUTPUT', 2.50),
+        'embedding'   => (float) env('AI_SEARCH_PRICE_EMBEDDING', 0.15),
     ],
 
     'health' => [

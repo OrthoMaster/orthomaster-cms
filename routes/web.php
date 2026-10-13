@@ -218,6 +218,11 @@ Route::group(['prefix' => 'admin', 'middleware' => ['cmsAdmin']], function () {
     Route::get('/dashboard/staffs/calendar', [DashboardController::class, 'staffCalendarIndex'])->name('voyager.dashboard.staff.calendar');
     Route::post('/dashboard/staffs/calendar', [DashboardController::class, 'syncStaffCalendar']);
 
+    // AI Search
+    Route::get('dashboard/ai-search', [\App\Http\Controllers\AiSearchDashboardController::class, 'index'])
+        ->name('admin.ai-search.dashboard');
+
+
     Route::get('/kpi-daily-logs/{id}/edit', [DashboardController::class, 'editStaffDailyLog']);
     Route::post('/kpi-daily-logs/{id}/edit', [DashboardController::class, 'updateStaffDailyLog'])->name('kpi.log.update');
 
