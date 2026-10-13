@@ -286,6 +286,7 @@ class MediaController extends Controller
             $limit = (int) $request->input('limit', 6);
 
             $query = $this->baseContentQuery()
+                ->where('content.published', '1')
                 ->where('content.trend_flg', '1');
 
             return response()->json([
