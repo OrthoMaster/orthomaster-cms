@@ -11,6 +11,11 @@
 @stop
 
 @section('content')
+    @php
+        // Rendu initial cohérent avec le rapport chargé, avant même que le JS ne s'exécute
+        $exportOnly = !empty($reports[$filters['report']]['export_only']);
+    @endphp
+
     <div class="page-content browse container-fluid">
         @include('voyager::alerts')
 
@@ -43,27 +48,29 @@
                                 <label for="report">Rapport</label>
                                 <select class="form-control" name="report" id="report">
                                     @foreach ($reports as $key => $report)
-                                        <option value="{{ $key }}" @selected($filters['report'] === $key)>
+                                        <option value="{{ $key }}" @selected($filters['report'] === $key)
+                                            data-export-only="{{ !empty($report['export_only']) ? 1 : 0 }}">
                                             {{ $report['label'] }}
                                         </option>
                                     @endforeach
                                 </select>
                             </div>
 
-                            <div class="col-md-2">
+                            <div class="col-md-2 js-period" @if ($exportOnly) style="display:none" @endif>
                                 <label for="from">De</label>
                                 <input type="month" class="form-control" name="from" id="from"
                                     value="{{ $filters['from'] }}">
                             </div>
 
-                            <div class="col-md-2">
+                            <div class="col-md-2 js-period" @if ($exportOnly) style="display:none" @endif>
                                 <label for="to">À</label>
                                 <input type="month" class="form-control" name="to" id="to"
                                     value="{{ $filters['to'] }}">
                             </div>
 
                             <div class="col-md-4" style="padding-top:24px">
-                                <button type="submit" class="btn btn-primary">Appliquer</button>
+                                <button type="submit" class="btn btn-primary js-period"
+                                    @if ($exportOnly) style="display:none" @endif>Appliquer</button>
                                 <button type="button" class="btn btn-success" id="btn-export">
                                     <i class="voyager-file-text"></i> Excel
                                 </button>
@@ -72,7 +79,17 @@
                     </div>
                 </div>
 
+                {{-- ============ EXPORT SEUL ============ --}}
+                <div class="panel panel-bordered" id="report-export-only" @if (!$exportOnly) style="display:none" @endif>
+                    <div class="panel-body">
+                        <div class="alert alert-info" style="margin-bottom:0">
+                            Ce rapport n'est pas affiché à l'écran. Utilisez le bouton <strong>Excel</strong> pour le télécharger.
+                        </div>
+                    </div>
+                </div>
+
                 {{-- ============ TABLEAUX ============ --}}
+                <div id="report-tables" @if ($exportOnly) style="display:none" @endif>
                 @foreach ($tables as $table)
                     @php
                         $columns = $table['columns'] ?? [];
@@ -84,15 +101,16 @@
                             }
 
                             return match ($columns[$index] ?? 'text') {
-                                'money'   => number_format($value, 2, ',', ' ') . ' €',
-                                'percent' => number_format($value, 1, ',', ' ') . ' %',
-                                'decimal' => number_format($value, 1, ',', ' '),
-                                'int'     => number_format($value, 0, ',', ' '),
-                                default   => $value,
+                                'money'    => number_format($value, 2, ',', ' ') . ' €',
+                                'percent'  => number_format($value, 1, ',', ' ') . ' %',
+                                'decimal'  => number_format($value, 1, ',', ' '),
+                                'int'      => number_format($value, 0, ',', ' '),
+                                'datetime' => \Illuminate\Support\Carbon::parse($value)->format('d/m/Y H:i'),
+                                default    => $value,
                             };
                         };
 
-                        $alignRight = fn ($index) => ($columns[$index] ?? 'text') === 'text' ? '' : 'text-right';
+                        $alignRight = fn ($index) => in_array($columns[$index] ?? 'text', ['text', 'string'], true) ? '' : 'text-right';
                     @endphp
 
                     <div class="panel panel-bordered">
@@ -167,6 +185,7 @@
                         </div>
                     </div>
                 @endforeach
+                </div>
 
             </div>
         </div>
@@ -175,20 +194,36 @@
 
 @section('css')
     <style>
-        /* --- Liste des rapports : hauteur bornée, contenu défilant --- */
+        /* --- Liste des rapports : deux par ligne, hauteur bornée, contenu défilant --- */
         .report-list {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
             max-height: 180px;
             overflow-y: auto;
             padding: 0;
         }
 
+        /* Le clearfix de Bootstrap sur .panel-body deviendrait une case vide de la grille */
+        .report-list::before,
+        .report-list::after {
+            content: none;
+        }
+
         .report-item {
             padding: 12px 16px;
             border-left: 3px solid transparent;
+            border-bottom: 1px solid #f0f2f5;
         }
 
-        .report-item + .report-item {
-            border-top: 1px solid #f0f2f5;
+        /* Séparateur vertical en ombre : la bordure gauche est réservée à l'état actif */
+        .report-item:nth-child(odd) {
+            box-shadow: inset -1px 0 0 #f0f2f5;
+        }
+
+        /* Pas de trait sous la dernière rangée, qu'elle soit pleine ou non */
+        .report-item:last-child,
+        .report-item:nth-last-child(2):nth-child(odd) {
+            border-bottom: none;
         }
 
         .report-item.is-active {
@@ -211,6 +246,21 @@
             font-size: 12px;
             color: #8a9199;
             line-height: 1.45;
+        }
+
+        /* Sur petit écran, une colonne suffit */
+        @media (max-width: 767px) {
+            .report-list {
+                grid-template-columns: 1fr;
+            }
+
+            .report-item:nth-child(odd) {
+                box-shadow: none;
+            }
+
+            .report-item:nth-last-child(2):nth-child(odd) {
+                border-bottom: 1px solid #f0f2f5;
+            }
         }
 
         /* --- Tableaux --- */
@@ -282,6 +332,18 @@
         $(document).ready(function () {
 
             $('#report').select2({ width: '100%' });
+
+            /* ---------- Rapport sans période : on masque dates, tableaux et Appliquer ---------- */
+            // Les tableaux affichés appartiennent au rapport chargé, pas forcément à celui sélectionné
+            function togglePeriod() {
+                var exportOnly = $('#report option:selected').data('export-only') === 1;
+
+                $('.js-period').toggle(!exportOnly);
+                $('#report-tables').toggle(!exportOnly);
+                $('#report-export-only').toggle(exportOnly);
+            }
+
+            $('#report').on('change', togglePeriod);
 
             /* ---------- Export Excel : reprend les filtres courants ---------- */
             $('#btn-export').on('click', function () {

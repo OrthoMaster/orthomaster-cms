@@ -51,7 +51,7 @@ class BookingExpertController extends Controller
         $query = DB::table('experts as e')
             ->leftJoin('expert_booking_settings as s', 's.expert_id', '=', 'e.id')
             // Sans compte, un expert (simple auteur de contenus) ne peut pas recevoir de demande.
-            // ->whereNotNull('e.user_id')
+            ->whereNotNull('e.user_id')
             ->where('e.user_id', '!=', $userId)
             ->when($search !== '', function ($q) use ($search) {
                 $like = '%' . $search . '%';
@@ -191,6 +191,9 @@ class BookingExpertController extends Controller
             // decimal revient en chaîne ; l'application attend un nombre.
             'price'          => (float) $offer->price,
             'currency'       => $offer->currency,
+            // Illustrations du thème : à remplir quand la table expert_offer_images existera
+            // (id, url S3, caption, width, height, triées par order_dsp).
+            'images'         => [],
         ];
     }
 

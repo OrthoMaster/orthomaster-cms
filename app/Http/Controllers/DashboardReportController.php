@@ -6,6 +6,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
+use PhpOffice\PhpSpreadsheet\Cell\DataType;
+use PhpOffice\PhpSpreadsheet\Shared\Date as ExcelDate;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Style\Border;
@@ -15,7 +17,10 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class DashboardReportController extends Controller
 {
-    /** Rapports disponibles */
+    /**
+     * Rapports disponibles.
+     * export_only : ni période ni tableau à l'écran, seulement l'export Excel.
+     */
     private const REPORTS = [
         'activity' => [
             'label'       => 'Activité et inscriptions',
@@ -24,6 +29,11 @@ class DashboardReportController extends Controller
         'revenue' => [
             'label'       => 'Revenus par produit',
             'description' => 'Répartition du chiffre d\'affaires entre les produits, au prorata de leur durée.',
+        ],
+        'users' => [
+            'label'       => 'Liste des utilisateurs',
+            'description' => "Tous les utilisateurs de l'application à date, avec leur profil et leur dernière activité. Export Excel uniquement.",
+            'export_only' => true,
         ],
     ];
 
@@ -36,15 +46,23 @@ class DashboardReportController extends Controller
     /** Statut d'un panier finalisé */
     private const CART_SIGNED = 3;
 
+    /** Décalage UTC → Asia/Ho_Chi_Minh, la base stockant tout en UTC */
+    private const LOCAL_OFFSET = 420;
+
     /** Couleur d'en-tête des tableaux exportés */
     private const HEADER_COLOR = '22A7F0';
 
-    /** Formats Excel appliqués selon le type de colonne */
+    /**
+     * Formats Excel appliqués selon le type de colonne.
+     * string : forcé en texte pour conserver les zéros initiaux (téléphone, code postal).
+     */
     private const CELL_FORMATS = [
-        'money'   => '#,##0.00 €',
-        'percent' => '0.0 "%"',
-        'decimal' => '#,##0.0',
-        'int'     => '#,##0',
+        'money'    => '#,##0.00 €',
+        'percent'  => '0.0 "%"',
+        'decimal'  => '#,##0.0',
+        'int'      => '#,##0',
+        'datetime' => 'dd/mm/yyyy hh:mm',
+        'string'   => '@',
     ];
 
     /**
@@ -58,7 +76,8 @@ class DashboardReportController extends Controller
         return view('dashboard.reports', [
             'reports' => self::REPORTS,
             'filters' => $f,
-            'tables'  => $this->buildTables($f),
+            // Inutile de calculer ce qui ne sera pas affiché
+            'tables'  => $this->isExportOnly($f['report']) ? [] : $this->buildTables($f),
         ]);
     }
 
@@ -86,12 +105,16 @@ class DashboardReportController extends Controller
 
         $spreadsheet->setActiveSheetIndex(0);
 
-        $filename = sprintf(
-            '%s_%s_%s.xlsx',
-            $f['report'],
-            str_replace('-', '', $f['from']),
-            str_replace('-', '', $f['to'])
-        );
+        if ($this->isExportOnly($f['report'])) {
+            $filename = sprintf('%s_%s.xlsx', $f['report'], $this->localNow()->format('Ymd'));
+        } else {
+            $filename = sprintf(
+                '%s_%s_%s.xlsx',
+                $f['report'],
+                str_replace('-', '', $f['from']),
+                str_replace('-', '', $f['to'])
+            );
+        }
 
         return $this->streamXlsx($spreadsheet, $filename);
     }
@@ -116,6 +139,19 @@ class DashboardReportController extends Controller
             'from'   => $from,
             'to'     => $to,
         ];
+    }
+
+    private function isExportOnly(string $report): bool
+    {
+        return !empty(self::REPORTS[$report]['export_only']);
+    }
+
+    /**
+     * Heure locale courante, indépendamment du fuseau configuré dans l'application.
+     */
+    private function localNow(): Carbon
+    {
+        return Carbon::now('UTC')->addMinutes(self::LOCAL_OFFSET);
     }
 
     /**
@@ -191,6 +227,7 @@ class DashboardReportController extends Controller
     {
         return match ($f['report']) {
             'revenue' => $this->revenueTables($f),
+            'users'   => $this->usersTables(),
             default   => $this->activityTables($f),
         };
     }
@@ -463,6 +500,104 @@ class DashboardReportController extends Controller
     }
 
     /**
+     * Liste des utilisateurs à date, sans notion de période.
+     *
+     * La dernière activité retient la plus récente entre l'usage d'un
+     * jeton d'appareil (ouverture de l'app) et la consultation d'un
+     * contenu : l'un ou l'autre peut manquer selon l'ancienneté du compte.
+     */
+    private function usersTables(): array
+    {
+        $lastUse = DB::table('device_tokens')
+            ->select('user_id')
+            ->selectRaw('MAX(last_used_at) as last_used_at')
+            ->groupBy('user_id');
+
+        $lastView = DB::table('trk_content_views')
+            ->select('user_id')
+            ->selectRaw('MAX(created_at) as last_view_at')
+            ->groupBy('user_id');
+
+        $offset = self::LOCAL_OFFSET;
+
+        $users = DB::table('users as u')
+            ->leftJoin('professions as p', 'p.id', '=', 'u.profession_id')
+            ->leftJoin('funding_organizations as fo', 'fo.id', '=', 'u.funding_organization_id')
+            ->leftJoinSub($lastUse, 'dt', 'dt.user_id', '=', 'u.id')
+            ->leftJoinSub($lastView, 'cv', 'cv.user_id', '=', 'u.id')
+            ->select(
+                'u.id',
+                'u.name',
+                'u.first_name',
+                'u.email',
+                'u.phone',
+                'u.postal_code',
+                'u.city',
+                'u.other_profession',
+                'u.student_flg',
+                'u.created_from'
+            )
+            ->selectRaw('p.name as profession')
+            ->selectRaw('fo.name as funding_organization')
+            // Les COALESCE croisés rendent NULL seulement si les deux sources manquent
+            ->selectRaw("DATE_ADD(GREATEST(COALESCE(dt.last_used_at, cv.last_view_at), COALESCE(cv.last_view_at, dt.last_used_at)), INTERVAL {$offset} MINUTE) as last_activity")
+            ->selectRaw("DATE_ADD(u.created_at, INTERVAL {$offset} MINUTE) as created_local")
+            ->whereIn('u.role_id', self::USER_ROLES)
+            ->orderBy('u.id')
+            ->get();
+
+        $rows = [];
+
+        foreach ($users as $user) {
+            $rows[] = [
+                $user->id,
+                $user->name,
+                $user->first_name,
+                $user->email,
+                $user->phone,
+                $user->postal_code,
+                $user->city,
+                $user->profession,
+                $user->other_profession,
+                $user->funding_organization,
+                $user->student_flg === null ? null : ((bool) $user->student_flg ? 'Oui' : 'Non'),
+                $user->last_activity,
+                $user->created_local,
+                $user->created_from,
+            ];
+        }
+
+        return [
+            'users' => [
+                'title'   => 'Utilisateurs',
+                'headers' => [
+                    'ID',
+                    'Nom',
+                    'Prénom',
+                    'Email',
+                    'Téléphone',
+                    'Code postal',
+                    'Ville',
+                    'Profession',
+                    'Autre profession',
+                    'Organisme de financement',
+                    'Étudiant',
+                    'Dernière activité',
+                    'Inscription',
+                    'Origine',
+                ],
+                'rows'    => $rows,
+                'totals'  => null,
+                'columns' => [
+                    'text', 'text', 'text', 'text', 'string', 'string', 'text',
+                    'text', 'text', 'text', 'text', 'datetime', 'datetime', 'text',
+                ],
+                'groups'  => null,
+            ],
+        ];
+    }
+
+    /**
      * Somme des colonnes numériques, pour la ligne de total.
      */
     private function columnTotals(array $rows, array $columns): ?array
@@ -505,11 +640,16 @@ class DashboardReportController extends Controller
         $sheet->mergeCells('A1:' . $lastColumn . '1');
         $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(14);
 
-        $sheet->setCellValue('A2', sprintf(
-            'Période : de %s à %s',
-            $this->monthLabel($f['from']),
-            $this->monthLabel($f['to'])
-        ));
+        // Sans période, on date l'extraction pour situer l'état des données
+        if ($this->isExportOnly($f['report'])) {
+            $sheet->setCellValue('A2', 'Extraction du ' . $this->localNow()->format('d/m/Y à H:i'));
+        } else {
+            $sheet->setCellValue('A2', sprintf(
+                'Période : de %s à %s',
+                $this->monthLabel($f['from']),
+                $this->monthLabel($f['to'])
+            ));
+        }
         $sheet->mergeCells('A2:' . $lastColumn . '2');
         $sheet->getStyle('A2')->getFont()->setItalic(true)->getColor()->setRGB('808080');
 
@@ -578,6 +718,19 @@ class DashboardReportController extends Controller
 
         foreach ($table['rows'] as $line) {
             foreach (array_values($line) as $i => $value) {
+                $type = $columns[$i] ?? 'text';
+
+                // Excel convertirait "0612…" ou "01000" en nombre et perdrait le zéro
+                if ($value !== null && $type === 'string') {
+                    $sheet->setCellValueExplicit($this->columnLetter($i + 1) . $row, (string) $value, DataType::TYPE_STRING);
+                    continue;
+                }
+
+                // Une vraie date Excel reste triable et filtrable, contrairement à du texte
+                if ($value !== null && $type === 'datetime') {
+                    $value = ExcelDate::PHPToExcel(Carbon::parse($value));
+                }
+
                 $sheet->setCellValue($this->columnLetter($i + 1) . $row, $value);
             }
             $row++;
