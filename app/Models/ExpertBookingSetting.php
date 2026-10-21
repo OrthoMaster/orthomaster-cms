@@ -15,7 +15,7 @@ class ExpertBookingSetting extends Model
         'expert_id',
         'enabled_flg',
         'timezone',
-        'min_notice_hours',
+        'min_notice_days',
         'max_advance_months',
         'morning_start',
         'morning_end',
@@ -26,7 +26,7 @@ class ExpertBookingSetting extends Model
     protected $casts = [
         'expert_id'          => 'integer',
         'enabled_flg'        => 'boolean',
-        'min_notice_hours'   => 'integer',
+        'min_notice_days'    => 'integer',
         'max_advance_months' => 'integer',
     ];
 }

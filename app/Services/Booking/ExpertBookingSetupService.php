@@ -33,7 +33,7 @@ class ExpertBookingSetupService
         'morning_end'        => '12:00',
         'afternoon_start'    => '14:00',
         'afternoon_end'      => '17:00',
-        'min_notice_hours'   => 24,
+        'min_notice_days'    => 1,
         'max_advance_months' => 6,
     ];
 
@@ -42,7 +42,7 @@ class ExpertBookingSetupService
     public const PERIODS = ['morning', 'afternoon'];
 
     /** Plafonds de saisie, pour éviter des valeurs absurdes. */
-    public const MAX_NOTICE_HOURS     = 720;
+    public const MAX_NOTICE_DAYS      = 30;
     public const MAX_ADVANCE_MONTHS   = 12;
     public const MAX_BLOCKS_PER_OFFER = 20;
 
@@ -55,7 +55,7 @@ class ExpertBookingSetupService
     private const ATTRIBUTES = [
         'enabled_flg'        => 'activation',
         'timezone'           => 'fuseau horaire',
-        'min_notice_hours'   => 'délai minimum',
+        'min_notice_days'    => 'délai minimum',
         'max_advance_months' => 'réservation au plus tard',
         'morning_start'      => 'début du matin',
         'morning_end'        => 'fin du matin',
@@ -90,7 +90,7 @@ class ExpertBookingSetupService
             $defaults[$key] = ($value === null || $value === '') ? $fallback : $value;
         }
 
-        $defaults['min_notice_hours']   = (int) $defaults['min_notice_hours'];
+        $defaults['min_notice_days']    = (int) $defaults['min_notice_days'];
         $defaults['max_advance_months'] = (int) $defaults['max_advance_months'];
 
         return $defaults;
@@ -130,7 +130,7 @@ class ExpertBookingSetupService
         $data = Validator::make($input, [
             'enabled_flg'        => ['required', 'boolean'],
             'timezone'           => ['required', 'timezone:all'],
-            'min_notice_hours'   => ['nullable', 'integer', 'min:1', 'max:' . self::MAX_NOTICE_HOURS],
+            'min_notice_days'    => ['nullable', 'integer', 'min:1', 'max:' . self::MAX_NOTICE_DAYS],
             'max_advance_months' => ['nullable', 'integer', 'min:1', 'max:' . self::MAX_ADVANCE_MONTHS],
             'morning_start'      => ['nullable', 'date_format:H:i'],
             'morning_end'        => ['nullable', 'date_format:H:i'],
@@ -152,7 +152,7 @@ class ExpertBookingSetupService
             [
                 'enabled_flg'        => (bool) $data['enabled_flg'],
                 'timezone'           => $data['timezone'],
-                'min_notice_hours'   => $data['min_notice_hours'] ?? null,
+                'min_notice_days'    => $data['min_notice_days'] ?? null,
                 'max_advance_months' => $data['max_advance_months'] ?? null,
                 'morning_start'      => $data['morning_start'] ?? null,
                 'morning_end'        => $data['morning_end'] ?? null,

@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class ExpertOffer extends Model
@@ -29,6 +30,12 @@ class ExpertOffer extends Model
     ];
 
     protected $appends = ['duration_label'];
+
+    /** Illustrations, dans l'ordre d'affichage. */
+    public function images(): HasMany
+    {
+        return $this->hasMany(ExpertOfferImage::class, 'offer_id')->orderBy('order_dsp')->orderBy('id');
+    }
 
     public function scopeActive(Builder $query): Builder
     {

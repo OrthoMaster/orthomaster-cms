@@ -8,6 +8,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Stripe\Webhook;
 use Stripe\Exception\SignatureVerificationException;
+use App\Services\Booking\BookingStripeWebhookService;
 
 class StripeWebhookController extends Controller
 {
@@ -22,6 +23,10 @@ class StripeWebhookController extends Controller
 
         try {
             $event = Webhook::constructEvent($payload, $sigHeader, $webhookSecret);
+
+            if (app(BookingStripeWebhookService::class)->handle($event)) {
+                return response()->json(['received' => true]); // giữ kiểu response anh đang dùng
+            }
         } catch (\UnexpectedValueException $e) {
             Log::error('Webhook Error: Invalid payload');
             return response()->json(['error' => 'Invalid payload'], 400);

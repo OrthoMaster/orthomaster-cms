@@ -33,6 +33,9 @@ class MediaController extends Controller
     /** Versions possibles d'un contenu */
     private const CONTENT_VERSIONS = ['v1', 'v2'];
 
+    /** Version d'Editor.js inscrite dans la trame générée côté serveur, alignée sur le front */
+    private const EDITORJS_VERSION = '2.26.5';
+
     /**
      * Trang dashboard medias.
      * GET /medias
@@ -261,7 +264,7 @@ class MediaController extends Controller
     }
 
     /**
-     * Enregistrement : videos -> content -> expert_video (transaction).
+     * Enregistrement : videos -> content -> blocks -> expert_video (transaction).
      * POST /medias
      */
     public function store(Request $request)
@@ -296,7 +299,19 @@ class MediaController extends Controller
                 'id_content'
             );
 
-            // 3) Les auteurs et centres d'intérêt
+            // 3) La trame de l'éditeur, que les rédacteurs n'ont plus qu'à compléter
+            DB::table('blocks')->insert([
+                'video_id'   => $videoId,
+                'lesson_id'  => null,
+                'content'    => json_encode($this->defaultContentBlocks(
+                    $data['code'],
+                    $this->parsedChapters($data['highlights'])
+                )),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+
+            // 4) Les auteurs et centres d'intérêt
             $this->syncExperts($contentId, $data['experts']);
             $this->syncTopics($contentId, $videoId, $data['topics']);
 
@@ -393,6 +408,14 @@ class MediaController extends Controller
                 $this->saveContentBlock(
                     (int) $media->video_id,
                     $request->input('content_blocks')
+                );
+
+                // L'éditeur a été sérialisé avec le code et les chapitres du chargement
+                // de la page : on les aligne sur ceux qui viennent d'être enregistrés
+                $this->syncVideoFieldsInBlock(
+                    (int) $media->video_id,
+                    $data['code'],
+                    $this->parsedChapters($data['highlights'])
                 );
             }
 
@@ -1297,6 +1320,85 @@ class MediaController extends Controller
             'created_at' => now(),
             'updated_at' => now(),
         ]);
+    }
+
+    /**
+     * Reporte le code et les chapitres de la fiche dans les blocs `video`
+     * et `chapters` déjà enregistrés. Lu depuis la base plutôt que depuis
+     * la requête : la correction s'applique même si l'éditeur n'a rien envoyé.
+     */
+    private function syncVideoFieldsInBlock(int $videoId, string $code, array $chapters): void
+    {
+        $row = DB::table('blocks')->where('video_id', $videoId)->first();
+
+        if (!$row) {
+            return;
+        }
+
+        $content = json_decode($row->content, true);
+
+        if (!is_array($content) || empty($content['blocks'])) {
+            return;
+        }
+
+        $changed = false;
+
+        foreach ($content['blocks'] as $i => $block) {
+            $type = $block['type'] ?? null;
+
+            if ($type === 'video' && ($block['data']['code'] ?? null) !== $code) {
+                $content['blocks'][$i]['data']['code'] = $code;
+                $changed = true;
+            }
+
+            if ($type === 'chapters' && ($block['data']['chapters'] ?? null) !== $chapters) {
+                $content['blocks'][$i]['data']['chapters'] = $chapters;
+                $changed = true;
+            }
+        }
+
+        if (!$changed) {
+            return;
+        }
+
+        DB::table('blocks')
+            ->where('id', $row->id)
+            ->update([
+                'content'    => json_encode($content),
+                'updated_at' => now(),
+            ]);
+    }
+
+    /**
+     * Trame initiale d'un nouveau média, au format Editor.js.
+     * Les blocs liés restent vides : les podcasts, quiz et infographies
+     * ne peuvent être créés qu'une fois la vidéo enregistrée.
+     */
+    private function defaultContentBlocks(string $code, array $chapters): array
+    {
+        $header = fn(string $text) => ['type' => 'header', 'data' => ['text' => $text, 'level' => 3]];
+        $linked = fn(string $type) => ['type' => $type, 'data' => ['id' => null, 'title' => '']];
+
+        $blocks = [
+            ['type' => 'video', 'data' => ['code' => $code, 'type' => 'hls']],
+            ['type' => 'chapters', 'data' => ['chapters' => $chapters]],
+            $header('Description'),
+            $header('Infographie'),
+            $linked('infographic'),
+            $header('Podcast'),
+            $linked('podcast'),
+            $header('Quiz'),
+            $linked('quiz'),
+            $linked('quiz'),
+            $linked('quiz'),
+        ];
+
+        return [
+            // Editor.js horodate en millisecondes
+            'time'    => (int) round(microtime(true) * 1000),
+            'blocks'  => array_map(fn($b) => ['id' => Str::random(10)] + $b, $blocks),
+            'version' => self::EDITORJS_VERSION,
+        ];
     }
 
     /**

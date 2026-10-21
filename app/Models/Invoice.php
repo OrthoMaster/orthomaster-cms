@@ -20,6 +20,8 @@ class Invoice extends Model
     const STATUS_PENDING = 'pending';
     const STATUS_SENT = 'sent';
     const STATUS_PROCESSING = 'processing';
+    // Rendez-vous expert : montant réservé sur la carte, débité à l'acceptation de l'expert.
+    const STATUS_AUTHORIZED = 'authorized';
     const STATUS_PAID = 'paid';
     const STATUS_FAILED = 'failed';
     const STATUS_CANCELLED = 'cancelled';

@@ -3,10 +3,12 @@
 namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
+use App\Support\Brochures\BrochureDraft;
+use App\Models\Domain;
 use App\Models\Expert;
 use App\Models\ExpertOffer;
+use App\Models\ExpertOfferImage;
 use App\Services\Booking\ExpertSlotService;
-use App\Support\Brochures\BrochureDraft;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -108,6 +110,7 @@ class BookingExpertController extends Controller
 
         $offers = $online
             ? ExpertOffer::active()
+                ->with('images')
                 ->where('expert_id', $expertId)
                 ->orderBy('order_dsp')
                 ->orderBy('id')
@@ -164,6 +167,8 @@ class BookingExpertController extends Controller
             'slug'          => $expert->slug,
             'avatar_url'    => $expert->avatar_url,
             'palette'       => $expert->palette,
+            // La page vitrine n'existe pour le public qu'une fois publiée.
+            'showcase_published' => $expert->brochure_published_at !== null,
             // Couleur résolue côté serveur : une seule source pour la liste des palettes.
             'palette_color' => BrochureDraft::PALETTES[$expert->palette][1] ?? null,
         ];
@@ -175,6 +180,19 @@ class BookingExpertController extends Controller
         }
 
         return $payload;
+    }
+
+    /**
+     * Liste commune des domaines, pour le choix dans le profil expert.
+     * GET /booking/domains
+     */
+    public function domains(): JsonResponse
+    {
+        $domains = Domain::orderBy('sort_order')->orderBy('label')->get(['id', 'label'])
+            ->map(fn ($d) => ['id' => $d->id, 'name' => $d->label])
+            ->values();
+
+        return $this->success(['domains' => $domains]);
     }
 
     /**
@@ -191,9 +209,7 @@ class BookingExpertController extends Controller
             // decimal revient en chaîne ; l'application attend un nombre.
             'price'          => (float) $offer->price,
             'currency'       => $offer->currency,
-            // Illustrations du thème : à remplir quand la table expert_offer_images existera
-            // (id, url S3, caption, width, height, triées par order_dsp).
-            'images'         => [],
+            'images'         => $offer->images->map(fn (ExpertOfferImage $image) => $image->payload())->values(),
         ];
     }
 

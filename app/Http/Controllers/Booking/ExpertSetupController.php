@@ -74,6 +74,7 @@ class ExpertSetupController extends Controller
         $defaults = ExpertBookingSetupService::systemDefaults();
 
         $offers = ExpertOffer::where('expert_id', $expertId)
+            ->withCount('images')
             ->orderBy('order_dsp')
             ->orderBy('id')
             ->get();
@@ -109,7 +110,7 @@ class ExpertSetupController extends Controller
 
         $this->setup->saveSettings($expertId, $request->only([
             'timezone',
-            'min_notice_hours',
+            'min_notice_days',
             'max_advance_months',
             'morning_start',
             'morning_end',

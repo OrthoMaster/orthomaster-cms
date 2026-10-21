@@ -2,25 +2,25 @@
 
 @php
     $activeTab = old('_tab', $tab);
-    $oldForm   = old('_form');
+    $oldForm = old('_form');
 
     // Pourcentages et taux sans décimales inutiles, virgule française : 12.50 → « 12,5 % ».
-    $pct  = fn ($value) => str_replace('.', ',', (string) (float) $value) . ' %';
-    $date = fn ($value) => \Carbon\Carbon::parse($value)->format('d/m/Y');
+    $pct = fn($value) => str_replace('.', ',', (string) (float) $value) . ' %';
+    $date = fn($value) => \Carbon\Carbon::parse($value)->format('d/m/Y');
 
     // Taux en vigueur par périmètre (général ou expert) : le plus récent déjà entré en vigueur.
     $currentCommissionIds = $commissions
-        ->filter(fn ($r) => $r->effective_from <= $today)
-        ->groupBy(fn ($r) => $r->expert_id ?? 'global')
-        ->map(fn ($group) => $group->sortByDesc('effective_from')->first()->id)
+        ->filter(fn($r) => $r->effective_from <= $today)
+        ->groupBy(fn($r) => $r->expert_id ?? 'global')
+        ->map(fn($group) => $group->sortByDesc('effective_from')->first()->id)
         ->values()
         ->all();
 
     // [libellé, icône, compteur ou null]
     $tabs = [
-        'policies'    => ["Politique d'annulation", 'voyager-file-text', null],
+        'policies' => ["Politique d'annulation", 'voyager-file-text', null],
         'commissions' => ['Commissions', 'voyager-wallet', null],
-        'reasons'     => ['Motifs de refus', 'voyager-list', $reasons->where('active_flg', true)->count()],
+        'reasons' => ['Motifs de refus', 'voyager-list', $reasons->where('active_flg', true)->count()],
     ];
 @endphp
 
@@ -30,8 +30,11 @@
     <h1 class="page-title">
         <i class="voyager-settings"></i> Configuration des rendez-vous
     </h1>
+    <a href="{{ route('booking.appointments.index') }}" class="btn btn-default">
+        <i class="voyager-calendar"></i> Rendez-vous
+    </a>
     <a href="{{ route('booking.experts.index') }}" class="btn btn-default">
-        <i class="voyager-calendar"></i> Experts
+        <i class="voyager-people"></i> Experts
     </a>
     <a href="{{ route('voyager.settings.index') }}" class="btn btn-default" target="_blank">
         <i class="voyager-params"></i> Valeurs par défaut et paiement
@@ -116,7 +119,7 @@
         }
 
         /* --- Structure --- */
-        .booking-section + .booking-section {
+        .booking-section+.booking-section {
             margin-top: 30px;
             padding-top: 25px;
             border-top: 1px solid #eef0f3;
@@ -161,7 +164,7 @@
             margin: 0;
         }
 
-        .booking-facts > div {
+        .booking-facts>div {
             padding: 14px 16px;
             border: 1px solid #e4e7eb;
             border-radius: 6px;
@@ -213,7 +216,8 @@
         {{-- ============ ONGLETS ============ --}}
         <div class="stats-tabs">
             @foreach ($tabs as $key => [$label, $icon, $count])
-                <button type="button" class="stats-tab {{ $activeTab === $key ? 'is-active' : '' }}" data-tab="{{ $key }}">
+                <button type="button" class="stats-tab {{ $activeTab === $key ? 'is-active' : '' }}"
+                    data-tab="{{ $key }}">
                     <i class="{{ $icon }}"></i> {{ $label }}
                     @if ($count !== null)
                         <span class="stats-tab-count">{{ $count }}</span>
@@ -230,7 +234,8 @@
                         @if ($currentPolicy)
                             <h3>En vigueur depuis le {{ $currentPolicy->effective_from->format('d/m/Y') }}</h3>
                             <p class="booking-intro">
-                                Chaque demande enregistre la politique du jour : la modifier ne change rien aux rendez-vous existants.
+                                Chaque demande enregistre la politique du jour : la modifier ne change rien aux rendez-vous
+                                existants.
                             </p>
                             <dl class="booking-facts">
                                 <div>
@@ -285,26 +290,26 @@
                                 <div class="form-group">
                                     <label for="policy-from">Date d'effet</label>
                                     <input type="date" name="effective_from" id="policy-from" class="form-control"
-                                           min="{{ $today }}" required
-                                           value="{{ $policyOld ? old('effective_from') : $today }}">
+                                        min="{{ $today }}" required
+                                        value="{{ $policyOld ? old('effective_from') : $today }}">
                                 </div>
                                 <div class="form-group">
                                     <label for="policy-free">Annulation gratuite jusqu'à (h)</label>
                                     <input type="number" name="free_cancel_hours" id="policy-free" class="form-control"
-                                           min="0" max="8760" required
-                                           value="{{ $policyOld ? old('free_cancel_hours') : $currentPolicy?->free_cancel_hours }}">
+                                        min="0" max="8760" required
+                                        value="{{ $policyOld ? old('free_cancel_hours') : $currentPolicy?->free_cancel_hours }}">
                                 </div>
                                 <div class="form-group">
                                     <label for="policy-penalty">Pénalité tardive (%)</label>
-                                    <input type="number" name="late_cancel_penalty_pct" id="policy-penalty" class="form-control"
-                                           min="0" max="100" step="0.01" required
-                                           value="{{ $policyOld ? old('late_cancel_penalty_pct') : $currentPolicy?->late_cancel_penalty_pct }}">
+                                    <input type="number" name="late_cancel_penalty_pct" id="policy-penalty"
+                                        class="form-control" min="0" max="100" step="0.01" required
+                                        value="{{ $policyOld ? old('late_cancel_penalty_pct') : $currentPolicy?->late_cancel_penalty_pct }}">
                                 </div>
                                 <div class="form-group">
                                     <label for="policy-noshow">Remboursement si l'utilisateur est absent (%)</label>
-                                    <input type="number" name="user_noshow_refund_pct" id="policy-noshow" class="form-control"
-                                           min="0" max="100" step="0.01" required
-                                           value="{{ $policyOld ? old('user_noshow_refund_pct') : $currentPolicy?->user_noshow_refund_pct }}">
+                                    <input type="number" name="user_noshow_refund_pct" id="policy-noshow"
+                                        class="form-control" min="0" max="100" step="0.01" required
+                                        value="{{ $policyOld ? old('user_noshow_refund_pct') : $currentPolicy?->user_noshow_refund_pct }}">
                                 </div>
                                 <div class="form-group">
                                     <button type="submit" class="btn btn-primary">Enregistrer</button>
@@ -346,8 +351,8 @@
                                         <td class="text-right">
                                             @if ($from >= $today)
                                                 <form method="POST" class="booking-inline-form"
-                                                      action="{{ route('booking.config.policies.destroy', $policy->id) }}"
-                                                      data-confirm="Supprimer la politique du {{ $policy->effective_from->format('d/m/Y') }} ?">
+                                                    action="{{ route('booking.config.policies.destroy', $policy->id) }}"
+                                                    data-confirm="Supprimer la politique du {{ $policy->effective_from->format('d/m/Y') }} ?">
                                                     @csrf
                                                     @method('DELETE')
                                                     <button type="submit" class="btn btn-sm btn-danger">Supprimer</button>
@@ -390,8 +395,7 @@
                                     <select name="expert_id" id="commission-expert" class="form-control">
                                         <option value="">Taux général</option>
                                         @foreach ($experts as $expert)
-                                            <option value="{{ $expert->id }}"
-                                                @selected($commissionOld && (int) old('expert_id') === $expert->id)>
+                                            <option value="{{ $expert->id }}" @selected($commissionOld && (int) old('expert_id') === $expert->id)>
                                                 {{ $expert->name }}
                                             </option>
                                         @endforeach
@@ -400,14 +404,14 @@
                                 <div class="form-group">
                                     <label for="commission-rate">Taux (%)</label>
                                     <input type="number" name="rate" id="commission-rate" class="form-control"
-                                           min="0" max="100" step="0.01" required
-                                           value="{{ $commissionOld ? old('rate') : '' }}">
+                                        min="0" max="100" step="0.01" required
+                                        value="{{ $commissionOld ? old('rate') : '' }}">
                                 </div>
                                 <div class="form-group">
                                     <label for="commission-from">Date d'effet</label>
-                                    <input type="date" name="effective_from" id="commission-from" class="form-control"
-                                           min="{{ $today }}" required
-                                           value="{{ $commissionOld ? old('effective_from') : $today }}">
+                                    <input type="date" name="effective_from" id="commission-from"
+                                        class="form-control" min="{{ $today }}" required
+                                        value="{{ $commissionOld ? old('effective_from') : $today }}">
                                 </div>
                                 <div class="form-group">
                                     <button type="submit" class="btn btn-primary">Enregistrer</button>
@@ -451,11 +455,12 @@
                                         <td class="text-right">
                                             @if ($commission->effective_from >= $today)
                                                 <form method="POST" class="booking-inline-form"
-                                                      action="{{ route('booking.config.commissions.destroy', $commission->id) }}"
-                                                      data-confirm="Supprimer ce taux ?">
+                                                    action="{{ route('booking.config.commissions.destroy', $commission->id) }}"
+                                                    data-confirm="Supprimer ce taux ?">
                                                     @csrf
                                                     @method('DELETE')
-                                                    <button type="submit" class="btn btn-sm btn-danger">Supprimer</button>
+                                                    <button type="submit"
+                                                        class="btn btn-sm btn-danger">Supprimer</button>
                                                 </form>
                                             @endif
                                         </td>
@@ -498,21 +503,23 @@
                                     <tr>
                                         <td>
                                             <input type="number" name="order_dsp" form="reason-{{ $reason->id }}"
-                                                   class="form-control input-sm booking-order" min="0"
-                                                   value="{{ $reason->order_dsp }}" aria-label="Ordre">
+                                                class="form-control input-sm booking-order" min="0"
+                                                value="{{ $reason->order_dsp }}" aria-label="Ordre">
                                         </td>
                                         <td>
                                             <input type="text" name="label" form="reason-{{ $reason->id }}"
-                                                   class="form-control input-sm" maxlength="150" required
-                                                   value="{{ $reason->label }}" aria-label="Libellé">
+                                                class="form-control input-sm" maxlength="150" required
+                                                value="{{ $reason->label }}" aria-label="Libellé">
                                         </td>
                                         <td>
-                                            <input type="checkbox" name="active_flg" value="1" form="reason-{{ $reason->id }}"
-                                                   @checked($reason->active_flg) aria-label="Proposé">
+                                            <input type="checkbox" name="active_flg" value="1"
+                                                form="reason-{{ $reason->id }}" @checked($reason->active_flg)
+                                                aria-label="Proposé">
                                         </td>
                                         <td class="text-right">
-                                            <form method="POST" id="reason-{{ $reason->id }}" class="booking-inline-form"
-                                                  action="{{ route('booking.config.reasons.update', $reason->id) }}">
+                                            <form method="POST" id="reason-{{ $reason->id }}"
+                                                class="booking-inline-form"
+                                                action="{{ route('booking.config.reasons.update', $reason->id) }}">
                                                 @csrf
                                                 @method('PUT')
                                                 <input type="hidden" name="_tab" value="reasons">
@@ -538,8 +545,8 @@
                             <div class="booking-form-row">
                                 <div class="form-group" style="flex: 1; min-width: 260px;">
                                     <label for="reason-label">Nouveau motif</label>
-                                    <input type="text" name="label" id="reason-label" class="form-control" maxlength="150"
-                                           required value="{{ $oldForm === 'reason' ? old('label') : '' }}">
+                                    <input type="text" name="label" id="reason-label" class="form-control"
+                                        maxlength="150" required value="{{ $oldForm === 'reason' ? old('label') : '' }}">
                                 </div>
                                 <div class="form-group">
                                     <button type="submit" class="btn btn-success">Ajouter</button>
@@ -555,7 +562,7 @@
 
 @section('javascript')
     <script>
-        $(document).ready(function () {
+        $(document).ready(function() {
             /* --- Onglets --- */
             function showTab(name) {
                 var $tab = $('.stats-tab[data-tab="' + name + '"]');
@@ -565,12 +572,12 @@
                 $('.stats-tab').removeClass('is-active');
                 $tab.addClass('is-active');
 
-                $('.stats-pane').each(function () {
+                $('.stats-pane').each(function() {
                     $(this).toggle($(this).data('pane') === name);
                 });
             }
 
-            $('.stats-tab').on('click', function () {
+            $('.stats-tab').on('click', function() {
                 var name = $(this).data('tab');
 
                 // En paramètre plutôt qu'en ancre : les redirections du serveur
@@ -583,10 +590,12 @@
             });
 
 
-            $('#commission-expert').select2({ width: '100%' });
+            $('#commission-expert').select2({
+                width: '100%'
+            });
 
             /* --- Confirmations --- */
-            $(document).on('submit', 'form[data-confirm]', function (e) {
+            $(document).on('submit', 'form[data-confirm]', function(e) {
                 if (!window.confirm($(this).data('confirm'))) {
                     e.preventDefault();
                 }

@@ -8,6 +8,10 @@ use App\Models\ExpertAvailabilityException;
 use App\Models\ExpertAvailabilityRule;
 use App\Models\ExpertBookingSetting;
 use App\Models\ExpertOffer;
+use App\Support\Brochures\BrochureDraft;
+use App\Models\ExpertOfferImage;
+use App\Services\Booking\ExpertOfferImageService;
+use App\Services\Booking\ExpertProfileService;
 use App\Services\Booking\ExpertBookingSetupService;
 use App\Services\Booking\ExpertSlotService;
 use Carbon\Carbon;
@@ -27,6 +31,8 @@ class ExpertBookingSetupController extends Controller
     public function __construct(
         private ExpertBookingSetupService $setup,
         private ExpertSlotService $slots,
+        private ExpertOfferImageService $images,
+        private ExpertProfileService $profile,
     ) {
     }
 
@@ -85,7 +91,7 @@ class ExpertBookingSetupController extends Controller
         $current = [
             'enabled_flg'        => $resolved['enabled_flg'],
             'timezone'           => $resolved['timezone'],
-            'min_notice_hours'   => $own?->min_notice_hours,
+            'min_notice_days'    => $own?->min_notice_days,
             'max_advance_months' => $own?->max_advance_months,
             'morning_start'      => $time($own?->morning_start),
             'morning_end'        => $time($own?->morning_end),
@@ -96,7 +102,7 @@ class ExpertBookingSetupController extends Controller
         $this->setup->saveSettings($expertId, array_merge($current, $request->only([
             'enabled_flg',
             'timezone',
-            'min_notice_hours',
+            'min_notice_days',
             'max_advance_months',
             'morning_start',
             'morning_end',
@@ -143,6 +149,83 @@ class ExpertBookingSetupController extends Controller
         $this->assertOwned($offer->expert_id, $expertId);
 
         $this->setup->deleteOffer($offer);
+
+        return $this->success($this->payload($expertId));
+    }
+
+    /* ===================== PROFIL ===================== */
+
+    /**
+     * PUT /booking/me/profile
+     * Corps : honorific, name, credentials, lede, palette, domain_ids[]
+     */
+    public function updateProfile(Request $request): JsonResponse
+    {
+        $expertId = $this->requireExpert($request);
+
+        $this->profile->update(
+            Expert::findOrFail($expertId),
+            $request->only(['honorific', 'name', 'credentials', 'lede', 'palette', 'domain_ids'])
+        );
+
+        return $this->success($this->payload($expertId));
+    }
+
+    /**
+     * Ajoute un domaine à la liste commune ; renvoie l'existant si le libellé est déjà pris.
+     * POST /booking/me/domains
+     * Corps : label
+     */
+    public function storeDomain(Request $request): JsonResponse
+    {
+        $this->requireExpert($request);
+        $domain = $this->profile->createDomain($request->input('label'));
+
+        return $this->success(['domain' => ['id' => $domain->id, 'name' => $domain->label]], 201);
+    }
+
+    /* ===================== IMAGES D'UN THÈME ===================== */
+    // L'ajout se fait depuis le CMS ; l'expert légende, réordonne et supprime.
+
+    /**
+     * PUT /booking/me/offers/{offer}/images/order
+     * Corps : ids[] dans le nouvel ordre
+     */
+    public function reorderOfferImages(Request $request, ExpertOffer $offer): JsonResponse
+    {
+        $expertId = $this->requireExpert($request);
+        $this->assertOwned($offer->expert_id, $expertId);
+
+        $this->images->reorder($offer, (array) $request->input('ids', []));
+
+        return $this->success($this->payload($expertId));
+    }
+
+    /**
+     * PUT /booking/me/offers/{offer}/images/{image}
+     * Corps : caption
+     */
+    public function updateOfferImage(Request $request, ExpertOffer $offer, ExpertOfferImage $image): JsonResponse
+    {
+        $expertId = $this->requireExpert($request);
+        $this->assertOwned($offer->expert_id, $expertId);
+        abort_unless($image->offer_id === $offer->id, 404);
+
+        $this->images->updateCaption($image, $request->input('caption'));
+
+        return $this->success($this->payload($expertId));
+    }
+
+    /**
+     * DELETE /booking/me/offers/{offer}/images/{image}
+     */
+    public function destroyOfferImage(Request $request, ExpertOffer $offer, ExpertOfferImage $image): JsonResponse
+    {
+        $expertId = $this->requireExpert($request);
+        $this->assertOwned($offer->expert_id, $expertId);
+        abort_unless($image->offer_id === $offer->id, 404);
+
+        $this->images->delete($image);
 
         return $this->success($this->payload($expertId));
     }
@@ -250,6 +333,7 @@ class ExpertBookingSetupController extends Controller
         $time     = fn (?string $value) => $value ? substr($value, 0, 5) : null;
 
         $offers = ExpertOffer::where('expert_id', $expertId)
+            ->with('images')
             ->orderBy('order_dsp')
             ->orderBy('id')
             ->get()
@@ -296,7 +380,7 @@ class ExpertBookingSetupController extends Controller
             'expert'    => BookingExpertController::expertPayload(Expert::with('domains')->findOrFail($expertId)),
             'settings'  => [
                 'own' => [
-                    'min_notice_hours'   => $own?->min_notice_hours,
+                    'min_notice_days'    => $own?->min_notice_days,
                     'max_advance_months' => $own?->max_advance_months,
                     'morning_start'      => $time($own?->morning_start),
                     'morning_end'        => $time($own?->morning_end),
@@ -306,13 +390,26 @@ class ExpertBookingSetupController extends Controller
                 'resolved' => $resolved,
                 'defaults' => ExpertBookingSetupService::systemDefaults(),
             ],
+            // Palettes proposées dans le profil : clé, nom, couleur.
+            'palettes' => collect(BrochureDraft::PALETTES)
+                ->map(fn ($p, $key) => ['key' => $key, 'name' => $p[0], 'color' => $p[1]])
+                ->values(),
             // Bornes de saisie, pour que l'application valide avant l'envoi avec les mêmes règles.
             'limits' => [
                 'block_min_minutes'    => ExpertBookingSetupService::BLOCK_MIN_MINUTES,
                 'block_max_minutes'    => ExpertBookingSetupService::BLOCK_MAX_MINUTES,
-                'max_notice_hours'     => ExpertBookingSetupService::MAX_NOTICE_HOURS,
+                'max_notice_days'      => ExpertBookingSetupService::MAX_NOTICE_DAYS,
                 'max_advance_months'   => ExpertBookingSetupService::MAX_ADVANCE_MONTHS,
                 'max_blocks_per_offer' => ExpertBookingSetupService::MAX_BLOCKS_PER_OFFER,
+                'max_offer_images'     => ExpertOfferImageService::MAX_IMAGES,
+                'image_caption_max'    => ExpertOfferImageService::CAPTION_MAX,
+                'profile'              => [
+                    'honorific_max'   => ExpertProfileService::HONORIFIC_MAX,
+                    'name_max'        => ExpertProfileService::NAME_MAX,
+                    'credentials_max' => ExpertProfileService::CREDENTIALS_MAX,
+                    'lede_max'        => ExpertProfileService::LEDE_MAX,
+                    'domain_max'      => ExpertProfileService::DOMAIN_MAX,
+                ],
                 'max_exception_days'   => ExpertBookingSetupService::MAX_EXCEPTION_RANGE_DAYS,
             ],
             'offers'     => $offers,

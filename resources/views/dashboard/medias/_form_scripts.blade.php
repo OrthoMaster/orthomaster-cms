@@ -102,6 +102,8 @@
 
                     if (!ok) {
                         e.preventDefault();
+                        // Sans cela, le handler de sérialisation de l'éditeur soumet quand même le formulaire
+                        e.stopImmediatePropagation();
                         return false;
                     }
                 }

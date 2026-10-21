@@ -30,6 +30,9 @@ use App\Http\Controllers\VideoController;
 use App\Http\Controllers\API\BookingExpertController;
 use App\Http\Controllers\API\ExpertBookingSetupController;
 use App\Http\Controllers\API\AiVideoSearchController;
+use App\Http\Controllers\API\BookingRequestController;
+use App\Http\Controllers\API\ExpertAgendaController;
+use App\Http\Controllers\API\ExpertBookingRequestController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -146,6 +149,12 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
         Route::get('/invoices/fifpl/{invoiceId}', [PaymentController::class, 'getFifplInvoice']);
         Route::post('/invoices/fifpl/create-intent', [PaymentController::class, 'createFifplPaymentIntent']);
+
+        // Booking
+        Route::get('/bookings/checkout', [PaymentController::class, 'bookingCheckout']);
+        Route::post('/bookings/create-intent', [PaymentController::class, 'createBookingPaymentIntent']);
+        Route::put('/bookings/{booking}/confirm', [PaymentController::class, 'confirmBookingPayment']);
+        Route::put('/bookings/{booking}/cancel', [PaymentController::class, 'cancelBookingPayment']);
     });
 
     // Documents
@@ -265,6 +274,32 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
             Route::post('exceptions', 'storeExceptions');
             Route::delete('exceptions/{exception}', 'destroyException');
+        });
+
+        /* --- Booking - Clients --- */
+        Route::get('/requests', [BookingRequestController::class, 'index']);
+        Route::get('/requests/history', [BookingRequestController::class, 'history']);
+        Route::get('/requests/{booking}', [BookingRequestController::class, 'show'])->whereNumber('booking');
+        Route::post('/requests/{booking}/cancel', [BookingRequestController::class, 'cancel'])->whereNumber('booking');
+        Route::post('/requests/{booking}/no-show', [BookingRequestController::class, 'reportNoShow'])->whereNumber('booking');
+
+        Route::get('/domains', [BookingExpertController::class, 'domains']);
+
+        /** --- Booking - Experts --- */
+        Route::prefix('me')->group(function () {
+            Route::get('/requests', [ExpertBookingRequestController::class, 'index']);
+            Route::get('/requests/history', [ExpertBookingRequestController::class, 'history']);
+            Route::get('/requests/{booking}', [ExpertBookingRequestController::class, 'show'])->whereNumber('booking');
+            Route::post('/requests/{booking}/accept', [ExpertBookingRequestController::class, 'accept'])->whereNumber('booking');
+            Route::post('/requests/{booking}/decline', [ExpertBookingRequestController::class, 'decline'])->whereNumber('booking');
+            Route::get('/decline-reasons', [ExpertBookingRequestController::class, 'reasons']);
+
+            Route::get('/agenda', [ExpertAgendaController::class, 'index']);
+            Route::get('/agenda/history', [ExpertAgendaController::class, 'history']);
+            Route::post('/requests/{booking}/no-show', [ExpertBookingRequestController::class, 'reportNoShow'])->whereNumber('booking');
+
+            Route::put('/profile', [ExpertBookingSetupController::class, 'updateProfile']);
+            Route::post('/domains', [ExpertBookingSetupController::class, 'storeDomain']);
         });
     });
 });

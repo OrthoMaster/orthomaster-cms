@@ -401,12 +401,15 @@
                                     </select>
                                 </div>
                                 <div class="form-group col-md-4">
-                                    <label for="min_notice_hours">Délai minimum avant le rendez-vous (heures)</label>
-                                    <input type="number" min="1" max="{{ Setup::MAX_NOTICE_HOURS }}"
-                                           name="min_notice_hours" id="min_notice_hours" class="form-control"
-                                           value="{{ $settingsValue('min_notice_hours') }}"
-                                           placeholder="{{ $defaults['min_notice_hours'] }}">
-                                    <span class="help-block">Par défaut : {{ $defaults['min_notice_hours'] }} h</span>
+                                    <label for="min_notice_days">Délai minimum avant le rendez-vous (jours)</label>
+                                    <input type="number" min="1" max="{{ Setup::MAX_NOTICE_DAYS }}"
+                                           name="min_notice_days" id="min_notice_days" class="form-control"
+                                           value="{{ $settingsValue('min_notice_days') }}"
+                                           placeholder="{{ $defaults['min_notice_days'] }}">
+                                    <span class="help-block">
+                                        Par défaut : {{ $defaults['min_notice_days'] }} {{ $defaults['min_notice_days'] > 1 ? 'jours' : 'jour' }}
+                                        — 1 jour = réservable dès le lendemain matin.
+                                    </span>
                                 </div>
                                 <div class="form-group col-md-4">
                                     <label for="max_advance_months">Réservation au plus tard dans (mois)</label>
@@ -516,6 +519,10 @@
                                                 ]) }}">
                                             Modifier
                                         </button>
+                                        <a href="{{ route('booking.experts.offers.images.index', [$expert->id, $offer->id]) }}"
+                                           class="btn btn-sm btn-default">
+                                            <i class="voyager-photos"></i> Images ({{ $offer->images_count ?? 0 }})
+                                        </a>
                                         <form method="POST" class="booking-inline-form"
                                               action="{{ route('booking.experts.offers.destroy', [$expert->id, $offer->id]) }}"
                                               data-confirm="Supprimer l'offre « {{ $offer->title }} » ?">

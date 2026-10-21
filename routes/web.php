@@ -10,6 +10,7 @@ use App\Http\Controllers\HealthcareProfessionalController;
 use App\Http\Controllers\ImageController;
 use App\Http\Controllers\LessonController;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\Booking\AppointmentController;
 use App\Http\Controllers\BrochureController;
 use App\Http\Controllers\BrochureDemoController;
 use App\Http\Controllers\CompanyController;
@@ -40,6 +41,7 @@ use App\Http\Controllers\TrainingPermissionController;
 use App\Http\Controllers\WebController;
 use App\Http\Controllers\Booking\ConfigController;
 use App\Http\Controllers\Booking\ExpertSetupController;
+use App\Http\Controllers\Booking\OfferImageController;
 use Illuminate\Support\Facades\Route;
 use TCG\Voyager\Facades\Voyager;
 
@@ -93,27 +95,25 @@ Route::get('/demo', [BrochureController::class, 'sample'])
     ->name('brochures.sample');
 Route::get('/experts/{expert:slug}', [BrochureController::class, 'show'])
     ->where('expert', '[a-z0-9-]+');
-Route::domain(config('brochures.domain'))->group(function () {
-    Route::get('/demo/{expert:slug}', [BrochureDemoController::class, 'show'])
-        ->name('brochures.demo');
-    Route::post('/demo/{expert:slug}', [BrochureDemoController::class, 'save'])
-        ->middleware('throttle:60,1')
-        ->name('brochures.demo.save');
-    Route::post('/demo/{expert:slug}/avatar', [BrochureDemoController::class, 'avatar'])
-        ->middleware('throttle:10,1')
-        ->name('brochures.demo.avatar');
-    Route::post('/demo/{expert:slug}/domain', [BrochureDemoController::class, 'addDomain'])
-        ->middleware('throttle:20,1')
-        ->name('brochures.demo.domain');
-    Route::post('/demo/{expert:slug}/publish', [BrochureDemoController::class, 'publish'])
-        ->name('brochures.demo.publish');
-    Route::get('/demo/{expert:slug}/export', [BrochureDemoController::class, 'export'])
-        ->name('brochures.demo.export');
+Route::get('/demo/{expert:slug}', [BrochureDemoController::class, 'show'])
+    ->name('brochures.demo');
+Route::post('/demo/{expert:slug}', [BrochureDemoController::class, 'save'])
+    ->middleware('throttle:60,1')
+    ->name('brochures.demo.save');
+Route::post('/demo/{expert:slug}/avatar', [BrochureDemoController::class, 'avatar'])
+    ->middleware('throttle:10,1')
+    ->name('brochures.demo.avatar');
+Route::post('/demo/{expert:slug}/domain', [BrochureDemoController::class, 'addDomain'])
+    ->middleware('throttle:20,1')
+    ->name('brochures.demo.domain');
+Route::post('/demo/{expert:slug}/publish', [BrochureDemoController::class, 'publish'])
+    ->name('brochures.demo.publish');
+Route::get('/demo/{expert:slug}/export', [BrochureDemoController::class, 'export'])
+    ->name('brochures.demo.export');
+Route::get('experts/{expert:slug}', [BrochureController::class, 'show'])
+    ->where('expert', '[a-z0-9-]+')
+    ->name('brochures.show');
 
-    Route::get('experts/{expert:slug}', [BrochureController::class, 'show'])
-        ->where('expert', '[a-z0-9-]+')
-        ->name('brochures.show');
-});
 
 Route::group(['prefix' => 'admin', 'middleware' => ['cmsAdmin']], function () {
     Route::get('/', [DashboardUserController::class, 'index'])->name('voyager.dashboard');
@@ -469,6 +469,7 @@ Route::group(['prefix' => 'admin', 'middleware' => ['cmsAdmin']], function () {
         ->name('booking.')
         ->group(function () {
             /* --- Experts --- */
+            /* --- Experts --- */
             Route::controller(ExpertSetupController::class)
                 ->prefix('experts')
                 ->name('experts.')
@@ -488,6 +489,15 @@ Route::group(['prefix' => 'admin', 'middleware' => ['cmsAdmin']], function () {
 
                         Route::post('exceptions', 'storeExceptions')->name('exceptions.store');
                         Route::delete('exceptions/{exception}', 'destroyException')->name('exceptions.destroy');
+
+                        /* Images d'un thème */
+                        Route::prefix('offers/{offer}/images')->name('offers.images.')->group(function () {
+                            Route::get('/', [OfferImageController::class, 'index'])->name('index');
+                            Route::post('/', [OfferImageController::class, 'store'])->name('store');
+                            Route::put('{image}', [OfferImageController::class, 'update'])->name('update');
+                            Route::post('{image}/move', [OfferImageController::class, 'move'])->name('move');
+                            Route::delete('{image}', [OfferImageController::class, 'destroy'])->name('destroy');
+                        });
                     });
                 });
 
@@ -506,6 +516,27 @@ Route::group(['prefix' => 'admin', 'middleware' => ['cmsAdmin']], function () {
 
                     Route::post('reasons', 'storeReason')->name('reasons.store');
                     Route::put('reasons/{reason}', 'updateReason')->name('reasons.update');
+                });
+
+            /* --- Rendez-vous --- */
+            Route::controller(AppointmentController::class)
+                ->prefix('appointments')
+                ->name('appointments.')
+                ->group(function () {
+                    Route::get('/', 'index')->name('index');
+                    Route::get('experts-search', 'expertsSearch')->name('experts-search');
+
+                    Route::prefix('{bookingId}')->whereNumber('bookingId')->group(function () {
+                        Route::get('/', 'show')->name('show');
+                        Route::post('cancel', 'cancel')->name('cancel');
+                        Route::post('accept', 'accept')->name('accept');
+                        Route::post('decline', 'decline')->name('decline');
+                        Route::post('no-show/{reportId}/resolve', 'resolveNoShow')->whereNumber('reportId')->name('noshow.resolve');
+                        Route::post('no-show/{reportId}/dismiss', 'dismissNoShow')->whereNumber('reportId')->name('noshow.dismiss');
+
+                        Route::post('blocks/{blockId}/meet', 'createMeet')->whereNumber('blockId')->name('meet');
+                        Route::post('blocks/{blockId}/meet/cancel', 'cancelMeet')->whereNumber('blockId')->name('meet.cancel');
+                    });
                 });
         });
 });

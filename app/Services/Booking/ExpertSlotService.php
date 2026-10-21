@@ -2,6 +2,7 @@
 
 namespace App\Services\Booking;
 
+use App\Models\BookingBlock;
 use App\Models\ExpertAvailabilityException;
 use App\Models\ExpertAvailabilityRule;
 use Carbon\Carbon;
@@ -14,7 +15,7 @@ use Illuminate\Support\Collection;
  * Ordre de priorité pour une date et une demi-journée :
  *   exception de la demi-journée > exception de la journée entière > règle récurrente.
  * Puis on retire ce qui tombe avant le délai minimum, après la limite de réservation,
- * et (phase 3) ce qui est déjà retenu par une réservation.
+ * et ce qui est déjà retenu par une demande en attente ou acceptée.
  *
  * Rien n'est stocké : le calcul est refait à chaque appel, pour que toute modification
  * de l'expert soit visible immédiatement.
@@ -42,7 +43,8 @@ class ExpertSlotService
         $settings = $this->setup->resolved($expertId);
         $now      = Carbon::now($settings['timezone']);
 
-        $earliest = $now->copy()->addHours($settings['min_notice_hours']);
+        // Jours calendaires : avec 1 jour, toute la journée de demain est ouverte, dès le matin.
+        $earliest = $now->copy()->startOfDay()->addDays($settings['min_notice_days']);
         $last     = $now->copy()->addMonthsNoOverflow($settings['max_advance_months']);
 
         return [
@@ -138,14 +140,19 @@ class ExpertSlotService
     }
 
     /**
-     * Demi-journées déjà retenues par une réservation en attente ou acceptée.
-     * Vide tant que la table booking_blocks n'existe pas (phase 3).
+     * Demi-journées déjà retenues par une demande en attente ou acceptée.
+     * hold_key n'est renseigné que pour ces demandes : il suffit de le tester.
      *
      * @return array<string, true> clés « date|période »
      */
     private function heldKeys(int $expertId, string $from, string $to): array
     {
-        return [];
+        return BookingBlock::where('expert_id', $expertId)
+            ->whereBetween('date', [$from, $to])
+            ->whereNotNull('hold_key')
+            ->get(['date', 'period'])
+            ->mapWithKeys(fn (BookingBlock $b) => [$b->date->toDateString() . '|' . $b->period => true])
+            ->all();
     }
 
     /** @return array{0:string, 1:string} */

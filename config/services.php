@@ -55,13 +55,13 @@ return [
     ],
 
     'stripe' => [
-        'key' => env('STRIPE_KEY'),
-        'secret' => env('STRIPE_SECRET'),
-        'webhook_secret' => env('STRIPE_WEBHOOK_SECRET'),
+        // 'key' => env('STRIPE_KEY'),
+        // 'secret' => env('STRIPE_SECRET'),
+        // 'webhook_secret' => env('STRIPE_WEBHOOK_SECRET'),
 
-        // 'key' => env('STRIPE_KEY_TEST'),
-        // 'secret' => env('STRIPE_SECRET_TEST'),
-        // 'webhook_secret' => env('STRIPE_WEBHOOK_SECRET_TEST'),
+        'key' => env('STRIPE_KEY_TEST'),
+        'secret' => env('STRIPE_SECRET_TEST'),
+        'webhook_secret' => env('STRIPE_WEBHOOK_SECRET_TEST'),
     ],
 
     'google' => [
@@ -76,4 +76,9 @@ return [
         'company_list_id' => 37,
     ],
 
+    'google_meet' => [
+        'credentials' => env('GOOGLE_MEET_CREDENTIALS', storage_path('app/google/meet-service-account.json')),
+        'subject'     => env('GOOGLE_MEET_SUBJECT', 'info@orthomaster.fr'),
+        'access_type' => env('GOOGLE_MEET_ACCESS_TYPE', 'OPEN'),
+    ],
 ];
