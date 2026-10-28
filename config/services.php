@@ -81,4 +81,9 @@ return [
         'subject'     => env('GOOGLE_MEET_SUBJECT', 'info@orthomaster.fr'),
         'access_type' => env('GOOGLE_MEET_ACCESS_TYPE', 'OPEN'),
     ],
+    'google_places' => [
+        'key'      => env('GOOGLE_PLACES_KEY'),
+        'regions'  => env('GOOGLE_PLACES_REGIONS', 'fr,de,be,ch'),
+        'language' => env('GOOGLE_PLACES_LANGUAGE', 'fr'),
+    ],
 ];

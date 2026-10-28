@@ -2,6 +2,7 @@
 
 @php
     use App\Http\Controllers\Booking\AppointmentController as Appointments;
+    use App\Models\ExpertOfferMode;
     use Carbon\Carbon;
 
     $tz = config('app.display_timezone', 'Europe/Paris');
@@ -172,6 +173,18 @@
         .booking-pill--muted {
             background: #f4f5f7;
         }
+
+        .booking-pill--online {
+            border-color: #22a7f0;
+            background: rgba(34, 167, 240, 0.1);
+            color: #136b9c;
+        }
+
+        .booking-pill--onsite {
+            border-color: #9b59b6;
+            background: rgba(155, 89, 182, 0.1);
+            color: #6c3483;
+        }
     </style>
 @stop
 
@@ -246,6 +259,7 @@
                                 <td>
                                     {{ $row->offer_title }}
                                     <div class="booking-muted">
+                                        <span class="booking-pill booking-pill--{{ $row->mode }}">{{ ExpertOfferMode::MODE_LABELS[$row->mode] ?? $row->mode }}</span>
                                         {{ $row->blocks_count }} demi-journée{{ $row->blocks_count > 1 ? 's' : '' }}
                                     </div>
                                 </td>

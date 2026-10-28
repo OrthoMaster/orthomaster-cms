@@ -5,12 +5,11 @@ namespace App\Http\Controllers\Booking;
 use App\Http\Controllers\Controller;
 use App\Models\Booking;
 use App\Models\BookingBlock;
-use App\Models\BookingEvent;
 use App\Models\BookingDeclineReason;
 use App\Models\BookingNoShowReport;
 use App\Services\Booking\BookingAdminService;
 use App\Services\Booking\BookingCheckoutService;
-use App\Services\Google\GoogleMeetService;
+use App\Services\Booking\BookingMeetService;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -83,7 +82,7 @@ class AppointmentController extends Controller
         $bookings = $this->tabQuery($tab)
             ->leftJoin('users as u', 'u.id', '=', 'b.user_id')
             ->leftJoin('experts as e', 'e.id', '=', 'b.expert_id')
-            ->select('b.id', 'b.status', 'b.offer_title', 'b.blocks_count', 'b.amount_ttc', 'b.refunded_amount',
+            ->select('b.id', 'b.status', 'b.mode', 'b.offer_title', 'b.blocks_count', 'b.amount_ttc', 'b.refunded_amount',
                 'b.payment_required', 'b.respond_by', 'b.requested_at', 'b.cancelled_by',
                 'u.name as user_name', 'u.email as user_email', 'e.name as expert_name', 'e.id as expert_id')
             ->selectSub($firstBlock, 'first_start')
@@ -183,7 +182,7 @@ class AppointmentController extends Controller
      */
     public function show(int $bookingId)
     {
-        $booking = $this->find($bookingId)->load(['blocks', 'user', 'expert', 'invoice', 'declineReason', 'noShowReports', 'events.admin']);
+        $booking = $this->find($bookingId)->load(['blocks.presences', 'user', 'expert', 'invoice', 'declineReason', 'noShowReports', 'events.admin']);
 
         $displayStatus = $booking->status;
         if ($booking->status === Booking::STATUS_ACCEPTED) {
@@ -234,103 +233,79 @@ class AppointmentController extends Controller
         return $this->back($bookingId, 'Rendez-vous annulé au nom de ' . (self::PARTY_LABELS[$request->input('party')] ?? '—') . '.');
     }
 
+    /* ===================== GOOGLE MEET ===================== */
+
     /**
-     * Crée le lien Google Meet d'une demi-journée (test depuis le CMS).
+     * Crée le lien Google Meet d'une demi-journée.
      * POST /booking/appointments/{bookingId}/blocks/{blockId}/meet
      */
-    public function createMeet(Request $request, int $bookingId, int $blockId, GoogleMeetService $meet): RedirectResponse
+    public function createMeet(Request $request, int $bookingId, int $blockId, BookingMeetService $meet): RedirectResponse
     {
-        $booking = $this->find($bookingId);
-
-        $error = DB::transaction(function () use ($booking, $blockId, $meet, $request) {
-            // Verrou : un double clic ne crée pas deux salles.
-            $block = BookingBlock::where('booking_id', $booking->id)->whereKey($blockId)->lockForUpdate()->firstOrFail();
-            if ($block->meet_url) {
-                return null;
-            }
-
-            try {
-                $space = $meet->createSpace();
-            } catch (\RuntimeException $e) {
-                report($e);
-
-                return $e->getMessage();
-            }
-
-            $block->update([
-                'meet_url'        => $space['url'],
-                'meet_space'      => $space['name'],
-                'meet_created_at' => now(),
-            ]);
-
-            BookingEvent::log($booking, 'meet_created', BookingEvent::ACTOR_ADMIN, [
-                'block_id' => $block->id,
-                'date'     => $block->date->toDateString(),
-                'period'   => $block->period,
-                'url'      => $space['url'],
-            ], null, $request->user()->id);
-
-            return null;
-        });
-
-        if ($error) {
-            return redirect()
-                ->route('booking.appointments.show', $bookingId)
-                ->with(['message' => $error, 'alert-type' => 'error']);
-        }
-
-        return $this->back($bookingId, 'Lien Google Meet créé.');
+        return $this->meetAction($bookingId, $blockId, 'Lien Google Meet créé.',
+            fn () => $meet->create($blockId, $request->user()->id));
     }
 
     /**
-     * Supprime le lien Google Meet d'une demi-journée : la salle est fermée chez Google
-     * (accès restreint), puis le lien est retiré ; un nouveau lien peut ensuite être créé.
+     * Supprime le lien (avant la demi-journée seulement).
      * POST /booking/appointments/{bookingId}/blocks/{blockId}/meet/cancel
      */
-    public function cancelMeet(Request $request, int $bookingId, int $blockId, GoogleMeetService $meet): RedirectResponse
+    public function cancelMeet(Request $request, int $bookingId, int $blockId, BookingMeetService $meet): RedirectResponse
+    {
+        return $this->meetAction($bookingId, $blockId, 'Lien Google Meet supprimé.',
+            fn () => $meet->delete($blockId, $request->user()->id));
+    }
+
+    /**
+     * Ferme la salle tout de suite (le lien ne fonctionne plus) et relève les présences.
+     * POST /booking/appointments/{bookingId}/blocks/{blockId}/meet/close
+     */
+    public function closeMeet(Request $request, int $bookingId, int $blockId, BookingMeetService $meet): RedirectResponse
+    {
+        return $this->meetAction($bookingId, $blockId, 'Salle fermée : le lien ne fonctionne plus.',
+            fn () => $meet->close($blockId, BookingMeetService::REASON_ADMIN, $request->user()->id));
+    }
+
+    /**
+     * Rouvre la salle (même lien) pour BookingMeetService::REOPEN_HOURS.
+     * POST /booking/appointments/{bookingId}/blocks/{blockId}/meet/reopen
+     */
+    public function reopenMeet(Request $request, int $bookingId, int $blockId, BookingMeetService $meet): RedirectResponse
+    {
+        return $this->meetAction($bookingId, $blockId,
+            'Salle rouverte pour ' . BookingMeetService::REOPEN_HOURS . ' h : le même lien fonctionne de nouveau.',
+            fn () => $meet->reopen($blockId, $request->user()->id));
+    }
+
+    /**
+     * Relève les présences tout de suite.
+     * POST /booking/appointments/{bookingId}/blocks/{blockId}/meet/sync
+     */
+    public function syncMeet(Request $request, int $bookingId, int $blockId, BookingMeetService $meet): RedirectResponse
+    {
+        return $this->meetAction($bookingId, $blockId, 'Présences mises à jour.',
+            fn () => $meet->sync($blockId));
+    }
+
+    /**
+     * Vérifie que la demi-journée appartient au rendez-vous, exécute l'action et affiche
+     * l'erreur Google éventuelle en message rouge.
+     */
+    private function meetAction(int $bookingId, int $blockId, string $success, callable $action): RedirectResponse
     {
         $booking = $this->find($bookingId);
+        BookingBlock::where('booking_id', $booking->id)->whereKey($blockId)->firstOrFail();
 
-        $error = DB::transaction(function () use ($booking, $blockId, $meet, $request) {
-            $block = BookingBlock::where('booking_id', $booking->id)->whereKey($blockId)->lockForUpdate()->firstOrFail();
-            if (!$block->meet_url) {
-                return null;
-            }
+        try {
+            $action();
+        } catch (\RuntimeException $e) {
+            report($e);
 
-            if ($block->meet_space) {
-                try {
-                    $meet->closeSpace($block->meet_space);
-                } catch (\RuntimeException $e) {
-                    report($e);
-
-                    return $e->getMessage();
-                }
-            }
-
-            $url = $block->meet_url;
-            $block->update([
-                'meet_url'        => null,
-                'meet_space'      => null,
-                'meet_created_at' => null,
-            ]);
-
-            BookingEvent::log($booking, 'meet_cancelled', BookingEvent::ACTOR_ADMIN, [
-                'block_id' => $block->id,
-                'date'     => $block->date->toDateString(),
-                'period'   => $block->period,
-                'url'      => $url,
-            ], null, $request->user()->id);
-
-            return null;
-        });
-
-        if ($error) {
             return redirect()
                 ->route('booking.appointments.show', $bookingId)
-                ->with(['message' => $error, 'alert-type' => 'error']);
+                ->with(['message' => $e->getMessage(), 'alert-type' => 'error']);
         }
 
-        return $this->back($bookingId, 'Lien Google Meet supprimé : la salle est fermée.');
+        return $this->back($bookingId, $success);
     }
 
     /**

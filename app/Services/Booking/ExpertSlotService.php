@@ -5,17 +5,28 @@ namespace App\Services\Booking;
 use App\Models\BookingBlock;
 use App\Models\ExpertAvailabilityException;
 use App\Models\ExpertAvailabilityRule;
+use App\Models\ExpertLocation;
+use App\Models\ExpertOfferDate;
+use App\Models\ExpertOfferMode;
+use App\Models\ExpertOfferSlot;
 use Carbon\Carbon;
 use Carbon\CarbonPeriod;
 use Illuminate\Support\Collection;
 
 /**
- * Calcul des demi-journées réservables d'un expert.
+ * Calcul des demi-journées réservables d'un expert, ou d'une offre dans un mode donné.
  *
  * Ordre de priorité pour une date et une demi-journée :
  *   exception de la demi-journée > exception de la journée entière > règle récurrente.
  * Puis on retire ce qui tombe avant le délai minimum, après la limite de réservation,
  * et ce qui est déjà retenu par une demande en attente ou acceptée.
+ *
+ * Pour une offre, en plus :
+ *   - une demi-journée ajoutée à la main (exception « add ») ne compte pas (règle 2a) ;
+ *   - en présentiel, la règle doit porter un lieu actif ;
+ *   - le calendrier de l'offre filtre la grille (toutes / certaines demi-journées / dates précises),
+ *     et une date précise ferme book_ahead_days jours avant ;
+ *   - la retenue reste par expert (2c) : un créneau pris l'est pour toutes ses offres.
  *
  * Rien n'est stocké : le calcul est refait à chaque appel, pour que toute modification
  * de l'expert soit visible immédiatement.
@@ -60,14 +71,24 @@ class ExpertSlotService
      * Les dates hors limites sont ramenées dans les bornes ; la plage est plafonnée.
      *
      * $ignoreEnabled sert à l'aperçu de l'expert : il voit sa grille même désactivé.
+     * $offerMode limite le résultat au calendrier d'une offre dans un mode ; sans lui,
+     * c'est la grille générale de l'expert (comportement d'avant les modes).
      *
-     * @return Collection<int, array{date:string, period:string, start_at:Carbon, end_at:Carbon, start_local:string, end_local:string}>
+     * @return Collection<int, array{date:string, period:string, start_at:Carbon, end_at:Carbon, start_local:string, end_local:string, location_id:?int, location:?ExpertLocation}>
      */
-    public function availableBlocks(int $expertId, ?string $from = null, ?string $to = null, bool $ignoreEnabled = false): Collection
-    {
+    public function availableBlocks(
+        int $expertId,
+        ?string $from = null,
+        ?string $to = null,
+        bool $ignoreEnabled = false,
+        ?ExpertOfferMode $offerMode = null
+    ): Collection {
         $settings = $this->setup->resolved($expertId);
 
         if (!$settings['enabled_flg'] && !$ignoreEnabled) {
+            return collect();
+        }
+        if ($offerMode && !$offerMode->active_flg) {
             return collect();
         }
 
@@ -89,16 +110,36 @@ class ExpertSlotService
             ->get()
             ->keyBy(fn ($e) => $e->date->toDateString() . '|' . ($e->period ?? ''));
 
-        $held   = $this->heldKeys($expertId, $from, $to);
-        $tz     = $settings['timezone'];
-        $blocks = collect();
+        $forOffer  = $offerMode !== null;
+        $mode      = $offerMode?->mode ?? ExpertOfferMode::ONLINE;
+        $allowed   = $this->offerFilter($offerMode, $from, $to, $settings['timezone']);
+        $locations = $this->setup->activeLocations($expertId);
+        $held      = $this->heldKeys($expertId, $from, $to);
+        $tz        = $settings['timezone'];
+        $blocks    = collect();
 
         foreach (CarbonPeriod::create($from, $to) as $day) {
             $date    = $day->toDateString();
             $weekday = $day->dayOfWeekIso;
 
             foreach (ExpertBookingSetupService::PERIODS as $period) {
-                if (!$this->isOpen($date, $weekday, $period, $rules, $exceptions)) {
+                if ($allowed !== null) {
+                    $key = $offerMode->schedule_type === ExpertOfferMode::SCHEDULE_SELECTED
+                        ? $weekday . '|' . $period
+                        : $date . '|' . $period;
+                    if (!isset($allowed[$key])) {
+                        continue;
+                    }
+                }
+
+                $exception = $exceptions->get($date . '|' . $period) ?? $exceptions->get($date . '|');
+                if ($exception && $exception->type !== 'add') {
+                    continue;
+                }
+
+                $rule = $this->setup->ruleOn($rules, $date, $period, $mode, $locations);
+                // Ajout manuel : ouvre la grille générale, pas le calendrier d'une offre (2a).
+                if (!$rule && !($exception && !$forOffer)) {
                     continue;
                 }
 
@@ -110,6 +151,8 @@ class ExpertSlotService
                     continue;
                 }
 
+                $location = $mode === ExpertOfferMode::ONSITE && $rule ? $locations->get($rule->location_id) : null;
+
                 $blocks->push([
                     'date'        => $date,
                     'period'      => $period,
@@ -117,6 +160,8 @@ class ExpertSlotService
                     'end_at'      => Carbon::parse($date . ' ' . $endLocal, $tz)->utc(),
                     'start_local' => $startLocal,
                     'end_local'   => $endLocal,
+                    'location_id' => $location?->id,
+                    'location'    => $location,
                 ]);
             }
         }
@@ -124,19 +169,36 @@ class ExpertSlotService
         return $blocks;
     }
 
-    private function isOpen(string $date, int $weekday, string $period, Collection $rules, Collection $exceptions): bool
+    /**
+     * Clés autorisées par le calendrier de l'offre, ou null si toute la grille convient.
+     * « Certaines demi-journées » : « jour|période » ; « Dates précises » : « Y-m-d|période ».
+     *
+     * @return array<string, true>|null
+     */
+    private function offerFilter(?ExpertOfferMode $offerMode, string $from, string $to, string $tz): ?array
     {
-        $exception = $exceptions->get($date . '|' . $period) ?? $exceptions->get($date . '|');
-        if ($exception) {
-            return $exception->type === 'add';
+        if (!$offerMode || $offerMode->schedule_type === ExpertOfferMode::SCHEDULE_ALL) {
+            return null;
         }
 
-        return $rules->contains(fn (ExpertAvailabilityRule $rule) =>
-            $rule->weekday === $weekday
-            && $rule->period === $period
-            && (!$rule->valid_from || $rule->valid_from->toDateString() <= $date)
-            && (!$rule->valid_until || $rule->valid_until->toDateString() >= $date)
-        );
+        if ($offerMode->schedule_type === ExpertOfferMode::SCHEDULE_SELECTED) {
+            return ExpertOfferSlot::where('offer_id', $offerMode->offer_id)
+                ->where('mode', $offerMode->mode)
+                ->get()
+                ->mapWithKeys(fn (ExpertOfferSlot $s) => [$s->key_string => true])
+                ->all();
+        }
+
+        // Même calcul que le délai minimum : avec N jours, la date D reste réservable
+        // jusqu'au jour D − N inclus (N = 3 : le 15 est encore proposé le 12, plus le 13).
+        $firstOpen = Carbon::now($tz)->startOfDay()->addDays((int) $offerMode->book_ahead_days)->toDateString();
+
+        return ExpertOfferDate::where('offer_id', $offerMode->offer_id)
+            ->where('mode', $offerMode->mode)
+            ->whereBetween('date', [max($from, $firstOpen), $to])
+            ->get()
+            ->mapWithKeys(fn (ExpertOfferDate $d) => [$d->key_string => true])
+            ->all();
     }
 
     /**

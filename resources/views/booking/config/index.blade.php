@@ -1,6 +1,8 @@
 @extends('voyager::master')
 
 @php
+    use Illuminate\Support\Str;
+
     $activeTab = old('_tab', $tab);
     $oldForm = old('_form');
 
@@ -65,6 +67,67 @@
             border-color: #22a7f0;
             background: rgba(34, 167, 240, 0.1);
             color: #136b9c;
+        }
+
+        .booking-pill--online {
+            border-color: #22a7f0;
+            background: rgba(34, 167, 240, 0.1);
+            color: #136b9c;
+        }
+
+        .booking-pill--onsite {
+            border-color: #9b59b6;
+            background: rgba(155, 89, 182, 0.1);
+            color: #6c3483;
+        }
+
+        /* --- Politiques : une colonne par type --- */
+        .booking-policy-modes {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+            gap: 24px;
+        }
+
+        .booking-policy-mode h4 {
+            margin: 0 0 12px;
+            font-size: 14px;
+        }
+
+        /* --- Sélecteurs en pilule --- */
+        .booking-choices {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        .booking-choice {
+            margin: 0;
+            font-weight: normal;
+        }
+
+        .booking-choice input {
+            position: absolute;
+            opacity: 0;
+        }
+
+        .booking-choice span {
+            display: inline-block;
+            padding: 6px 14px;
+            border: 1px solid #d5d9df;
+            border-radius: 999px;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .booking-choice input:checked + span {
+            border-color: #22a7f0;
+            background: #22a7f0;
+            color: #fff;
+        }
+
+        .booking-choice input:focus-visible + span {
+            outline: 2px solid #22a7f0;
+            outline-offset: 2px;
         }
 
         /* --- Onglets --- */
@@ -231,62 +294,95 @@
             <div class="panel panel-bordered">
                 <div class="panel-body">
                     <div class="booking-section">
-                        @if ($currentPolicy)
-                            <h3>En vigueur depuis le {{ $currentPolicy->effective_from->format('d/m/Y') }}</h3>
-                            <p class="booking-intro">
-                                Chaque demande enregistre la politique du jour : la modifier ne change rien aux rendez-vous
-                                existants.
-                            </p>
-                            <dl class="booking-facts">
-                                <div>
-                                    <dt>Annulation gratuite</dt>
-                                    <dd>
-                                        {{ $currentPolicy->free_cancel_hours }} h
-                                        <small>avant le premier bloc</small>
-                                    </dd>
+                        <h3>Politiques en vigueur</h3>
+                        <p class="booking-intro">
+                            Une politique par type de rendez-vous. Chaque demande enregistre celle du jour pour son type :
+                            la modifier ne change rien aux rendez-vous existants.
+                        </p>
+
+                        <div class="booking-policy-modes">
+                            @foreach ($modeLabels as $mode => $modeLabel)
+                                @php $current = $currentPolicies[$mode]; @endphp
+                                <div class="booking-policy-mode">
+                                    <h4>
+                                        <span class="booking-pill booking-pill--{{ $mode }}">{{ $modeLabel }}</span>
+                                        @if ($current)
+                                            <span class="booking-muted">depuis le {{ $current->effective_from->format('d/m/Y') }}</span>
+                                        @endif
+                                    </h4>
+                                    @if ($current)
+                                        <dl class="booking-facts">
+                                            <div>
+                                                <dt>Annulation gratuite</dt>
+                                                <dd>
+                                                    {{ $current->free_cancel_hours }} h
+                                                    <small>avant le premier bloc</small>
+                                                </dd>
+                                            </div>
+                                            <div>
+                                                <dt>Annulation tardive</dt>
+                                                <dd>
+                                                    {{ $pct($current->late_cancel_penalty_pct) }}
+                                                    <small>retenus sur le montant</small>
+                                                </dd>
+                                            </div>
+                                            <div>
+                                                <dt>Absence de l'utilisateur</dt>
+                                                <dd>
+                                                    {{ $pct($current->user_noshow_refund_pct) }}
+                                                    <small>remboursés</small>
+                                                </dd>
+                                            </div>
+                                            <div>
+                                                <dt>Absence de l'expert</dt>
+                                                <dd>
+                                                    100 %
+                                                    <small>remboursés, toujours</small>
+                                                </dd>
+                                            </div>
+                                        </dl>
+                                    @else
+                                        <div class="alert alert-warning" style="margin: 0;">
+                                            Aucune politique en vigueur. Enregistrez-en une avant d'ouvrir les réservations {{ Str::lower($modeLabel) }}.
+                                        </div>
+                                    @endif
                                 </div>
-                                <div>
-                                    <dt>Annulation tardive</dt>
-                                    <dd>
-                                        {{ $pct($currentPolicy->late_cancel_penalty_pct) }}
-                                        <small>retenus sur le montant</small>
-                                    </dd>
-                                </div>
-                                <div>
-                                    <dt>Absence de l'utilisateur</dt>
-                                    <dd>
-                                        {{ $pct($currentPolicy->user_noshow_refund_pct) }}
-                                        <small>remboursés</small>
-                                    </dd>
-                                </div>
-                                <div>
-                                    <dt>Absence de l'expert</dt>
-                                    <dd>
-                                        100 %
-                                        <small>remboursés, toujours</small>
-                                    </dd>
-                                </div>
-                            </dl>
-                        @else
-                            <div class="alert alert-warning" style="margin: 0;">
-                                Aucune politique en vigueur. Enregistrez-en une avant d'ouvrir les réservations.
-                            </div>
-                        @endif
+                            @endforeach
+                        </div>
                     </div>
 
                     <div class="booking-section">
                         <h3>Programmer une politique</h3>
                         <p class="booking-intro">
-                            Choisir une date déjà programmée remplace la politique prévue ce jour-là.
+                            Choisir une date déjà programmée pour le même type remplace la politique prévue ce jour-là.
                         </p>
 
-                        @php $policyOld = $oldForm === 'policy'; @endphp
-                        <form method="POST" action="{{ route('booking.config.policies.store') }}">
+                        @php
+                            $policyOld  = $oldForm === 'policy';
+                            $policyMode = $policyOld ? old('mode', 'online') : 'online';
+                            $prefill    = $currentPolicies[$policyMode] ?? null;
+                        @endphp
+                        <form method="POST" action="{{ route('booking.config.policies.store') }}" id="policy-form">
                             @csrf
                             <input type="hidden" name="_tab" value="policies">
                             <input type="hidden" name="_form" value="policy">
 
                             <div class="booking-form-row">
+                                <div class="form-group">
+                                    <label>Type</label>
+                                    <div class="booking-choices">
+                                        @foreach ($modeLabels as $mode => $modeLabel)
+                                            @php $p = $currentPolicies[$mode]; @endphp
+                                            <label class="booking-choice">
+                                                <input type="radio" name="mode" value="{{ $mode }}" @checked($policyMode === $mode)
+                                                       data-free="{{ $p?->free_cancel_hours }}"
+                                                       data-penalty="{{ $p?->late_cancel_penalty_pct }}"
+                                                       data-noshow="{{ $p?->user_noshow_refund_pct }}">
+                                                <span>{{ $modeLabel }}</span>
+                                            </label>
+                                        @endforeach
+                                    </div>
+                                </div>
                                 <div class="form-group">
                                     <label for="policy-from">Date d'effet</label>
                                     <input type="date" name="effective_from" id="policy-from" class="form-control"
@@ -297,19 +393,19 @@
                                     <label for="policy-free">Annulation gratuite jusqu'à (h)</label>
                                     <input type="number" name="free_cancel_hours" id="policy-free" class="form-control"
                                         min="0" max="8760" required
-                                        value="{{ $policyOld ? old('free_cancel_hours') : $currentPolicy?->free_cancel_hours }}">
+                                        value="{{ $policyOld ? old('free_cancel_hours') : $prefill?->free_cancel_hours }}">
                                 </div>
                                 <div class="form-group">
                                     <label for="policy-penalty">Pénalité tardive (%)</label>
                                     <input type="number" name="late_cancel_penalty_pct" id="policy-penalty"
                                         class="form-control" min="0" max="100" step="0.01" required
-                                        value="{{ $policyOld ? old('late_cancel_penalty_pct') : $currentPolicy?->late_cancel_penalty_pct }}">
+                                        value="{{ $policyOld ? old('late_cancel_penalty_pct') : $prefill?->late_cancel_penalty_pct }}">
                                 </div>
                                 <div class="form-group">
                                     <label for="policy-noshow">Remboursement si l'utilisateur est absent (%)</label>
                                     <input type="number" name="user_noshow_refund_pct" id="policy-noshow"
                                         class="form-control" min="0" max="100" step="0.01" required
-                                        value="{{ $policyOld ? old('user_noshow_refund_pct') : $currentPolicy?->user_noshow_refund_pct }}">
+                                        value="{{ $policyOld ? old('user_noshow_refund_pct') : $prefill?->user_noshow_refund_pct }}">
                                 </div>
                                 <div class="form-group">
                                     <button type="submit" class="btn btn-primary">Enregistrer</button>
@@ -323,6 +419,7 @@
                         <table class="table table-striped database-tables">
                             <thead>
                                 <tr>
+                                    <th>Type</th>
                                     <th>Date d'effet</th>
                                     <th>Annulation gratuite</th>
                                     <th>Pénalité tardive</th>
@@ -333,14 +430,22 @@
                             </thead>
                             <tbody>
                                 @forelse ($policies as $policy)
-                                    @php $from = $policy->effective_from->toDateString(); @endphp
+                                    @php
+                                        $from      = $policy->effective_from->toDateString();
+                                        $isCurrent = optional($currentPolicies[$policy->mode] ?? null)->id === $policy->id;
+                                    @endphp
                                     <tr>
+                                        <td>
+                                            <span class="booking-pill booking-pill--{{ $policy->mode }}">
+                                                {{ $modeLabels[$policy->mode] ?? $policy->mode }}
+                                            </span>
+                                        </td>
                                         <td>{{ $policy->effective_from->format('d/m/Y') }}</td>
                                         <td>{{ $policy->free_cancel_hours }} h</td>
                                         <td>{{ $pct($policy->late_cancel_penalty_pct) }}</td>
                                         <td>{{ $pct($policy->user_noshow_refund_pct) }}</td>
                                         <td>
-                                            @if ($currentPolicy && $policy->id === $currentPolicy->id)
+                                            @if ($isCurrent)
                                                 <span class="booking-pill booking-pill--on">En vigueur</span>
                                             @elseif ($from > $today)
                                                 <span class="booking-pill booking-pill--next">Programmée</span>
@@ -352,7 +457,7 @@
                                             @if ($from >= $today)
                                                 <form method="POST" class="booking-inline-form"
                                                     action="{{ route('booking.config.policies.destroy', $policy->id) }}"
-                                                    data-confirm="Supprimer la politique du {{ $policy->effective_from->format('d/m/Y') }} ?">
+                                                    data-confirm="Supprimer la politique {{ Str::lower($modeLabels[$policy->mode] ?? '') }} du {{ $policy->effective_from->format('d/m/Y') }} ?">
                                                     @csrf
                                                     @method('DELETE')
                                                     <button type="submit" class="btn btn-sm btn-danger">Supprimer</button>
@@ -362,7 +467,7 @@
                                     </tr>
                                 @empty
                                     <tr>
-                                        <td colspan="6" class="booking-empty">Aucune politique enregistrée.</td>
+                                        <td colspan="7" class="booking-empty">Aucune politique enregistrée.</td>
                                     </tr>
                                 @endforelse
                             </tbody>
@@ -589,6 +694,13 @@
                 showTab(name);
             });
 
+
+            // Changer de type pré-remplit le formulaire avec la politique en vigueur de ce type.
+            $('#policy-form input[name="mode"]').on('change', function() {
+                $('#policy-free').val($(this).data('free'));
+                $('#policy-penalty').val($(this).data('penalty'));
+                $('#policy-noshow').val($(this).data('noshow'));
+            });
 
             $('#commission-expert').select2({
                 width: '100%'

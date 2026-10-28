@@ -11,11 +11,11 @@ class ExpertOffer extends Model
 {
     use SoftDeletes;
 
+    // Le prix n'est plus ici : chaque mode (en ligne, en présentiel) a le sien.
     protected $fillable = [
         'title',
         'description',
         'blocks_count',
-        'price',
         'currency',
         'active_flg',
         'order_dsp',
@@ -24,7 +24,6 @@ class ExpertOffer extends Model
     protected $casts = [
         'expert_id'    => 'integer',
         'blocks_count' => 'integer',
-        'price'        => 'decimal:2',
         'active_flg'   => 'boolean',
         'order_dsp'    => 'integer',
     ];
@@ -35,6 +34,25 @@ class ExpertOffer extends Model
     public function images(): HasMany
     {
         return $this->hasMany(ExpertOfferImage::class, 'offer_id')->orderBy('order_dsp')->orderBy('id');
+    }
+
+    /** Modes configurés, actifs ou non ; en ligne d'abord. */
+    public function modes(): HasMany
+    {
+        return $this->hasMany(ExpertOfferMode::class, 'offer_id')->orderByRaw("FIELD(mode, 'online', 'onsite')");
+    }
+
+    public function activeModes(): HasMany
+    {
+        return $this->modes()->where('active_flg', true);
+    }
+
+    /** Mode actif demandé, ou null s'il n'est pas proposé. Utilise la relation si elle est chargée. */
+    public function activeMode(string $mode): ?ExpertOfferMode
+    {
+        $modes = $this->relationLoaded('modes') ? $this->modes : $this->modes()->get();
+
+        return $modes->first(fn (ExpertOfferMode $m) => $m->mode === $mode && $m->active_flg);
     }
 
     public function scopeActive(Builder $query): Builder

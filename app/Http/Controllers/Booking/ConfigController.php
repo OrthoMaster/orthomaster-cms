@@ -6,9 +6,11 @@ use App\Http\Controllers\Controller;
 use App\Models\BookingCommissionRate;
 use App\Models\BookingDeclineReason;
 use App\Models\BookingPolicy;
+use App\Models\ExpertOfferMode;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 
 /**
  * CMS : configuration générale des rendez-vous (réservée à l'admin).
@@ -28,8 +30,13 @@ class ConfigController extends Controller
     {
         $today = now()->toDateString();
 
-        $policies      = BookingPolicy::orderByDesc('effective_from')->get();
-        $currentPolicy = BookingPolicy::currentFor($today);
+        $policies = BookingPolicy::orderByRaw("FIELD(mode, 'online', 'onsite')")->orderByDesc('effective_from')->get();
+
+        // Une politique en vigueur par mode ; $currentPolicy reste celle en ligne pour l'ancienne vue.
+        $currentPolicies = collect(ExpertOfferMode::MODE_LABELS)
+            ->map(fn ($label, $mode) => BookingPolicy::currentFor($today, $mode));
+        $currentPolicy = $currentPolicies[ExpertOfferMode::ONLINE];
+        $modeLabels    = ExpertOfferMode::MODE_LABELS;
 
         // Taux général d'abord, puis les taux par expert regroupés par nom.
         $commissions = DB::table('booking_commission_rates as r')
@@ -47,7 +54,8 @@ class ConfigController extends Controller
         $tab = in_array($request->query('tab'), self::TABS, true) ? $request->query('tab') : self::TABS[0];
 
         return view('booking.config.index', compact(
-            'policies', 'currentPolicy', 'commissions', 'globalRate', 'experts', 'reasons', 'today', 'tab'
+            'policies', 'currentPolicy', 'currentPolicies', 'modeLabels',
+            'commissions', 'globalRate', 'experts', 'reasons', 'today', 'tab'
         ));
     }
 
@@ -59,20 +67,22 @@ class ConfigController extends Controller
     public function storePolicy(Request $request): RedirectResponse
     {
         $data = $request->validate([
+            'mode'                    => ['required', Rule::in(array_keys(ExpertOfferMode::MODE_LABELS))],
             'effective_from'          => ['required', 'date_format:Y-m-d', 'after_or_equal:today'],
             'free_cancel_hours'       => ['required', 'integer', 'min:0', 'max:8760'],
             'late_cancel_penalty_pct' => ['required', 'numeric', 'between:0,100'],
             'user_noshow_refund_pct'  => ['required', 'numeric', 'between:0,100'],
         ], [], [
+            'mode'                    => 'type de rendez-vous',
             'effective_from'          => "date d'effet",
             'free_cancel_hours'       => 'annulation gratuite',
             'late_cancel_penalty_pct' => 'pénalité',
             'user_noshow_refund_pct'  => 'remboursement no-show',
         ]);
 
-        // Une seule politique par date : ressaisir une date la corrige au lieu
+        // Une seule politique par date et par mode : ressaisir une date la corrige au lieu
         // d'échouer sur l'index unique.
-        BookingPolicy::updateOrCreate(['effective_from' => $data['effective_from']], $data);
+        BookingPolicy::updateOrCreate(['effective_from' => $data['effective_from'], 'mode' => $data['mode']], $data);
 
         return $this->backTo('policies', 'Politique enregistrée.');
     }
@@ -88,7 +98,9 @@ class ConfigController extends Controller
             return $this->backTo('policies', 'Une politique déjà appliquée ne peut pas être supprimée.', 'error');
         }
 
+        // Chaque mode doit garder sa propre politique en vigueur.
         $remains = BookingPolicy::where('id', '!=', $policy->id)
+            ->where('mode', $policy->mode)
             ->where('effective_from', '<=', $today)
             ->exists();
         if (!$remains) {

@@ -54,10 +54,13 @@ class ExpertAgendaController extends Controller
                         'index'       => $pair[1],
                         'total'       => $total,
                         'offer_title' => $booking->offer_title,
+                        'mode'        => $booking->mode,
                         'requester'   => [
                             'name' => $booking->user ? BookingCheckoutService::displayName($booking->user) : 'Confrère',
                         ],
                         'meet_url'    => null,
+                        // L'expert voit toujours ses propres informations d'accès.
+                        'location'    => BookingRequestController::blockLocation($pair[0], true),
                     ]);
             })
             ->sortBy('start_at')

@@ -250,7 +250,6 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/conversations', [ChatbotController::class, 'conversations']);
     });
 
-
     /* ===================== RENDEZ-VOUS EXPERTS ===================== */
     Route::prefix('booking')->group(function () {
 
@@ -271,9 +270,21 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
             Route::post('rules', 'storeRules');
             Route::delete('rules/{rule}', 'destroyRule');
+            Route::put('rules/{rule}/location', 'updateRuleLocation');
 
             Route::post('exceptions', 'storeExceptions');
             Route::delete('exceptions/{exception}', 'destroyException');
+
+            Route::get('grid-dates', 'gridDates');
+ 
+            Route::post('locations', 'storeLocation');
+            Route::put('locations/{location}', 'updateLocation');
+            Route::post('locations/{location}/archive', 'archiveLocation');
+            Route::post('locations/{location}/restore', 'restoreLocation');
+            Route::middleware('throttle:120,1')->group(function () {
+                Route::get('places/autocomplete', 'placesAutocomplete');
+                Route::get('places/{placeId}', 'placeDetails')->where('placeId', '[A-Za-z0-9_-]+');
+            });
         });
 
         /* --- Booking - Clients --- */

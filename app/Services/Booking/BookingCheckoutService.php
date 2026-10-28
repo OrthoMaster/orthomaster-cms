@@ -9,6 +9,7 @@ use App\Models\BookingCommissionRate;
 use App\Models\BookingPolicy;
 use App\Models\Expert;
 use App\Models\ExpertOffer;
+use App\Models\ExpertOfferMode;
 use App\Models\Invoice;
 use App\Models\User;
 use App\Services\StripeService;
@@ -81,34 +82,37 @@ class BookingCheckoutService
     }
 
     /**
-     * Montants d'une offre : le prix saisi par l'expert est hors taxes.
+     * Montants d'une réservation : le prix du mode est le TTC de toute l'offre.
+     * Le HT est déduit du TTC, et la TVA est la différence : HT + TVA retombe
+     * toujours exactement sur le TTC affiché, sans écart d'un centime.
      *
      * @return array{amount_ht:float, tva_rate:float, tva_amount:float, amount_ttc:float, currency:string}
      */
-    public static function pricing(ExpertOffer $offer): array
+    public static function pricing(ExpertOfferMode $mode, ?string $currency = null): array
     {
-        $ht   = round((float) $offer->price, 2);
+        $ttc  = round((float) $mode->price, 2);
         $rate = self::tvaRate();
-        $tva  = round($ht * $rate / 100, 2);
+        $ht   = $rate > 0 ? round($ttc / (1 + $rate / 100), 2) : $ttc;
 
         return [
             'amount_ht'  => $ht,
             'tva_rate'   => $rate,
-            'tva_amount' => $tva,
-            'amount_ttc' => round($ht + $tva, 2),
-            'currency'   => $offer->currency ?: 'eur',
+            'tva_amount' => round($ttc - $ht, 2),
+            'amount_ttc' => $ttc,
+            'currency'   => $currency ?: 'eur',
         ];
     }
 
     /* ===================== ÉTAPE 1 : PRÉPARER ===================== */
 
     /**
-     * @param array{offer_id:int, blocks:array<int, array{date:string, period:string}>, address:string, message?:string|null} $input
+     * @param array{offer_id:int, mode:string, blocks:array<int, array{date:string, period:string}>, address:string, message?:string|null} $input
      */
     public function prepare(User $user, array $input): Booking
     {
         $data = Validator::make($input, [
             'offer_id'        => ['required', 'integer'],
+            'mode'            => ['required', 'in:' . implode(',', array_keys(ExpertOfferMode::MODE_LABELS))],
             'blocks'          => ['required', 'array', 'min:1'],
             'blocks.*.date'   => ['required', 'date_format:Y-m-d'],
             'blocks.*.period' => ['required', 'in:' . implode(',', ExpertBookingSetupService::PERIODS)],
@@ -117,6 +121,7 @@ class BookingCheckoutService
         ], [
             'address.required' => 'Veuillez renseigner votre adresse de facturation.',
         ], [
+            'mode'    => 'type de rendez-vous',
             'blocks'  => 'demi-journées',
             'address' => 'adresse',
             'message' => 'message',
@@ -127,6 +132,13 @@ class BookingCheckoutService
             throw ValidationException::withMessages(['offer_id' => "Ce thème n'est plus proposé."]);
         }
 
+        $offerMode = $offer->activeMode($data['mode']);
+        if (!$offerMode) {
+            throw ValidationException::withMessages([
+                'mode' => "Ce thème n'est plus proposé " . mb_strtolower(ExpertOfferMode::MODE_LABELS[$data['mode']]) . '.',
+            ]);
+        }
+
         $expert = Expert::find($offer->expert_id);
         if (!$expert || !$expert->user_id) {
             throw ValidationException::withMessages(['offer_id' => "Cet expert n'accepte pas de rendez-vous pour le moment."]);
@@ -135,14 +147,14 @@ class BookingCheckoutService
             throw ValidationException::withMessages(['offer_id' => 'Vous ne pouvez pas réserver votre propre thème.']);
         }
 
-        $blocks = $this->resolveBlocks($expert->id, $offer, $data['blocks']);
-        $price  = self::pricing($offer);
+        $blocks = $this->resolveBlocks($expert->id, $offer, $offerMode, $data['blocks']);
+        $price  = self::pricing($offerMode, $offer->currency);
         $paid   = self::paymentEnabled();
 
         // Une nouvelle tentative remplace la précédente restée sans paiement.
         $this->abandonPrevious($user->id, $offer->id);
 
-        return DB::transaction(function () use ($user, $expert, $offer, $blocks, $price, $paid, $data) {
+        return DB::transaction(function () use ($user, $expert, $offer, $offerMode, $blocks, $price, $paid, $data) {
             $invoice = null;
             if ($paid) {
                 $invoice = Invoice::create([
@@ -164,6 +176,7 @@ class BookingCheckoutService
                 'user_id'           => $user->id,
                 'expert_id'         => $expert->id,
                 'offer_id'          => $offer->id,
+                'mode'              => $offerMode->mode,
                 'invoice_id'        => $invoice?->id,
                 'status'            => Booking::STATUS_AWAITING_PAYMENT,
                 'offer_title'       => $offer->title,
@@ -175,7 +188,7 @@ class BookingCheckoutService
                 'amount_ttc'        => $price['amount_ttc'],
                 'payment_required'  => $paid,
                 'commission_rate'   => BookingCommissionRate::rateFor($expert->id),
-                'booking_policy_id' => BookingPolicy::currentFor()?->id,
+                'booking_policy_id' => BookingPolicy::currentFor(null, $offerMode->mode)?->id,
                 'client_address'    => trim($data['address']),
                 'message'           => isset($data['message']) ? (trim($data['message']) ?: null) : null,
             ]);
@@ -189,6 +202,8 @@ class BookingCheckoutService
                     'end_local'   => $block['end_local'],
                     'start_at'    => $block['start_at'],
                     'end_at'      => $block['end_at'],
+                    'location_id' => $block['location_id'],
+                    'location'    => $block['location']?->snapshot(),
                 ]);
             }
 
@@ -199,9 +214,9 @@ class BookingCheckoutService
     /**
      * Vérifie que la sélection correspond à l'offre et que chaque demi-journée est encore libre.
      *
-     * @return array<int, array{date:string, period:string, start_at:Carbon, end_at:Carbon, start_local:string, end_local:string}>
+     * @return array<int, array{date:string, period:string, start_at:Carbon, end_at:Carbon, start_local:string, end_local:string, location_id:?int, location:?\App\Models\ExpertLocation}>
      */
-    private function resolveBlocks(int $expertId, ExpertOffer $offer, array $requested): array
+    private function resolveBlocks(int $expertId, ExpertOffer $offer, ExpertOfferMode $offerMode, array $requested): array
     {
         $keys = collect($requested)->map(fn ($b) => $b['date'] . '|' . $b['period'])->unique()->sort()->values();
 
@@ -214,7 +229,7 @@ class BookingCheckoutService
         $from = substr($keys->first(), 0, 10);
         $to   = substr($keys->last(), 0, 10);
 
-        $free = $this->slots->availableBlocks($expertId, $from, $to)
+        $free = $this->slots->availableBlocks($expertId, $from, $to, false, $offerMode)
             ->keyBy(fn ($b) => $b['date'] . '|' . $b['period']);
 
         $missing = $keys->reject(fn ($k) => $free->has($k));
@@ -417,6 +432,7 @@ class BookingCheckoutService
             'id'               => $booking->id,
             'status'           => $booking->status,
             'offer_title'      => $booking->offer_title,
+            'mode'             => $booking->mode,
             'amount_ht'        => (float) $booking->amount_ht,
             'tva_rate'         => (float) $booking->tva_rate,
             'tva_amount'       => (float) $booking->tva_amount,
@@ -429,6 +445,11 @@ class BookingCheckoutService
                 'period'      => $b->period,
                 'start_local' => $b->start_local,
                 'end_local'   => $b->end_local,
+                // Les informations d'accès ne sont montrées qu'une fois le rendez-vous accepté (3c).
+                'location'    => $b->location ? array_merge(
+                    $b->location,
+                    ['access_details' => $booking->status === Booking::STATUS_ACCEPTED ? ($b->location['access_details'] ?? null) : null]
+                ) : null,
             ])->values(),
         ];
     }

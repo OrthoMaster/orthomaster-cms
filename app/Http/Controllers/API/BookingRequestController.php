@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Booking;
 use App\Models\Invoice;
 use App\Models\BookingBlock;
+use App\Models\ExpertLocation;
 use App\Services\Booking\BookingCheckoutService;
 use App\Services\Booking\BookingNoShowService;
 use App\Models\BookingNoShowReport;
@@ -190,19 +191,13 @@ class BookingRequestController extends Controller
             'id'               => $booking->id,
             'status'           => self::displayStatus($booking),
             'offer_title'      => $booking->offer_title,
+            'mode'             => $booking->mode,
             'blocks_count'     => $booking->blocks_count,
             'expert'           => $booking->expert ? BookingExpertController::expertPayload($booking->expert, false) : null,
-            'blocks'           => $booking->blocks->map(fn (BookingBlock $b) => [
-                'id'          => $b->id,
-                'date'        => $b->date->toDateString(),
-                'period'      => $b->period,
-                'start_local' => $b->start_local,
-                'end_local'   => $b->end_local,
-                'start_at'    => $b->start_at?->toIso8601String(),
-                'end_at'      => $b->end_at?->toIso8601String(),
-                // Lien Meet de la demi-journée : renseigné quand l'intégration Google Meet sera en place.
-                'meet_url'    => null,
-            ])->values(),
+            // Informations d'accès seulement une fois la demande acceptée (3c).
+            'blocks'           => $booking->blocks
+                ->map(fn (BookingBlock $b) => self::blockPayload($b, $booking->status === Booking::STATUS_ACCEPTED))
+                ->values(),
             'amount_ttc'       => (float) $booking->amount_ttc,
             'currency'         => $booking->currency,
             'payment_required' => $booking->payment_required,
@@ -230,6 +225,50 @@ class BookingRequestController extends Controller
         }
 
         return $data;
+    }
+
+    /**
+     * Forme commune d'une demi-journée réservée, partagée avec l'API de l'expert.
+     * $showAccess : montrer les informations d'accès du lieu (digicode, étage…).
+     */
+    public static function blockPayload(BookingBlock $b, bool $showAccess): array
+    {
+        return [
+            'id'          => $b->id,
+            'date'        => $b->date->toDateString(),
+            'period'      => $b->period,
+            'start_local' => $b->start_local,
+            'end_local'   => $b->end_local,
+            'start_at'    => $b->start_at?->toIso8601String(),
+            'end_at'      => $b->end_at?->toIso8601String(),
+            // Lien Meet de la demi-journée : renseigné quand l'intégration Google Meet sera en place.
+            'meet_url'    => null,
+            'location'    => self::blockLocation($b, $showAccess),
+        ];
+    }
+
+    /**
+     * Lieu copié au moment de la réservation (présentiel), ou null en ligne.
+     * Modifier ou archiver le lieu ensuite ne change pas ce qui est renvoyé ici.
+     */
+    public static function blockLocation(BookingBlock $b, bool $showAccess): ?array
+    {
+        $l = $b->location;
+        if (!$l) {
+            return null;
+        }
+
+        return [
+            'label'          => $l['label'] ?? null,
+            'address_line'   => $l['address_line'] ?? null,
+            'postal_code'    => $l['postal_code'] ?? null,
+            'city'           => $l['city'] ?? null,
+            'country'        => $l['country'] ?? null,
+            'lat'            => $l['lat'] ?? null,
+            'lng'            => $l['lng'] ?? null,
+            'maps_url'       => ExpertLocation::mapsUrl($l),
+            'access_details' => $showAccess ? ($l['access_details'] ?? null) : null,
+        ];
     }
 
     private function success(mixed $data, int $status = 200): JsonResponse

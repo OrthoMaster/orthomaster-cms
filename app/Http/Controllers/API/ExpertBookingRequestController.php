@@ -6,10 +6,10 @@ use App\Http\Controllers\Controller;
 use App\Models\Booking;
 use App\Models\BookingBlock;
 use App\Models\BookingDeclineReason;
+use App\Models\BookingNoShowReport;
 use App\Services\Booking\BookingCheckoutService;
 use App\Services\Booking\BookingDecisionService;
 use App\Services\Booking\BookingNoShowService;
-use App\Models\BookingNoShowReport;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -115,7 +115,7 @@ class ExpertBookingRequestController extends Controller
     }
 
     /**
-     * Signale l'absence du confrère.
+     * Signale l'absence du demandeur.
      * POST /booking/me/requests/{booking}/no-show
      * Corps : block_ids[], note?
      */
@@ -145,6 +145,7 @@ class ExpertBookingRequestController extends Controller
         return (int) $id;
     }
 
+    /** Public : l'agenda réutilise la même requête (demandes de l'expert connecté). */
     public function query(Request $request): Builder
     {
         return Booking::query()
@@ -175,22 +176,16 @@ class ExpertBookingRequestController extends Controller
             'id'               => $booking->id,
             'status'           => self::displayStatus($booking),
             'offer_title'      => $booking->offer_title,
+            'mode'             => $booking->mode,
             'blocks_count'     => $booking->blocks_count,
             // Le demandeur : nom affiché seulement ; l'e-mail reste côté plateforme.
             'requester'        => [
                 'name' => $booking->user ? BookingCheckoutService::displayName($booking->user) : 'Confrère',
             ],
-            'blocks'           => $booking->blocks->map(fn (BookingBlock $b) => [
-                'id'          => $b->id,
-                'date'        => $b->date->toDateString(),
-                'period'      => $b->period,
-                'start_local' => $b->start_local,
-                'end_local'   => $b->end_local,
-                'start_at'    => $b->start_at?->toIso8601String(),
-                'end_at'      => $b->end_at?->toIso8601String(),
-                // Lien Meet de la demi-journée : renseigné quand l'intégration Google Meet sera en place.
-                'meet_url'    => null,
-            ])->values(),
+            // L'expert voit toujours ses propres informations d'accès.
+            'blocks'           => $booking->blocks
+                ->map(fn (BookingBlock $b) => BookingRequestController::blockPayload($b, true))
+                ->values(),
             'respond_by'       => $booking->respond_by?->toIso8601String(),
             'requested_at'     => $booking->requested_at?->toIso8601String(),
             'responded_at'     => $booking->responded_at?->toIso8601String(),

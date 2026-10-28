@@ -93,6 +93,100 @@ class GoogleMeetService
         }
     }
 
+    /** Rouvre une salle fermée : même lien, accès de nouveau ouvert. */
+    public function reopenSpace(string $name): void
+    {
+        $config = new SpaceConfig();
+        $config->setAccessType(config('services.google_meet.access_type', 'OPEN'));
+
+        $space = new Space();
+        $space->setConfig($config);
+
+        $this->call(fn (Meet $meet) => $meet->spaces->patch($name, $space, ['updateMask' => 'config.accessType']));
+    }
+
+    /**
+     * Nombre de participants actuellement dans la salle (0 si aucune réunion en cours).
+     */
+    public function activeParticipants(string $name): int
+    {
+        return $this->call(function (Meet $meet) use ($name) {
+            $records = $meet->conferenceRecords->listConferenceRecords([
+                'filter' => sprintf('space.name = "%s" AND end_time IS NULL', $name),
+            ])->getConferenceRecords() ?? [];
+
+            $count = 0;
+            foreach ($records as $record) {
+                $pageToken = null;
+                do {
+                    $page = $meet->conferenceRecords_participants->listConferenceRecordsParticipants($record->getName(), array_filter([
+                        'filter'    => 'latest_end_time IS NULL',
+                        'pageToken' => $pageToken,
+                    ]));
+                    $count += count($page->getParticipants() ?? []);
+                    $pageToken = $page->getNextPageToken();
+                } while ($pageToken);
+            }
+
+            return $count;
+        });
+    }
+
+    /**
+     * Toutes les sessions (passages) de tous les participants de toutes les réunions de la salle.
+     *
+     * @return array{active:bool, sessions:array<int, array{conference:string, participant:string, session:string,
+     *               display_name:?string, kind:string, google_user:?string, joined_at:?string, left_at:?string}>}
+     */
+    public function attendance(string $name): array
+    {
+        return $this->call(function (Meet $meet) use ($name) {
+            $sessions = [];
+            $active   = false;
+
+            foreach ($this->pages(
+                fn ($token) => $meet->conferenceRecords->listConferenceRecords(array_filter([
+                    'filter'    => sprintf('space.name = "%s"', $name),
+                    'pageToken' => $token,
+                ])),
+                'getConferenceRecords'
+            ) as $record) {
+                $active = $active || !$record->getEndTime();
+
+                foreach ($this->pages(
+                    fn ($token) => $meet->conferenceRecords_participants->listConferenceRecordsParticipants(
+                        $record->getName(),
+                        array_filter(['pageToken' => $token])
+                    ),
+                    'getParticipants'
+                ) as $participant) {
+                    [$kind, $displayName, $googleUser] = $this->identity($participant);
+
+                    foreach ($this->pages(
+                        fn ($token) => $meet->conferenceRecords_participants_participantSessions->listConferenceRecordsParticipantsParticipantSessions(
+                            $participant->getName(),
+                            array_filter(['pageToken' => $token])
+                        ),
+                        'getParticipantSessions'
+                    ) as $session) {
+                        $sessions[] = [
+                            'conference'   => $record->getName(),
+                            'participant'  => $participant->getName(),
+                            'session'      => $session->getName(),
+                            'display_name' => $displayName,
+                            'kind'         => $kind,
+                            'google_user'  => $googleUser,
+                            'joined_at'    => $session->getStartTime(),
+                            'left_at'      => $session->getEndTime(),
+                        ];
+                    }
+                }
+            }
+
+            return ['active' => $active, 'sessions' => $sessions];
+        });
+    }
+
     /* ===================== OUTILS ===================== */
 
     private function meet(): Meet
@@ -120,6 +214,55 @@ class GoogleMeetService
         $client->setSubject($subject);
 
         return new Meet($client);
+    }
+
+    /**
+     * Exécute un appel à l'API en traduisant les erreurs Google en RuntimeException lisible.
+     */
+    private function call(callable $fn): mixed
+    {
+        $meet = $this->meet();
+
+        try {
+            return $fn($meet);
+        } catch (GoogleServiceException $e) {
+            throw new RuntimeException('Google Meet : ' . $this->googleMessage($e), 0, $e);
+        } catch (RuntimeException $e) {
+            throw $e;
+        } catch (\Throwable $e) {
+            throw new RuntimeException('Google Meet (authentification) : ' . $this->authHint($e->getMessage()), 0, $e);
+        }
+    }
+
+    /** Parcourt toutes les pages d'une liste Google. */
+    private function pages(callable $fetch, string $getter): \Generator
+    {
+        $token = null;
+        do {
+            $page = $fetch($token);
+            foreach ($page->{$getter}() ?? [] as $item) {
+                yield $item;
+            }
+            $token = $page->getNextPageToken();
+        } while ($token);
+    }
+
+    /**
+     * @return array{0:string, 1:?string, 2:?string} [type, nom affiché, identifiant Google]
+     */
+    private function identity(object $participant): array
+    {
+        if ($user = $participant->getSignedinUser()) {
+            return ['google', $user->getDisplayName(), $user->getUser()];
+        }
+        if ($user = $participant->getAnonymousUser()) {
+            return ['anonymous', $user->getDisplayName(), null];
+        }
+        if ($user = $participant->getPhoneUser()) {
+            return ['phone', $user->getDisplayName(), null];
+        }
+
+        return ['anonymous', null, null];
     }
 
     /** Message lisible d'une erreur de l'API Google (corps JSON). */

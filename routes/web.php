@@ -42,6 +42,7 @@ use App\Http\Controllers\WebController;
 use App\Http\Controllers\Booking\ConfigController;
 use App\Http\Controllers\Booking\ExpertSetupController;
 use App\Http\Controllers\Booking\OfferImageController;
+use App\Http\Controllers\Booking\PlacesController;
 use Illuminate\Support\Facades\Route;
 use TCG\Voyager\Facades\Voyager;
 
@@ -468,7 +469,7 @@ Route::group(['prefix' => 'admin', 'middleware' => ['cmsAdmin']], function () {
     Route::prefix('booking')
         ->name('booking.')
         ->group(function () {
-            /* --- Experts --- */
+
             /* --- Experts --- */
             Route::controller(ExpertSetupController::class)
                 ->prefix('experts')
@@ -480,11 +481,17 @@ Route::group(['prefix' => 'admin', 'middleware' => ['cmsAdmin']], function () {
                         Route::get('/', 'show')->name('show');
                         Route::put('settings', 'updateSettings')->name('settings.update');
 
+                        Route::post('locations', 'storeLocation')->name('locations.store');
+                        Route::put('locations/{location}', 'updateLocation')->name('locations.update');
+                        Route::post('locations/{location}/archive', 'archiveLocation')->name('locations.archive');
+                        Route::post('locations/{location}/restore', 'restoreLocation')->name('locations.restore');
+
                         Route::post('offers', 'storeOffer')->name('offers.store');
                         Route::put('offers/{offer}', 'updateOffer')->name('offers.update');
                         Route::delete('offers/{offer}', 'destroyOffer')->name('offers.destroy');
 
                         Route::post('rules', 'storeRules')->name('rules.store');
+                        Route::put('rules/{rule}/location', 'updateRuleLocation')->name('rules.location');
                         Route::delete('rules/{rule}', 'destroyRule')->name('rules.destroy');
 
                         Route::post('exceptions', 'storeExceptions')->name('exceptions.store');
@@ -536,7 +543,21 @@ Route::group(['prefix' => 'admin', 'middleware' => ['cmsAdmin']], function () {
 
                         Route::post('blocks/{blockId}/meet', 'createMeet')->whereNumber('blockId')->name('meet');
                         Route::post('blocks/{blockId}/meet/cancel', 'cancelMeet')->whereNumber('blockId')->name('meet.cancel');
+
+                        Route::post('blocks/{blockId}/meet/close', 'closeMeet')->whereNumber('blockId')->name('meet.close');
+                        Route::post('blocks/{blockId}/meet/reopen', 'reopenMeet')->whereNumber('blockId')->name('meet.reopen');
+                        Route::post('blocks/{blockId}/meet/sync', 'syncMeet')->whereNumber('blockId')->name('meet.sync');
                     });
+                });
+
+            /* --- Recherche d'adresses (Google Places, clé côté serveur) --- */
+            Route::controller(PlacesController::class)
+                ->prefix('places')
+                ->name('places.')
+                ->middleware('throttle:120,1')
+                ->group(function () {
+                    Route::get('autocomplete', 'autocomplete')->name('autocomplete');
+                    Route::get('{placeId}', 'details')->where('placeId', '[A-Za-z0-9_-]+')->name('details');
                 });
         });
 });

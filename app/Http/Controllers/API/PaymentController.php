@@ -5,8 +5,10 @@ namespace App\Http\Controllers\API;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\InvoiceController;
 use App\Models\Booking;
+use App\Models\BookingPolicy;
 use App\Models\Cart;
 use App\Models\ExpertOffer;
+use App\Models\ExpertOfferMode;
 use App\Models\Invoice;
 use App\Models\SystemNotification;
 use App\Services\Booking\BookingCheckoutService;
@@ -278,21 +280,26 @@ class PaymentController extends Controller
     /* ===================== RENDEZ-VOUS EXPERT ===================== */
 
     /**
-     * Récapitulatif avant paiement : identité de l'utilisateur et montants calculés par le
-     * serveur (l'application ne calcule pas la TVA elle-même).
-     * GET /payments/bookings/checkout?offer_id=
+     * Récapitulatif avant paiement : identité de l'utilisateur, montants calculés par le
+     * serveur à partir du prix TTC du mode choisi (l'application ne calcule pas la TVA),
+     * et conditions d'annulation de ce mode.
+     * GET /payments/bookings/checkout?offer_id=&mode=online|onsite
      */
     public function bookingCheckout(Request $request): JsonResponse
     {
-        $offer = ExpertOffer::active()->find($request->query('offer_id'));
-        if (!$offer) {
+        $offer = ExpertOffer::active()->with('modes')->find($request->query('offer_id'));
+        // Sans mode (ancienne version de l'application) : en ligne, le seul mode d'avant.
+        $offerMode = $offer?->activeMode((string) $request->query('mode', ExpertOfferMode::ONLINE));
+
+        if (!$offerMode) {
             return response()->json([
                 'success' => false,
-                'message' => "Ce thème n'est plus proposé.",
+                'message' => "Ce thème n'est plus proposé sous cette forme.",
             ], 404);
         }
 
-        $user = $request->user();
+        $user   = $request->user();
+        $policy = BookingPolicy::currentFor(null, $offerMode->mode);
 
         return response()->json([
             'success' => true,
@@ -301,7 +308,13 @@ class PaymentController extends Controller
                     'name' => BookingCheckoutService::displayName($user),
                     'email' => $user->email,
                 ],
-                'pricing' => BookingCheckoutService::pricing($offer),
+                'mode' => $offerMode->mode,
+                'pricing' => BookingCheckoutService::pricing($offerMode, $offer->currency),
+                'policy' => $policy ? [
+                    'free_cancel_hours'       => $policy->free_cancel_hours,
+                    'late_cancel_penalty_pct' => $policy->late_cancel_penalty_pct,
+                    'user_noshow_refund_pct'  => $policy->user_noshow_refund_pct,
+                ] : null,
                 'payment_enabled' => BookingCheckoutService::paymentEnabled(),
                 'terms_url' => BookingCheckoutService::TERMS_URL,
                 'message_max' => BookingCheckoutService::MESSAGE_MAX,
@@ -313,14 +326,15 @@ class PaymentController extends Controller
      * Crée la demande (en attente de paiement), sa facture et l'intention de paiement à
      * capture manuelle. Paiement désactivé : la demande part directement chez l'expert.
      * POST /payments/bookings/create-intent
-     * Corps : offer_id, blocks[{date, period}], address, message?
+     * Corps : offer_id, mode (online|onsite), blocks[{date, period}], address, message?
      */
     public function createBookingPaymentIntent(Request $request): JsonResponse
     {
         // Erreurs de saisie : réponse 422 standard { message, errors } de Laravel.
+        // Sans mode (ancienne version de l'application) : en ligne, le seul mode d'avant.
         $booking = $this->bookingCheckout->prepare($request->user(), $request->only([
             'offer_id', 'blocks', 'address', 'message',
-        ]));
+        ]) + ['mode' => $request->input('mode', ExpertOfferMode::ONLINE)]);
 
         if (!$booking->payment_required) {
             if (!$this->bookingCheckout->submit($booking)) {
