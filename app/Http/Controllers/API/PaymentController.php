@@ -315,7 +315,8 @@ class PaymentController extends Controller
                     'late_cancel_penalty_pct' => $policy->late_cancel_penalty_pct,
                     'user_noshow_refund_pct'  => $policy->user_noshow_refund_pct,
                 ] : null,
-                'payment_enabled' => BookingCheckoutService::paymentEnabled(),
+                // Faux aussi pour une offre à 0 € : l'application affiche « offert ».
+                'payment_enabled' => BookingCheckoutService::paymentRequired((float) $offerMode->price),
                 'terms_url' => BookingCheckoutService::TERMS_URL,
                 'message_max' => BookingCheckoutService::MESSAGE_MAX,
             ],

@@ -12,6 +12,7 @@ use App\Models\ExpertOffer;
 use App\Models\ExpertOfferMode;
 use App\Models\Invoice;
 use App\Models\User;
+use App\Http\Controllers\API\BookingRequestController;
 use App\Services\StripeService;
 use Carbon\Carbon;
 use Illuminate\Database\QueryException;
@@ -55,6 +56,16 @@ class BookingCheckoutService
     public static function paymentEnabled(): bool
     {
         return (bool) setting('booking.payment_enabled');
+    }
+
+    /**
+     * Paiement demandé pour ce montant : paiement activé et prix non nul.
+     * Une offre à 0 € est « offerte » : pas de facture ni d'intention Stripe
+     * (Stripe refuse les montants sous 0,50 €).
+     */
+    public static function paymentRequired(float $amountTtc): bool
+    {
+        return self::paymentEnabled() && $amountTtc > 0;
     }
 
     /**
@@ -149,7 +160,7 @@ class BookingCheckoutService
 
         $blocks = $this->resolveBlocks($expert->id, $offer, $offerMode, $data['blocks']);
         $price  = self::pricing($offerMode, $offer->currency);
-        $paid   = self::paymentEnabled();
+        $paid   = self::paymentRequired($price['amount_ttc']);
 
         // Une nouvelle tentative remplace la précédente restée sans paiement.
         $this->abandonPrevious($user->id, $offer->id);
@@ -445,11 +456,8 @@ class BookingCheckoutService
                 'period'      => $b->period,
                 'start_local' => $b->start_local,
                 'end_local'   => $b->end_local,
-                // Les informations d'accès ne sont montrées qu'une fois le rendez-vous accepté (3c).
-                'location'    => $b->location ? array_merge(
-                    $b->location,
-                    ['access_details' => $booking->status === Booking::STATUS_ACCEPTED ? ($b->location['access_details'] ?? null) : null]
-                ) : null,
+                // Même forme que les autres API ; accès seulement une fois le rendez-vous accepté (3c).
+                'location'    => BookingRequestController::blockLocation($b, $booking->status === Booking::STATUS_ACCEPTED),
             ])->values(),
         ];
     }

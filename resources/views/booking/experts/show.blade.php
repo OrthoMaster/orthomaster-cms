@@ -896,7 +896,8 @@
                         <h3>Exceptions</h3>
                         <p class="booking-intro">
                             Fermer une date (congés, congrès) ou ouvrir exceptionnellement une demi-journée hors semaine type.
-                            Une ouverture exceptionnelle ne compte pas dans le calendrier des offres.
+                            Une ouverture exceptionnelle peut être choisie dans une offre en ligne « Dates précises »
+                            (elle n'a pas de lieu) ; elle ne compte pas dans « Toutes » ou « Certaines demi-journées ».
                         </p>
 
                         <form method="POST" action="{{ route('booking.experts.exceptions.store', $expert->id) }}">

@@ -23,7 +23,7 @@ use Illuminate\Validation\Rule;
  * leurs offres (en ligne / en présentiel) et les demi-journées libres d'une offre.
  *
  * « Réservable » = réservation activée + au moins une offre active avec un mode actif
- * + au moins une règle récurrente encore valable.
+ * + au moins une règle récurrente encore valable ou un jour ouvert à la main à venir.
  */
 class BookingExpertController extends Controller
 {
@@ -341,21 +341,26 @@ class BookingExpertController extends Controller
 
     /**
      * « En ligne » = réservation activée + au moins une offre active avec un mode actif
-     * + au moins une règle encore valable. Une seule expression SQL pour le tri de la liste
+     * + au moins une règle encore valable ou un jour ouvert à la main à venir. Une seule expression SQL pour le tri de la liste
      * et les contrôles.
      *
      * @return array{0:string, 1:array}
      */
     private function onlineExpression(): array
     {
+        // Le second EXISTS : un jour spécial ouvert à la main suffit, il sert aux « Dates précises » (2a).
         $sql = '(COALESCE(s.enabled_flg, 0) = 1
             AND EXISTS (SELECT 1 FROM expert_offers o
                 JOIN expert_offer_modes m ON m.offer_id = o.id AND m.active_flg = 1
                 WHERE o.expert_id = e.id AND o.active_flg = 1 AND o.deleted_at IS NULL)
-            AND EXISTS (SELECT 1 FROM expert_availability_rules r
-                WHERE r.expert_id = e.id AND (r.valid_until IS NULL OR r.valid_until >= ?)))';
+            AND (EXISTS (SELECT 1 FROM expert_availability_rules r
+                    WHERE r.expert_id = e.id AND (r.valid_until IS NULL OR r.valid_until >= ?))
+                OR EXISTS (SELECT 1 FROM expert_availability_exceptions x
+                    WHERE x.expert_id = e.id AND x.type = \'add\' AND x.date >= ?)))';
 
-        return [$sql, [now()->toDateString()]];
+        $today = now()->toDateString();
+
+        return [$sql, [$today, $today]];
     }
 
     private function isBookable(int $expertId): bool

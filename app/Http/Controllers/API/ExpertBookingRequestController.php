@@ -184,7 +184,7 @@ class ExpertBookingRequestController extends Controller
             ],
             // L'expert voit toujours ses propres informations d'accès.
             'blocks'           => $booking->blocks
-                ->map(fn (BookingBlock $b) => BookingRequestController::blockPayload($b, true))
+                ->map(fn (BookingBlock $b) => BookingRequestController::blockPayload($b, true, BookingRequestController::meetVisible($booking)))
                 ->values(),
             'respond_by'       => $booking->respond_by?->toIso8601String(),
             'requested_at'     => $booking->requested_at?->toIso8601String(),

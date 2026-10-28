@@ -6,6 +6,7 @@ use App\Models\Booking;
 use App\Models\BookingBlock;
 use App\Models\BookingEvent;
 use App\Models\BookingMeetPresence;
+use App\Models\ExpertOfferMode;
 use App\Services\Google\GoogleMeetService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -63,6 +64,14 @@ class BookingMeetService
             $block = $this->lock($blockId);
             if ($block->meet_url) {
                 return $block; // double clic : déjà créé
+            }
+
+            // Rendez-vous en présentiel : pas de visio (le bouton est masqué, on le garantit ici aussi).
+            $mode = DB::table('bookings')->where('id', $block->booking_id)->value('mode');
+            if ($mode === ExpertOfferMode::ONSITE) {
+                throw ValidationException::withMessages([
+                    'meet' => 'Rendez-vous en présentiel : pas de lien Google Meet.',
+                ]);
             }
 
             $space = $this->meet->createSpace();

@@ -30,6 +30,11 @@ use Illuminate\Validation\ValidationException;
  * Règle 2b : une modification de la grille qui retirerait une demi-journée dont une offre
  * active a besoin (« Certaines demi-journées » ou « Dates précises ») est refusée ;
  * l'expert doit d'abord modifier l'offre.
+ *
+ * Règle 2a : une demi-journée ajoutée à la main (exception « add ») ne sert qu'aux
+ * « Dates précises » en ligne : l'expert ouvre un jour spécial puis y propose une offre.
+ * Elle n'entre pas dans « Toutes / Certaines demi-journées », et n'a pas de lieu
+ * (le présentiel demande une demi-journée de la grille avec lieu).
  */
 class ExpertBookingSetupService
 {
@@ -514,14 +519,9 @@ class ExpertBookingSetupService
             return [];
         }
 
-        $rules     = $this->rulesOf($expertId);
-        $locations = $this->activeLocations($expertId);
-        $days      = array_map(fn ($k) => substr($k, 0, 10), $keys);
-        $blocked   = ExpertAvailabilityException::where('expert_id', $expertId)
-            ->whereIn('date', array_unique($days))
-            ->where('type', 'block')
-            ->get()
-            ->keyBy(fn ($e) => $e->date->toDateString() . '|' . ($e->period ?? ''));
+        $rules      = $this->rulesOf($expertId);
+        $locations  = $this->activeLocations($expertId);
+        $exceptions = $this->exceptionsOf($expertId, $today);
 
         $invalid = [];
         foreach ($keys as $key) {
@@ -531,10 +531,10 @@ class ExpertBookingSetupService
             $assigned = isset($assign[Carbon::parse($date)->dayOfWeekIso . '|' . $period]);
 
             $ok = $date >= $today
-                && !$blocked->has($date . '|' . $period)
-                && !$blocked->has($date . '|')
-                && ($this->ruleOn($rules, $date, $period, $mode, $locations) !== null
-                    || ($assigned && $this->ruleOn($rules, $date, $period, ExpertOfferMode::ONLINE, $locations) !== null));
+                && ($this->dateOpen($rules, $exceptions, $date, $period, $mode, $locations)
+                    || ($assigned
+                        && !$this->dateClosed($exceptions, $date, $period)
+                        && $this->ruleOn($rules, $date, $period, ExpertOfferMode::ONLINE, $locations) !== null));
 
             if (!$ok) {
                 $invalid[] = self::dateLabel($date, $period);
@@ -702,8 +702,9 @@ class ExpertBookingSetupService
     }
 
     /**
-     * Dates proposables pour le calendrier « Dates précises » : de demain à la limite
-     * de réservation, sans les demi-journées bloquées. Exceptions « add » exclues (2a).
+     * Dates proposables pour le calendrier « Dates précises » : d'aujourd'hui à la limite
+     * de réservation, sans les demi-journées bloquées. En ligne, les demi-journées ajoutées
+     * à la main (exceptions « add ») sont proposées aussi (2a), sans lieu.
      *
      * @return array<string, ?string> « Y-m-d|période » => nom du lieu
      */
@@ -712,25 +713,19 @@ class ExpertBookingSetupService
         $settings  = $this->resolved($expertId);
         $from      = $this->today($expertId);
         $to        = Carbon::parse($from)->addMonthsNoOverflow($settings['max_advance_months'])->toDateString();
-        $rules     = $this->rulesOf($expertId);
-        $locations = $this->activeLocations($expertId);
-        $blocked   = ExpertAvailabilityException::where('expert_id', $expertId)
-            ->whereBetween('date', [$from, $to])
-            ->where('type', 'block')
-            ->get()
-            ->keyBy(fn ($e) => $e->date->toDateString() . '|' . ($e->period ?? ''));
+        $rules      = $this->rulesOf($expertId);
+        $locations  = $this->activeLocations($expertId);
+        $exceptions = $this->exceptionsOf($expertId, $from, $to);
 
         $dates = [];
         foreach (CarbonPeriod::create($from, $to) as $day) {
             $date = $day->toDateString();
             foreach (self::PERIODS as $period) {
-                if ($blocked->has($date . '|' . $period) || $blocked->has($date . '|')) {
+                if (!$this->dateOpen($rules, $exceptions, $date, $period, $mode, $locations)) {
                     continue;
                 }
                 $rule = $this->ruleOn($rules, $date, $period, $mode, $locations);
-                if ($rule) {
-                    $dates[$date . '|' . $period] = $rule->location_id ? $locations->get($rule->location_id)?->label : null;
-                }
+                $dates[$date . '|' . $period] = $rule?->location_id ? $locations->get($rule->location_id)?->label : null;
             }
         }
 
@@ -796,6 +791,48 @@ class ExpertBookingSetupService
             && (!$r->valid_until || $r->valid_until->toDateString() >= $date)
             && ($mode !== ExpertOfferMode::ONSITE || ($r->location_id && $locations->has($r->location_id)))
         );
+    }
+
+    /**
+     * Demi-journée ouverte pour un calendrier « Dates précises » dans ce mode :
+     * pas bloquée, et prévue par la grille — ou, en ligne, ajoutée à la main (2a).
+     * Même priorité que le calcul des créneaux : exception de la demi-journée,
+     * puis de la journée entière, puis la grille.
+     */
+    public function dateOpen(Collection $rules, Collection $exceptions, string $date, string $period, string $mode, Collection $locations): bool
+    {
+        $exception = $this->exceptionOn($exceptions, $date, $period);
+        if ($exception?->type === 'block') {
+            return false;
+        }
+
+        return $this->ruleOn($rules, $date, $period, $mode, $locations) !== null
+            || ($exception?->type === 'add' && $mode === ExpertOfferMode::ONLINE);
+    }
+
+    private function dateClosed(Collection $exceptions, string $date, string $period): bool
+    {
+        return $this->exceptionOn($exceptions, $date, $period)?->type === 'block';
+    }
+
+    private function exceptionOn(Collection $exceptions, string $date, string $period): ?ExpertAvailabilityException
+    {
+        return $exceptions->get($date . '|' . $period) ?? $exceptions->get($date . '|');
+    }
+
+    /**
+     * Exceptions de l'expert à partir d'une date, indexées « date|période »
+     * (période vide : journée entière).
+     *
+     * @return Collection<string, ExpertAvailabilityException>
+     */
+    private function exceptionsOf(int $expertId, string $from, ?string $to = null): Collection
+    {
+        return ExpertAvailabilityException::where('expert_id', $expertId)
+            ->where('date', '>=', $from)
+            ->when($to, fn ($q) => $q->where('date', '<=', $to))
+            ->get()
+            ->keyBy(fn ($e) => $e->date->toDateString() . '|' . ($e->period ?? ''));
     }
 
     /* ===================== DISPONIBILITÉS RÉCURRENTES ===================== */
@@ -974,8 +1011,22 @@ class ExpertBookingSetupService
         return $days;
     }
 
+    /**
+     * Retirer un ajout manuel est refusé si une offre « Dates précises » propose ce jour-là (2b).
+     */
     public function deleteException(ExpertAvailabilityException $exception): void
     {
+        if ($exception->type === 'add') {
+            $expertId = $exception->expert_id;
+            $after    = $this->exceptionsOf($expertId, $this->today($expertId))
+                ->reject(fn (ExpertAvailabilityException $e) => $e->id === $exception->id);
+
+            $this->assertNoConflicts(
+                $this->offerConflicts($expertId, $this->rulesOf($expertId), [], $after),
+                'exception'
+            );
+        }
+
         $exception->delete();
     }
 
@@ -983,12 +1034,13 @@ class ExpertBookingSetupService
 
     /**
      * Offres actives qui perdraient une demi-journée si la grille devenait $rulesAfter
-     * (et si les lieux $lostLocationIds n'étaient plus utilisables).
+     * (si les lieux $lostLocationIds n'étaient plus utilisables, et si les exceptions
+     * devenaient $exceptionsAfter — par défaut celles d'aujourd'hui).
      * « Toutes les demi-journées » n'est jamais en conflit : l'offre suit la grille.
      *
      * @return array<int, string> une ligne par offre et par mode
      */
-    private function offerConflicts(int $expertId, Collection $rulesAfter, array $lostLocationIds = []): array
+    private function offerConflicts(int $expertId, Collection $rulesAfter, array $lostLocationIds = [], ?Collection $exceptionsAfter = null): array
     {
         $modes = $this->activeModesQuery($expertId)
             ->whereIn('m.schedule_type', [ExpertOfferMode::SCHEDULE_SELECTED, ExpertOfferMode::SCHEDULE_DATES])
@@ -997,10 +1049,11 @@ class ExpertBookingSetupService
             return [];
         }
 
-        $locations = $this->activeLocations($expertId)->except($lostLocationIds);
-        $grid      = $this->gridSlots($expertId, $rulesAfter, $locations);
-        $today     = $this->today($expertId);
-        $conflicts = [];
+        $locations  = $this->activeLocations($expertId)->except($lostLocationIds);
+        $grid       = $this->gridSlots($expertId, $rulesAfter, $locations);
+        $today      = $this->today($expertId);
+        $exceptions = $exceptionsAfter ?? $this->exceptionsOf($expertId, $today);
+        $conflicts  = [];
 
         foreach ($modes as $m) {
             $missing = [];
@@ -1016,7 +1069,7 @@ class ExpertBookingSetupService
                 $dates = ExpertOfferDate::where('offer_id', $m->offer_id)->where('mode', $m->mode)
                     ->where('date', '>=', $today)->orderBy('date')->get();
                 foreach ($dates as $date) {
-                    if (!$this->ruleOn($rulesAfter, $date->date->toDateString(), $date->period, $m->mode, $locations)) {
+                    if (!$this->dateOpen($rulesAfter, $exceptions, $date->date->toDateString(), $date->period, $m->mode, $locations)) {
                         $missing[] = self::dateLabel($date->date->toDateString(), $date->period);
                     }
                 }

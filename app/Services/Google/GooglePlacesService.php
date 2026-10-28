@@ -2,6 +2,7 @@
 
 namespace App\Services\Google;
 
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use RuntimeException;
@@ -27,6 +28,9 @@ class GooglePlacesService
     private const MAX_REGIONS = 15;
 
     public const MIN_INPUT_LENGTH = 3;
+
+    /** Détails d'une adresse gardés le temps d'enregistrer le lieu (aperçu puis création). */
+    public const DETAILS_CACHE_MINUTES = 15;
 
     public static function enabled(): bool
     {
@@ -81,6 +85,16 @@ class GooglePlacesService
      * @return array{google_place_id:string, name:?string, is_establishment:bool, address_line:string, postal_code:?string, city:string, country:?string, lat:?float, lng:?float, formatted:string}
      */
     public function details(string $placeId, ?string $sessionToken = null): array
+    {
+        // L'application lit l'adresse pour l'afficher, puis l'enregistre avec le même place_id :
+        // le second appel reprend le premier au lieu d'une nouvelle requête facturée.
+        // Courte durée seulement (DETAILS_CACHE_MINUTES) ; une erreur n'est jamais mise en cache.
+        $key = 'google_places:details:' . $this->language() . ':' . $placeId;
+
+        return Cache::remember($key, now()->addMinutes(self::DETAILS_CACHE_MINUTES), fn () => $this->fetchDetails($placeId, $sessionToken));
+    }
+
+    private function fetchDetails(string $placeId, ?string $sessionToken): array
     {
         $query = array_filter([
             'languageCode' => $this->language(),

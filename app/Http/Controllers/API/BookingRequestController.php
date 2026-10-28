@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Booking;
 use App\Models\Invoice;
 use App\Models\BookingBlock;
+use App\Models\ExpertOfferMode;
 use App\Models\ExpertLocation;
 use App\Services\Booking\BookingCheckoutService;
 use App\Services\Booking\BookingNoShowService;
@@ -196,7 +197,7 @@ class BookingRequestController extends Controller
             'expert'           => $booking->expert ? BookingExpertController::expertPayload($booking->expert, false) : null,
             // Informations d'accès seulement une fois la demande acceptée (3c).
             'blocks'           => $booking->blocks
-                ->map(fn (BookingBlock $b) => self::blockPayload($b, $booking->status === Booking::STATUS_ACCEPTED))
+                ->map(fn (BookingBlock $b) => self::blockPayload($b, $booking->status === Booking::STATUS_ACCEPTED, self::meetVisible($booking)))
                 ->values(),
             'amount_ttc'       => (float) $booking->amount_ttc,
             'currency'         => $booking->currency,
@@ -230,8 +231,9 @@ class BookingRequestController extends Controller
     /**
      * Forme commune d'une demi-journée réservée, partagée avec l'API de l'expert.
      * $showAccess : montrer les informations d'accès du lieu (digicode, étage…).
+     * $showMeet   : rendez-vous en ligne accepté — le lien Meet peut être donné (voir meetVisible).
      */
-    public static function blockPayload(BookingBlock $b, bool $showAccess): array
+    public static function blockPayload(BookingBlock $b, bool $showAccess, bool $showMeet = false): array
     {
         return [
             'id'          => $b->id,
@@ -241,10 +243,24 @@ class BookingRequestController extends Controller
             'end_local'   => $b->end_local,
             'start_at'    => $b->start_at?->toIso8601String(),
             'end_at'      => $b->end_at?->toIso8601String(),
-            // Lien Meet de la demi-journée : renseigné quand l'intégration Google Meet sera en place.
-            'meet_url'    => null,
+            'meet_url'    => $showMeet ? self::blockMeetUrl($b) : null,
             'location'    => self::blockLocation($b, $showAccess),
         ];
+    }
+
+    /** Lien Meet seulement pour un rendez-vous en ligne accepté. */
+    public static function meetVisible(Booking $booking): bool
+    {
+        return $booking->status === Booking::STATUS_ACCEPTED && $booking->mode !== ExpertOfferMode::ONSITE;
+    }
+
+    /**
+     * Lien Meet de la demi-journée, créé dans le CMS (création automatique : plus tard).
+     * null tant qu'il n'existe pas ou une fois la salle fermée : le lien ne fonctionnerait plus.
+     */
+    public static function blockMeetUrl(BookingBlock $b): ?string
+    {
+        return $b->meet_url && $b->meetIsOpen() ? $b->meet_url : null;
     }
 
     /**

@@ -22,7 +22,8 @@ use Illuminate\Support\Collection;
  * et ce qui est déjà retenu par une demande en attente ou acceptée.
  *
  * Pour une offre, en plus :
- *   - une demi-journée ajoutée à la main (exception « add ») ne compte pas (règle 2a) ;
+ *   - une demi-journée ajoutée à la main (exception « add ») ne compte que pour
+ *     « Dates précises » en ligne (règle 2a) : elle n'a pas de lieu ;
  *   - en présentiel, la règle doit porter un lieu actif ;
  *   - le calendrier de l'offre filtre la grille (toutes / certaines demi-journées / dates précises),
  *     et une date précise ferme book_ahead_days jours avant ;
@@ -112,6 +113,9 @@ class ExpertSlotService
 
         $forOffer  = $offerMode !== null;
         $mode      = $offerMode?->mode ?? ExpertOfferMode::ONLINE;
+        $addCountsForOffer = $forOffer
+            && $offerMode->schedule_type === ExpertOfferMode::SCHEDULE_DATES
+            && $mode === ExpertOfferMode::ONLINE;
         $allowed   = $this->offerFilter($offerMode, $from, $to, $settings['timezone']);
         $locations = $this->setup->activeLocations($expertId);
         $held      = $this->heldKeys($expertId, $from, $to);
@@ -138,8 +142,10 @@ class ExpertSlotService
                 }
 
                 $rule = $this->setup->ruleOn($rules, $date, $period, $mode, $locations);
-                // Ajout manuel : ouvre la grille générale, pas le calendrier d'une offre (2a).
-                if (!$rule && !($exception && !$forOffer)) {
+                // Ajout manuel (ici forcément « add ») : ouvre la grille générale et les
+                // « Dates précises » en ligne, pas les calendriers hebdomadaires (2a).
+                $openedByHand = $exception && (!$forOffer || $addCountsForOffer);
+                if (!$rule && !$openedByHand) {
                     continue;
                 }
 
