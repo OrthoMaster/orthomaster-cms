@@ -6,6 +6,9 @@
     <h1 class="page-title">
         <i class="voyager-calendar"></i> Rendez-vous experts
     </h1>
+    <a href="{{ route('booking.conversations.index') }}" class="btn btn-default">
+        <i class="voyager-chat"></i> Messagerie
+    </a>
     <a href="{{ route('booking.config.index') }}" class="btn btn-default">
         <i class="voyager-settings"></i> Configuration générale
     </a>

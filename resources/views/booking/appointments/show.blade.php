@@ -694,6 +694,33 @@
             {{-- ===================== Colonne latérale ===================== --}}
             <div class="col-md-4">
 
+                {{-- --- Messagerie du couple (tous rendez-vous confondus) --- --}}
+                @php
+                    $conversation = \App\Models\BookingConversation::where('expert_id', $booking->expert_id)
+                        ->where('user_id', $booking->user_id)
+                        ->withCount(['messages as text_count' => fn ($q) => $q->where('kind', 'text')])
+                        ->first();
+                @endphp
+                @if ($conversation)
+                    <div class="panel panel-bordered booking-panel">
+                        <div class="panel-body">
+                            <h3>Messagerie</h3>
+                            <p class="booking-muted" style="margin-bottom: 10px;">
+                                {{ $conversation->text_count }} message{{ $conversation->text_count > 1 ? 's' : '' }}
+                                @if ($conversation->blocked_attempts > 0)
+                                    · <span class="booking-pill booking-pill--danger">{{ $conversation->blocked_attempts }} bloqué{{ $conversation->blocked_attempts > 1 ? 's' : '' }}</span>
+                                @endif
+                                @unless ($conversation->opened_at)
+                                    · ouverte au premier rendez-vous accepté
+                                @endunless
+                            </p>
+                            <a href="{{ route('booking.conversations.show', $conversation->id) }}" class="btn btn-default btn-block" target="_blank">
+                                <i class="voyager-chat"></i> Voir la conversation
+                            </a>
+                        </div>
+                    </div>
+                @endif
+
                 {{-- --- Actions --- --}}
                 @if ($booking->status === 'pending' || $canCancel)
                     <div class="panel panel-bordered booking-panel">

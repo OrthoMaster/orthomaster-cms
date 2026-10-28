@@ -32,6 +32,7 @@ use App\Http\Controllers\API\ExpertBookingSetupController;
 use App\Http\Controllers\API\AiVideoSearchController;
 use App\Http\Controllers\API\BookingRequestController;
 use App\Http\Controllers\API\ExpertAgendaController;
+use App\Http\Controllers\API\BookingChatController;
 use App\Http\Controllers\API\ExpertBookingRequestController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -311,6 +312,16 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
             Route::put('/profile', [ExpertBookingSetupController::class, 'updateProfile']);
             Route::post('/domains', [ExpertBookingSetupController::class, 'storeDomain']);
+        });
+
+        /* --- Messagerie expert ↔ demandeur (les deux rôles) --- */
+        Route::controller(BookingChatController::class)->prefix('conversations')->group(function () {
+            Route::get('/', 'index');
+            Route::get('unread', 'unread');
+            Route::get('by-booking/{booking}', 'byBooking')->whereNumber('booking');
+            Route::get('{conversation}', 'show')->whereNumber('conversation');
+            Route::get('{conversation}/messages', 'messages')->whereNumber('conversation');
+            Route::post('{conversation}/messages', 'send')->whereNumber('conversation')->middleware('throttle:30,1');
         });
     });
 });

@@ -27,6 +27,9 @@
     <a href="{{ route('booking.experts.index') }}" class="btn btn-default">
         <i class="voyager-people"></i> Experts
     </a>
+    <a href="{{ route('booking.conversations.index') }}" class="btn btn-default">
+        <i class="voyager-chat"></i> Messagerie
+    </a>
     <a href="{{ route('booking.config.index') }}" class="btn btn-default">
         <i class="voyager-settings"></i> Configuration générale
     </a>
