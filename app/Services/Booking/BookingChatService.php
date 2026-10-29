@@ -26,6 +26,7 @@ use Illuminate\Validation\ValidationException;
  *    (« Échanger avec l'expert ») : un encadré rappelle à l'expert de quel thème il s'agit.
  *  - Sinon, écrire devient possible au premier rendez-vous accepté ; ensuite sans limite.
  *  - Téléphones, e-mails et liens sont refusés (ChatContactFilter).
+ *  - Anti-spam : 300 caractères et 8 lignes au plus, même message refusé pendant 10 min.
  *  - Non-lus : messages plus récents que le dernier lu, hors ceux de la partie elle-même.
  *
  * L'administration ne fait que lire (CMS).
@@ -36,7 +37,14 @@ use Illuminate\Validation\ValidationException;
  */
 class BookingChatService
 {
-    public const BODY_MAX = 2000;
+    /** Longueur max d'un message (anti-spam), affichée « n/300 » dans l'application. */
+    public const BODY_MAX = 300;
+
+    /** Lignes max d'un message (anti-spam). */
+    public const LINES_MAX = 8;
+
+    /** Même texte, même expéditeur, même fil : refusé pendant ce délai (anti-spam). */
+    public const DUPLICATE_MINUTES = 10;
 
     /** Premier chargement d'un fil et pages d'historique. */
     public const PAGE_SIZE = 30;
@@ -307,6 +315,9 @@ class BookingChatService
         if (mb_strlen($body) > self::BODY_MAX) {
             throw ValidationException::withMessages(['body' => 'Le message ne doit pas dépasser ' . self::BODY_MAX . ' caractères.']);
         }
+        if (substr_count($body, "\n") + 1 > self::LINES_MAX) {
+            throw ValidationException::withMessages(['body' => 'Le message ne doit pas dépasser ' . self::LINES_MAX . ' lignes.']);
+        }
         if (!$conversation->isOpen()) {
             throw ValidationException::withMessages([
                 'body' => "La messagerie s'ouvre quand vous contactez l'expert depuis un thème, ou dès qu'un rendez-vous est accepté.",
@@ -318,6 +329,17 @@ class BookingChatService
             if ($existing) {
                 return $existing;
             }
+        }
+
+        // Après le contrôle du client_id : un renvoi après coupure réseau n'est pas un doublon.
+        $duplicate = BookingMessage::where('conversation_id', $conversation->id)
+            ->where('kind', BookingMessage::KIND_TEXT)
+            ->where('sender', $side)
+            ->where('body', $body)
+            ->where('created_at', '>=', now()->subMinutes(self::DUPLICATE_MINUTES))
+            ->exists();
+        if ($duplicate) {
+            throw ValidationException::withMessages(['body' => 'Vous avez déjà envoyé ce message.']);
         }
 
         if ($reason = ChatContactFilter::check($body)) {
