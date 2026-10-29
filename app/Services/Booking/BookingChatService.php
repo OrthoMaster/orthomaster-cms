@@ -2,6 +2,7 @@
 
 namespace App\Services\Booking;
 
+use App\Jobs\SendExpoNotificationJob;
 use App\Models\Booking;
 use App\Models\BookingBlock;
 use App\Models\BookingConversation;
@@ -28,6 +29,10 @@ use Illuminate\Validation\ValidationException;
  *  - Non-lus : messages plus récents que le dernier lu, hors ceux de la partie elle-même.
  *
  * L'administration ne fait que lire (CMS).
+ *
+ * Notification push à l'autre partie pour chaque message écrit et pour le contact
+ * depuis un thème (data.action = booking-message, conversation_id) ; envoyée après
+ * la réponse HTTP pour ne pas ralentir l'envoi.
  */
 class BookingChatService
 {
@@ -44,6 +49,12 @@ class BookingChatService
 
     /** Types du journal recopiés dans le fil ; le reste (Meet, remboursements…) reste interne. */
     public const EVENT_TYPES = ['submitted', 'accepted', 'declined', 'expired', 'cancelled'];
+
+    /** Action lue par l'application pour ouvrir la conversation au toucher de la notification. */
+    public const PUSH_ACTION = 'booking-message';
+
+    /** Longueur du texte du message dans la notification. */
+    private const PUSH_BODY_LENGTH = 140;
 
     /** Dates citées dans un événement ; au-delà : « +N ». */
     private const EVENT_DATES_SHOWN = 3;
@@ -154,7 +165,8 @@ class BookingChatService
 
         $conversation = $this->conversationFor($offer->expert_id, $userId);
 
-        DB::transaction(function () use ($conversation, $offer, $mode, $userId) {
+        $notify = false;
+        DB::transaction(function () use ($conversation, $offer, $mode, $userId, &$notify) {
             $locked = BookingConversation::whereKey($conversation->id)->lockForUpdate()->first();
 
             if (!$locked->opened_at) {
@@ -187,7 +199,14 @@ class BookingChatService
 
             $this->touch($locked, $message);
             $this->markRead($locked, BookingConversation::SIDE_USER, $message->id);
+            $notify = true;
         });
+
+        if ($notify) {
+            $conversation->loadMissing('user');
+            $userName = $conversation->user ? BookingCheckoutService::displayName($conversation->user) : 'Un confrère';
+            $this->push($conversation, BookingConversation::SIDE_EXPERT, $userName, "Vous contacte à propos de votre thème « {$offer->title} »");
+        }
 
         return $conversation->refresh();
     }
@@ -307,7 +326,7 @@ class BookingChatService
             throw new ContactBlockedException($reason);
         }
 
-        return DB::transaction(function () use ($conversation, $side, $userId, $body, $clientId) {
+        $message = DB::transaction(function () use ($conversation, $side, $userId, $body, $clientId) {
             $message = BookingMessage::create([
                 'conversation_id' => $conversation->id,
                 'kind'            => BookingMessage::KIND_TEXT,
@@ -324,6 +343,41 @@ class BookingChatService
 
             return $message;
         });
+
+        $conversation->loadMissing(['user', 'expert']);
+        $senderName = $side === BookingConversation::SIDE_EXPERT
+            ? ($conversation->expert ? self::expertName($conversation->expert) : 'Expert')
+            : ($conversation->user ? BookingCheckoutService::displayName($conversation->user) : 'Confrère');
+        $this->push(
+            $conversation,
+            BookingConversation::otherSide($side),
+            $senderName,
+            mb_strimwidth(preg_replace('/\s+/', ' ', $body), 0, self::PUSH_BODY_LENGTH, '…')
+        );
+
+        return $message;
+    }
+
+    /**
+     * Notification push à une partie du fil (tous ses appareils). L'application ouvre la
+     * conversation au toucher, et ne l'affiche pas si cette conversation est déjà à l'écran.
+     */
+    private function push(BookingConversation $conversation, string $toSide, string $title, string $body): void
+    {
+        $userId = $toSide === BookingConversation::SIDE_EXPERT
+            ? DB::table('experts')->where('id', $conversation->expert_id)->value('user_id')
+            : $conversation->user_id;
+
+        if (!$userId) {
+            return;
+        }
+
+        SendExpoNotificationJob::dispatchAfterResponse(
+            [(int) $userId],
+            $title,
+            $body,
+            ['action' => self::PUSH_ACTION, 'conversation_id' => $conversation->id]
+        );
     }
 
     /** Dernier message du fil ; la condition garde le plus récent si deux écritures se croisent. */
