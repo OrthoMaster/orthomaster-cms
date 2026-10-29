@@ -318,6 +318,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::controller(BookingChatController::class)->prefix('conversations')->group(function () {
             Route::get('/', 'index');
             Route::get('unread', 'unread');
+            Route::post('start', 'start')->middleware('throttle:30,1');
             Route::get('by-booking/{booking}', 'byBooking')->whereNumber('booking');
             Route::get('{conversation}', 'show')->whereNumber('conversation');
             Route::get('{conversation}/messages', 'messages')->whereNumber('conversation');

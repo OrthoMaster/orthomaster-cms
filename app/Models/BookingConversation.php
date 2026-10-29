@@ -8,7 +8,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * Fil de discussion entre un expert et un demandeur, tous rendez-vous confondus.
- * Ouvert à l'écriture dès le premier rendez-vous accepté, sans limite de durée.
+ * Ouvert à l'écriture quand le demandeur contacte l'expert depuis un thème,
+ * ou dès le premier rendez-vous accepté ; sans limite de durée.
  */
 class BookingConversation extends Model
 {

@@ -77,6 +77,24 @@ class BookingChatController extends Controller
     }
 
     /**
+     * « Échanger avec l'expert » depuis un thème, avant de réserver : fil ouvert à l'écriture,
+     * encadré du thème en tête des nouveaux messages. Renvoie l'en-tête du fil.
+     * POST /booking/conversations/start  { offer_id, mode? }
+     */
+    public function start(Request $request): JsonResponse
+    {
+        $request->validate([
+            'offer_id' => ['required', 'integer'],
+            'mode'     => ['nullable', 'in:' . implode(',', array_keys(\App\Models\ExpertOfferMode::MODE_LABELS))],
+        ]);
+
+        $userId = $request->user()->id;
+        $conversation = $this->chat->startFromOffer($userId, (int) $request->input('offer_id'), $request->input('mode'));
+
+        return $this->success($this->detail($conversation, $userId), 201);
+    }
+
+    /**
      * Fil lié à un rendez-vous, pour le bouton « Message » de la fiche.
      * GET /booking/conversations/by-booking/{booking}
      */

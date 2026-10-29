@@ -8,6 +8,7 @@ use App\Models\BookingConversation;
 use App\Models\BookingEvent;
 use App\Models\BookingMessage;
 use App\Models\Expert;
+use App\Models\ExpertOffer;
 use App\Models\ExpertOfferMode;
 use App\Support\Booking\ChatContactFilter;
 use Carbon\Carbon;
@@ -20,7 +21,9 @@ use Illuminate\Validation\ValidationException;
  *
  *  - Les événements des rendez-vous (demande, acceptation, refus, expiration, annulation)
  *    sont recopiés du journal dans le fil, au moment où ils se produisent.
- *  - Écrire n'est possible qu'à partir du premier rendez-vous accepté, puis sans limite.
+ *  - Le demandeur peut ouvrir le fil depuis un thème, avant toute réservation
+ *    (« Échanger avec l'expert ») : un encadré rappelle à l'expert de quel thème il s'agit.
+ *  - Sinon, écrire devient possible au premier rendez-vous accepté ; ensuite sans limite.
  *  - Téléphones, e-mails et liens sont refusés (ChatContactFilter).
  *  - Non-lus : messages plus récents que le dernier lu, hors ceux de la partie elle-même.
  *
@@ -35,6 +38,9 @@ class BookingChatService
 
     /** Réponse d'une relève (polling) : au-delà, l'application recharge le fil. */
     public const POLL_MAX = 100;
+
+    /** Encadré « contact depuis un thème », inscrit quand le demandeur ouvre le fil depuis une offre. */
+    public const EVENT_INQUIRY = 'inquiry';
 
     /** Types du journal recopiés dans le fil ; le reste (Meet, remboursements…) reste interne. */
     public const EVENT_TYPES = ['submitted', 'accepted', 'declined', 'expired', 'cancelled'];
@@ -117,6 +123,73 @@ class BookingChatService
                     $q->orWhere('expert_id', $expertId);
                 }
             });
+    }
+
+    /* ===================== CONTACT DEPUIS UN THÈME ===================== */
+
+    /**
+     * Le demandeur contacte l'expert depuis un thème, avant de réserver.
+     * Ouvre le fil à l'écriture et y inscrit un encadré « à propos de tel thème »,
+     * sauf si le dernier message du fil est déjà cet encadré pour ce thème (double appui).
+     *
+     * @throws ValidationException thème indisponible, ou son propre thème
+     */
+    public function startFromOffer(int $userId, int $offerId, ?string $mode = null): BookingConversation
+    {
+        $offer = ExpertOffer::active()->with('modes')->find($offerId);
+        if (!$offer) {
+            throw ValidationException::withMessages(['offer_id' => "Ce thème n'est plus proposé."]);
+        }
+
+        $expertUserId = DB::table('experts')->where('id', $offer->expert_id)->value('user_id');
+        if (!$expertUserId) {
+            throw ValidationException::withMessages(['offer_id' => "Cet expert ne peut pas être contacté pour le moment."]);
+        }
+        if ((int) $expertUserId === $userId) {
+            throw ValidationException::withMessages(['offer_id' => 'Vous ne pouvez pas vous contacter vous-même.']);
+        }
+
+        // Format consulté au moment du contact, s'il est encore proposé.
+        $mode = $mode && $offer->activeMode($mode) ? $mode : null;
+
+        $conversation = $this->conversationFor($offer->expert_id, $userId);
+
+        DB::transaction(function () use ($conversation, $offer, $mode, $userId) {
+            $locked = BookingConversation::whereKey($conversation->id)->lockForUpdate()->first();
+
+            if (!$locked->opened_at) {
+                $locked->update(['opened_at' => now()]);
+            }
+
+            $last = $locked->last_message_id ? BookingMessage::find($locked->last_message_id) : null;
+            $sameInquiry = $last
+                && $last->event_type === self::EVENT_INQUIRY
+                && (int) ($last->data['offer_id'] ?? 0) === $offer->id;
+            if ($sameInquiry) {
+                return;
+            }
+
+            $message = BookingMessage::create([
+                'conversation_id' => $locked->id,
+                'kind'            => BookingMessage::KIND_EVENT,
+                'sender'          => BookingMessage::SENDER_USER,
+                'sender_user_id'  => $userId,
+                'event_type'      => self::EVENT_INQUIRY,
+                // Copie au moment du contact : un thème renommé plus tard ne change pas l'historique.
+                'data'            => array_filter([
+                    'offer_id'       => $offer->id,
+                    'offer_title'    => $offer->title,
+                    'duration_label' => $offer->duration_label,
+                    'mode'           => $mode,
+                ], fn ($v) => $v !== null),
+                'created_at'      => now(),
+            ]);
+
+            $this->touch($locked, $message);
+            $this->markRead($locked, BookingConversation::SIDE_USER, $message->id);
+        });
+
+        return $conversation->refresh();
     }
 
     /* ===================== ÉVÉNEMENTS ===================== */
@@ -217,7 +290,7 @@ class BookingChatService
         }
         if (!$conversation->isOpen()) {
             throw ValidationException::withMessages([
-                'body' => "La messagerie s'ouvre dès qu'un rendez-vous est accepté.",
+                'body' => "La messagerie s'ouvre quand vous contactez l'expert depuis un thème, ou dès qu'un rendez-vous est accepté.",
             ]);
         }
 
@@ -389,6 +462,14 @@ class BookingChatService
         $isMe = fn (string $side) => $viewer === $side;
         $by = $message->sender;
 
+        if ($message->event_type === self::EVENT_INQUIRY) {
+            $text = $isMe('user')
+                ? "Vous avez contacté {$expert} à propos du thème {$offer}"
+                : ($isMe('expert') ? "{$user} vous contacte à propos de votre thème {$offer}" : "{$user} a contacté {$expert} à propos du thème {$offer}");
+
+            return $text . ($detail ? ' — ' . $detail . '.' : '.');
+        }
+
         $text = match ($message->event_type) {
             'submitted' => $isMe('user')
                 ? "Vous avez demandé un rendez-vous {$offer}"
@@ -462,6 +543,13 @@ class BookingChatService
             'event'      => $isEvent ? [
                 'type'       => $message->event_type,
                 'booking_id' => $message->booking_id,
+                // Encadré « contact depuis un thème » : de quoi l'afficher en carte dans le fil.
+                'offer'      => $message->event_type === self::EVENT_INQUIRY ? [
+                    'id'             => $message->data['offer_id'] ?? null,
+                    'title'          => $message->data['offer_title'] ?? null,
+                    'duration_label' => $message->data['duration_label'] ?? null,
+                    'mode'           => $message->data['mode'] ?? null,
+                ] : null,
             ] : null,
             'client_id'  => $message->client_id,
             'created_at' => $message->created_at?->toIso8601String(),

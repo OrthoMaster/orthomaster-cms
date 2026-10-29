@@ -317,7 +317,7 @@
                                 <a href="{{ route('booking.experts.show', $conversation->expert_id) }}" target="_blank">{{ $expertName }}</a>
                             </dd>
                             <dt>Ouverte le</dt>
-                            <dd>{{ $conversation->opened_at ? $fmt($conversation->opened_at) : "Pas encore : au premier rendez-vous accepté" }}</dd>
+                            <dd>{{ $conversation->opened_at ? $fmt($conversation->opened_at) : "Pas encore : au premier contact depuis un thème ou au premier rendez-vous accepté" }}</dd>
                             <dt>Messages</dt>
                             <dd>
                                 Demandeur : {{ $counts['user'] ?? 0 }} · Expert : {{ $counts['expert'] ?? 0 }}
