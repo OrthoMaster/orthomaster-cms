@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\API;
 
+use App\Services\Booking\ExpertProfileService;
 use App\Http\Controllers\Controller;
 use App\Support\Brochures\BrochureDraft;
 use App\Models\Domain;
@@ -194,6 +195,8 @@ class BookingExpertController extends Controller
         $payload = [
             'id'            => $expert->id,
             'honorific'     => $expert->honorific,
+            // Abréviation (« Dr », « Mme »…) pour les affichages courts.
+            'honorific_short' => ExpertProfileService::honorificShort($expert->honorific),
             'name'          => $expert->name,
             'credentials'   => $expert->credentials,
             'lede'          => $expert->lede,

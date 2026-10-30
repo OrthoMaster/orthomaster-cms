@@ -29,6 +29,26 @@ class ExpertProfileService
     public const LEDE_MAX        = 5000;
     public const DOMAIN_MAX      = 120;
 
+    /**
+     * Titres proposés (liste fermée) : forme complète => abréviation.
+     * La colonne garde la forme complète (comme la page vitrine, « Docteur ») ;
+     * l'API renvoie aussi l'abréviation (honorific_short) pour les affichages courts.
+     */
+    public const HONORIFICS = [
+        'Madame'     => 'Mme',
+        'Monsieur'   => 'M.',
+        'Docteur'    => 'Dr',
+        'Professeur' => 'Pr',
+    ];
+
+    /** Saisies anciennes ou abrégées reconnues (sans casse, accents ni points). */
+    private const HONORIFIC_ALIASES = [
+        'madame' => 'Madame', 'mme' => 'Madame', 'mm' => 'Madame',
+        'monsieur' => 'Monsieur', 'm' => 'Monsieur', 'mr' => 'Monsieur',
+        'docteur' => 'Docteur', 'dr' => 'Docteur', 'doctor' => 'Docteur',
+        'professeur' => 'Professeur', 'pr' => 'Professeur', 'prof' => 'Professeur',
+    ];
+
     /** Photo : même disque que Expert::avatarUrl ; carré de 600 px au plus, sans agrandir. */
     public const AVATAR_DISK      = 's3';
     public const AVATAR_MAX_EDGE  = 600;
@@ -36,13 +56,46 @@ class ExpertProfileService
     public const AVATAR_MIN_EDGE  = 200;
     private const AVATAR_QUALITY  = 85;
 
+    /** Forme complète d'un titre (« Dr » => « Docteur ») ; null si vide ou inconnu. */
+    public static function honorificOf(?string $raw): ?string
+    {
+        $key = Str::lower(Str::ascii(str_replace('.', '', trim((string) $raw))));
+
+        return self::HONORIFIC_ALIASES[$key] ?? null;
+    }
+
+    /** Abréviation à afficher (« Docteur » => « Dr ») ; un titre ancien hors liste est rendu tel quel. */
+    public static function honorificShort(?string $honorific): ?string
+    {
+        $full = self::honorificOf($honorific);
+        if ($full !== null) {
+            return self::HONORIFICS[$full];
+        }
+
+        return ($honorific = trim((string) $honorific)) === '' ? null : $honorific;
+    }
+
+    /** Liste pour l'application : [{value: 'Docteur', short: 'Dr'}, …]. */
+    public static function honorificOptions(): array
+    {
+        return array_map(
+            fn ($full) => ['value' => $full, 'short' => self::HONORIFICS[$full]],
+            array_keys(self::HONORIFICS)
+        );
+    }
+
     /**
      * @param array{honorific?:?string, name?:string, credentials?:?string, lede?:?string, palette?:?string, domain_ids?:array<int>} $input
      */
     public function update(Expert $expert, array $input): Expert
     {
+        // Titre : liste fermée ; « Dr », « dr. »… sont ramenés à la forme complète.
+        if (array_key_exists('honorific', $input) && trim((string) $input['honorific']) !== '') {
+            $input['honorific'] = self::honorificOf($input['honorific']) ?? $input['honorific'];
+        }
+
         $data = Validator::make($input, [
-            'honorific'    => ['nullable', 'string', 'max:' . self::HONORIFIC_MAX],
+            'honorific'    => ['nullable', 'string', Rule::in(array_keys(self::HONORIFICS))],
             'name'         => ['required', 'string', 'max:' . self::NAME_MAX],
             'credentials'  => ['nullable', 'string', 'max:' . self::CREDENTIALS_MAX],
             'lede'         => ['nullable', 'string', 'max:' . self::LEDE_MAX],
@@ -53,6 +106,7 @@ class ExpertProfileService
         ], [
             'name.required' => 'Le nom est obligatoire.',
             'palette.in'    => 'Couleur inconnue.',
+            'honorific.in'  => 'Choisissez un titre dans la liste.',
         ], [
             'honorific'   => 'titre',
             'name'        => 'nom',

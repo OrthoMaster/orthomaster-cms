@@ -600,7 +600,10 @@ class BookingChatService
 
     public static function expertName(Expert $expert): string
     {
-        return trim(($expert->honorific ? $expert->honorific . ' ' : '') . $expert->name);
+        // Forme courte (« Dr Claire Martin ») dans les messages et notifications.
+        $short = ExpertProfileService::honorificShort($expert->honorific);
+
+        return trim(($short ? $short . ' ' : '') . $expert->name);
     }
 
     /* ===================== RÉPONSES API ===================== */

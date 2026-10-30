@@ -691,6 +691,7 @@ class ExpertBookingSetupController extends Controller
                 'image_caption_max'    => ExpertOfferImageService::CAPTION_MAX,
                 'profile'              => [
                     'honorific_max'   => ExpertProfileService::HONORIFIC_MAX,
+                    'honorifics'      => ExpertProfileService::honorificOptions(),
                     'name_max'        => ExpertProfileService::NAME_MAX,
                     'credentials_max' => ExpertProfileService::CREDENTIALS_MAX,
                     'lede_max'        => ExpertProfileService::LEDE_MAX,
