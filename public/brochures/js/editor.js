@@ -51,7 +51,40 @@ function init() {
         const text = (e.clipboardData?.getData('text/plain') || '').replace(/\s+/g, ' ');
         document.execCommand('insertText', false, text);
     });
-    document.addEventListener('input', e => { if (isEditable(e.target)) changed(); });
+    document.addEventListener('input', e => {
+        if (!isEditable(e.target)) return;
+        if (e.target.dataset.max) limitLength(e.target);
+        changed();
+    });
+
+    // ---------- longueur maximale (présentation : même limite que l'application) ----------
+    const ledeCount = $('#edLedeCount');
+    function limitLength(el) {
+        const max = Number(el.dataset.max);
+        if (max && el.textContent.length > max) {
+            el.textContent = el.textContent.slice(0, max);
+            // curseur en fin de texte après la coupe
+            const range = document.createRange();
+            range.selectNodeContents(el);
+            range.collapse(false);
+            const sel = getSelection();
+            sel.removeAllRanges();
+            sel.addRange(range);
+        }
+        if (el.dataset.field === 'lede' && ledeCount) {
+            ledeCount.textContent = `${el.textContent.trim().length} / ${max}`;
+        }
+    }
+    const ledeEl = $('[data-field="lede"]');
+    if (ledeEl) limitLength(ledeEl);
+
+    // ---------- titre : liste fermée (Madame, Monsieur, Docteur, Professeur) ----------
+    const honorificSelect = $('select[data-field="honorific"]');
+    honorificSelect?.addEventListener('change', () => {
+        honorificSelect.closest('.ed-dr')?.classList.toggle('is-empty', honorificSelect.value === '');
+        changed();
+    });
+    honorificSelect?.closest('.ed-dr')?.classList.toggle('is-empty', honorificSelect.value === '');
     document.addEventListener('focusout', e => { if (isEditable(e.target)) tidy(e.target); });
 
     // ---------- état de l'enregistrement ----------
@@ -83,6 +116,7 @@ function init() {
         document.body.classList.toggle('ed-preview', !edit);
         modeBtns.forEach(b => b.setAttribute('aria-pressed', String(b.dataset.mode === mode)));
         $$('[data-placeholder]').forEach(el => { el.contentEditable = edit ? EDITABLE : 'false'; });
+        if (honorificSelect) honorificSelect.disabled = !edit;
         if (!edit && document.activeElement && isEditable(document.activeElement)) document.activeElement.blur();
         refreshTimeline();
     }
@@ -417,7 +451,7 @@ function init() {
         const data = {
             palette: html.dataset.palette,
             model: modelSelect.value,
-            honorific: text($('[data-field="honorific"]')),
+            honorific: honorificSelect ? honorificSelect.value : '',
             credentials: text($('[data-field="credentials"]')),
             lede: text($('[data-field="lede"]')),
             expertise: $$('ul[data-list="expertise"] [data-pill]').map(li => Number(li.dataset.id)).filter(Boolean),
@@ -454,6 +488,8 @@ function init() {
             const json = await res.json().catch(() => ({}));
             if (!res.ok) throw new Error(httpError(res, json, 'Échec de la publication.'));
             setPub('published', `Publié le ${json.published_at}`);
+            const publicLink = $('#edPublic');
+            if (publicLink) publicLink.hidden = false;
             setStatus('saved', 'Page publiée');
         } catch (err) {
             setStatus('error', err.message);

@@ -51,6 +51,9 @@ Route::group(['prefix' => 'admin'], function () {
     Voyager::routes();
 });
 
+// Sous-domaine des pages partenaires : racine → page de démonstration (avant la route générique).
+Route::domain(config('brochures.domain'))->get('/', fn () => redirect('/demo'))->name('brochures.home');
+
 Route::get('/', function () {
     $domain = request()->getHost();
 
@@ -92,11 +95,14 @@ Route::get('/group/members', [AuthCompanyRequestController::class, 'redirectRegi
 
 Route::get('/legal-notice', [WebController::class, 'legalNotice'])->name('web.legal-notice');
 
-// Demo
+/*
+ * Pages partenaires des experts.
+ *  - /demo                 page de démonstration (données fictives)
+ *  - /demo/{slug}          éditeur (lien signé envoyé à l'expert, ou administrateur)
+ *  - /experts/{slug}       page publique (domaine cms) ; sur le sous-domaine : /{slug} (fin du fichier)
+ */
 Route::get('/demo', [BrochureController::class, 'sample'])
     ->name('brochures.sample');
-Route::get('/experts/{expert:slug}', [BrochureController::class, 'show'])
-    ->where('expert', '[a-z0-9-]+');
 Route::get('/demo/{expert:slug}', [BrochureDemoController::class, 'show'])
     ->name('brochures.demo');
 Route::post('/demo/{expert:slug}', [BrochureDemoController::class, 'save'])
@@ -110,8 +116,6 @@ Route::post('/demo/{expert:slug}/domain', [BrochureDemoController::class, 'addDo
     ->name('brochures.demo.domain');
 Route::post('/demo/{expert:slug}/publish', [BrochureDemoController::class, 'publish'])
     ->name('brochures.demo.publish');
-Route::get('/demo/{expert:slug}/export', [BrochureDemoController::class, 'export'])
-    ->name('brochures.demo.export');
 Route::get('experts/{expert:slug}', [BrochureController::class, 'show'])
     ->where('expert', '[a-z0-9-]+')
     ->name('brochures.show');
@@ -616,3 +620,13 @@ Route::get('/open/{path?}', function (Request $request, ?string $path = null) {
 
     return view('deeplink', ['suffix' => $suffix]);
 })->where('path', '.*');
+
+/*
+ * Page publique sur le sous-domaine : https://expert.orthomaster.fr/{slug}
+ * En dernier : les routes fixes (/demo…) passent avant. Les autres routes de ce domaine
+ * répondent 404 (RestrictExpertDomain).
+ */
+Route::domain(config('brochures.domain'))
+    ->get('/{expert:slug}', [BrochureController::class, 'show'])
+    ->where('expert', '[a-z0-9-]+')
+    ->name('brochures.public');

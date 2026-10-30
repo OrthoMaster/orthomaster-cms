@@ -5,21 +5,23 @@ namespace App\Http\Controllers;
 use App\Models\Domain;
 use App\Models\Expert;
 use App\Models\ExpertBrochureDraft;
+use App\Services\Booking\ExpertProfileService;
 use App\Support\Brochures\BrochureDraft;
 use App\Support\Brochures\ExpertiseCatalog;
 use App\Support\Brochures\ExpertVideos;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\URL;
 
 /**
  * Éditeur /demo/{slug}.
- *  - Contenu de la page : enregistré automatiquement dans expert_brochure_drafts (brouillon).
- *  - « Publier » (admin) : copie le brouillon dans experts (colonnes + experts.brochure).
- *  - Domaines et avatar : enregistrés directement dans la table principale.
+ *  - Contenu propre à la page (modèle 3D, lieux, liens, formation, parcours) :
+ *    enregistré automatiquement dans expert_brochure_drafts (brouillon).
+ *  - « Publier » (admin) : copie le brouillon dans experts (model + experts.brochure).
+ *  - Profil (titre, références, présentation, couleur), domaines et photo : enregistrés
+ *    directement sur l'expert, comme depuis l'application (une seule source).
  *
- * Accès : lien signé (envoyé au médecin) OU administrateur connecté.
+ * Accès : lien signé (envoyé à l'expert, sur expert.orthomaster.fr) OU administrateur connecté.
  */
 class BrochureDemoController extends Controller
 {
@@ -29,9 +31,9 @@ class BrochureDemoController extends Controller
 
         $draft = $expert->brochureDraft;
         $data = match (true) {
-            $draft !== null                      => BrochureDraft::fromRecord($draft, 'data'),
-            $expert->brochure_published_at !== null => BrochureDraft::fromRecord($expert, 'brochure'),
-            default                              => BrochureDraft::defaults(),
+            $draft !== null                         => BrochureDraft::fromRecord($draft, 'data', $expert),
+            $expert->brochure_published_at !== null => BrochureDraft::fromRecord($expert, 'brochure', $expert),
+            default                                 => BrochureDraft::fromRecord(null, 'data', $expert),
         };
         $data['expertise'] = $expert->domains()->pluck('domains.id')->all();
         $isAdmin = $this->isAdmin();
@@ -43,13 +45,17 @@ class BrochureDemoController extends Controller
             'palettes'         => BrochureDraft::PALETTES,
             'models'           => BrochureDraft::MODELS,
             'timelines'        => BrochureDraft::TIMELINES,
+            'honorifics'       => array_keys(ExpertProfileService::HONORIFICS),
+            'ledeMax'          => BrochureDraft::LEDE_MAX,
             'expertiseCatalog' => ExpertiseCatalog::all(),
             'isAdmin'          => $isAdmin,
             'saveUrl'          => URL::signedRoute('brochures.demo.save', $expert),
             'avatarUrl'        => URL::signedRoute('brochures.demo.avatar', $expert),
             'domainUrl'        => URL::signedRoute('brochures.demo.domain', $expert),
             'publishUrl'       => $isAdmin ? route('brochures.demo.publish', $expert) : null,
-            'shareUrl'         => $isAdmin ? URL::signedRoute('brochures.demo', $expert) : null,
+            // Liens sur le sous-domaine, même quand l'administrateur édite depuis le CMS.
+            'shareUrl'         => $isAdmin ? BrochureController::editorUrl($expert) : null,
+            'publicUrl'        => BrochureController::publicUrl($expert),
             'savedAt'          => $draft?->updated_at?->format('d/m/Y H:i'),
             'publication'      => $this->publication($expert, $draft),
 
@@ -66,7 +72,7 @@ class BrochureDemoController extends Controller
 
     /**
      * Enregistrement AJAX.
-     * Domaines : directement dans domain_expert. Reste : brouillon (colonnes + JSON).
+     * Profil et domaines : directement sur l'expert. Reste : brouillon (model + JSON).
      * Toute modification du brouillon le repasse en « non publié » (published_at = NULL).
      */
     public function save(Request $request, Expert $expert)
@@ -74,9 +80,12 @@ class BrochureDemoController extends Controller
         $this->authorizeAccess($request);
 
         $data = BrochureDraft::normalize($request->json()->all());
-        [$columns, $json] = BrochureDraft::split($data);
+        [$columns, $json, $profile] = BrochureDraft::split($data);
 
-        $draft = DB::transaction(function () use ($expert, $data, $columns, $json) {
+        $draft = DB::transaction(function () use ($expert, $data, $columns, $json, $profile) {
+            // forceFill : comme ExpertProfileService (le $fillable d'Expert est géré ailleurs).
+            $expert->forceFill(BrochureDraft::profileColumns($profile, $expert))->save();
+
             $expert->domains()->sync(
                 collect($data['expertise'])
                     ->values()
@@ -133,32 +142,14 @@ class BrochureDemoController extends Controller
 
     /**
      * Upload AJAX de l'avatar (enregistré directement sur l'expert).
-     * L'ancien fichier est supprimé une fois le nouveau enregistré.
+     * Même traitement que depuis l'application : S3, photo orientée et réduite à 600 px,
+     * l'ancien fichier supprimé.
      */
-    public function avatar(Request $request, Expert $expert)
+    public function avatar(Request $request, Expert $expert, ExpertProfileService $profile)
     {
         $this->authorizeAccess($request);
 
-        $request->validate([
-            'avatar' => ['required', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120', 'dimensions:min_width=200,min_height=200'],
-        ], [
-            'avatar.image'      => 'Le fichier doit être une image.',
-            'avatar.mimes'      => 'Formats acceptés : JPG, PNG ou WebP.',
-            'avatar.max'        => 'L’image ne doit pas dépasser 5 Mo.',
-            'avatar.dimensions' => 'L’image doit faire au moins 200 × 200 pixels.',
-        ]);
-
-        $disk = Storage::disk(config('brochures.avatar_disk'));
-        $old = $expert->avatar;
-
-        $path = $request->file('avatar')->store("experts/{$expert->id}", config('brochures.avatar_disk'));
-        abort_unless($path, 500, 'Upload impossible.');
-
-        $expert->forceFill(['avatar' => $path])->save();
-
-        if ($old && $old !== $path && $disk->exists($old)) {
-            $disk->delete($old);
-        }
+        $expert = $profile->updateAvatar($expert, $request->file('avatar'));
 
         return response()->json(['ok' => true, 'url' => $expert->avatar_url]);
     }

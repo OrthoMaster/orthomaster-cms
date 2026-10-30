@@ -1,9 +1,10 @@
 {{--
-    Éditeur /demo/{slug}
-    Nom et avatar : base de données (non modifiables ici).
-    Titre (Docteur, Professeur…), couleur, modèle 3D, textes, domaines d'expertise (liste), lieux d'exercice, liens,
-    titres et entrées de Formation / Parcours : modifiables, enregistrés automatiquement en XML.
-    Avatar : upload direct (enregistré sur l'expert, l'ancien fichier est supprimé).
+    Éditeur /demo/{slug} (lien signé sur expert.orthomaster.fr, ou administrateur).
+    Nom : base de données (non modifiable ici).
+    Profil partagé avec l'application, enregistré directement sur l'expert : titre (liste fermée),
+    références, présentation (600 caractères), couleur, domaines, photo (S3).
+    Propre à la page, enregistré automatiquement en brouillon (JSON) puis publié par un administrateur :
+    modèle 3D, lieux d'exercice, liens, titres et entrées de Formation / Parcours.
 --}}
 @extends('brochures.layout')
 
@@ -106,6 +107,12 @@
                     <button type="button" class="ed-btn" id="edShare" data-url="{{ $shareUrl }}">Copier le lien
                         pour le médecin</button>
                 @endif
+                @if ($publicUrl)
+                    <a class="ed-btn ed-public" id="edPublic" href="{{ $publicUrl }}" target="_blank" rel="noopener"
+                        @if ($publication['state'] === 'new') hidden @endif>Voir la page publique</a>
+                @else
+                    <p class="pk-hint">Adresse publique : à définir (slug de l'expert).</p>
+                @endif
             </div>
         </div>
     </aside>
@@ -136,8 +143,15 @@
             <p class="partner fade">Partenaire <b>OrthoMaster</b></p>
 
             <h1 class="fade d2">
-                <span class="dr" contenteditable="plaintext-only" data-field="honorific"
-                    data-placeholder="Titre (Docteur, Professeur…)">{{ $draft['honorific'] }}</span>
+                {{-- Titre : même liste que l'application (Madame, Monsieur, Docteur, Professeur) --}}
+                <span class="dr ed-dr">
+                    <select data-field="honorific" class="ed-honorific" aria-label="Titre">
+                        <option value="" @selected($draft['honorific'] === '')>Sans titre</option>
+                        @foreach ($honorifics as $honorific)
+                            <option value="{{ $honorific }}" @selected($draft['honorific'] === $honorific)>{{ $honorific }}</option>
+                        @endforeach
+                    </select>
+                </span>
                 <span class="ln">{{ $identity['name'] }}</span>
             </h1>
 
@@ -176,8 +190,9 @@
                 </div>
             </div>
 
-            <p class="lede fade d3" contenteditable="plaintext-only" data-field="lede"
+            <p class="lede fade d3" contenteditable="plaintext-only" data-field="lede" data-max="{{ $ledeMax }}"
                 data-placeholder="Quelques mots sur votre pratique et votre approche du soin">{{ $draft['lede'] }}</p>
+            <p class="ed-counter" id="edLedeCount" aria-live="polite"></p>
 
             {{-- Lieux d'exercice : chaque ligne est facultative (une ville seule suffit) --}}
             <ul class="workplaces fade d3" data-list="places" aria-label="Lieux d’exercice">

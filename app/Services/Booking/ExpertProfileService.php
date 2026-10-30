@@ -26,7 +26,8 @@ class ExpertProfileService
     public const HONORIFIC_MAX   = 40;
     public const NAME_MAX        = 255;
     public const CREDENTIALS_MAX = 200;
-    public const LEDE_MAX        = 5000;
+    // Même limite que la page partenaire (BrochureDraft).
+    public const LEDE_MAX        = 600;
     public const DOMAIN_MAX      = 120;
 
     /**

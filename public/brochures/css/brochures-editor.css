@@ -75,6 +75,22 @@
 .ed-mode .fade,.ed-preview .fade{opacity:1;transform:none}
 h1 .dr[contenteditable]{display:inline-block;min-width:4em}
 
+/* Titre : liste fermée, présentée comme le texte du titre */
+.ed-honorific{all:unset;box-sizing:border-box;font:inherit;color:inherit;letter-spacing:inherit;cursor:pointer;
+  padding-right:1.1em;border-radius:6px;outline:1.5px dashed transparent;outline-offset:4px;transition:outline-color .15s;
+  background:no-repeat right center/.7em url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><path d='M6 9l6 6 6-6'/></svg>")}
+.ed-mode .ed-honorific:hover{outline-color:color-mix(in srgb, var(--teal) 50%, transparent)}
+.ed-honorific:focus-visible{outline:2px solid var(--teal)}
+.ed-honorific option{font:400 1rem/1.3 var(--body);color:#1b1b1b}
+.ed-dr.is-empty .ed-honorific{color:var(--muted);opacity:.7}
+.ed-preview .ed-honorific{background:none;padding-right:0;cursor:default}
+.ed-preview .ed-dr.is-empty{display:none}
+
+/* Présentation : compteur de caractères (édition seulement) */
+.ed-counter{margin:.35rem 0 0;font:500 .78rem/1 var(--body);color:var(--muted);text-align:right}
+.ed-preview .ed-counter{display:none}
+a.ed-btn[hidden]{display:none}
+
 /* Liens : un bouton n'apparaît que lorsque son adresse est saisie */
 .actions .btn[hidden]{display:none}
 
