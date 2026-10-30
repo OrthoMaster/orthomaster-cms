@@ -269,6 +269,12 @@ Route::middleware(['auth:sanctum'])->group(function () {
             Route::put('offers/{offer}', 'updateOffer');
             Route::delete('offers/{offer}', 'destroyOffer');
 
+            // Illustrations d'un thème : ajout (version web de l'application), ordre, légende, suppression.
+            Route::post('offers/{offer}/images', 'storeOfferImages')->middleware('throttle:20,1');
+            Route::put('offers/{offer}/images/order', 'reorderOfferImages');
+            Route::put('offers/{offer}/images/{image}', 'updateOfferImage')->whereNumber('image');
+            Route::delete('offers/{offer}/images/{image}', 'destroyOfferImage')->whereNumber('image');
+
             Route::post('rules', 'storeRules');
             Route::delete('rules/{rule}', 'destroyRule');
             Route::put('rules/{rule}/location', 'updateRuleLocation');

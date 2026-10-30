@@ -373,7 +373,22 @@ class ExpertBookingSetupController extends Controller
     }
 
     /* ===================== IMAGES D'UN THÈME ===================== */
-    // L'ajout se fait depuis le CMS ; l'expert légende, réordonne et supprime.
+    // Ajout depuis le CMS ou la version web de l'application ; l'expert légende, réordonne et supprime.
+
+    /**
+     * POST /booking/me/offers/{offer}/images (multipart)
+     * Corps : images[] (JPG, PNG, WebP, 5 Mo max chacune ; 6 images max par thème), caption (une seule image)
+     * Même traitement que le CMS : redimensionnées à 1600 px, enregistrées sur S3.
+     */
+    public function storeOfferImages(Request $request, ExpertOffer $offer): JsonResponse
+    {
+        $expertId = $this->requireExpert($request);
+        $this->assertOwned($offer->expert_id, $expertId);
+
+        $this->images->add($offer, (array) $request->file('images', []), $request->input('caption'));
+
+        return $this->success($this->payload($expertId), 201);
+    }
 
     /**
      * PUT /booking/me/offers/{offer}/images/order
@@ -688,6 +703,7 @@ class ExpertBookingSetupController extends Controller
                 'max_advance_months'   => ExpertBookingSetupService::MAX_ADVANCE_MONTHS,
                 'max_blocks_per_offer' => ExpertBookingSetupService::MAX_BLOCKS_PER_OFFER,
                 'max_offer_images'     => ExpertOfferImageService::MAX_IMAGES,
+                'offer_image_max_kb'   => ExpertOfferImageService::MAX_KB,
                 'image_caption_max'    => ExpertOfferImageService::CAPTION_MAX,
                 'profile'              => [
                     'honorific_max'   => ExpertProfileService::HONORIFIC_MAX,
