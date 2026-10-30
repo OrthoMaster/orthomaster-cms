@@ -5,7 +5,11 @@ namespace App\Services\Booking;
 use App\Models\Domain;
 use App\Models\Expert;
 use App\Support\Brochures\BrochureDraft;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
+use Intervention\Image\ImageManager;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -13,7 +17,8 @@ use Illuminate\Validation\ValidationException;
 /**
  * Profil public de l'expert, modifié depuis l'application : identité, présentation,
  * domaines et palette. Mêmes colonnes que la page vitrine : elle suit les changements.
- * La photo n'est pas modifiable ici (pas de sélecteur d'images dans l'application).
+ * La photo se change depuis la version web de l'application (sélecteur de fichier du
+ * navigateur) ; la version mobile n'a pas de sélecteur d'images.
  */
 class ExpertProfileService
 {
@@ -23,6 +28,13 @@ class ExpertProfileService
     public const CREDENTIALS_MAX = 200;
     public const LEDE_MAX        = 5000;
     public const DOMAIN_MAX      = 120;
+
+    /** Photo : même disque que Expert::avatarUrl ; carré de 600 px au plus, sans agrandir. */
+    public const AVATAR_DISK      = 's3';
+    public const AVATAR_MAX_EDGE  = 600;
+    public const AVATAR_MAX_KB    = 5120;
+    public const AVATAR_MIN_EDGE  = 200;
+    private const AVATAR_QUALITY  = 85;
 
     /**
      * @param array{honorific?:?string, name?:string, credentials?:?string, lede?:?string, palette?:?string, domain_ids?:array<int>} $input
@@ -70,6 +82,48 @@ class ExpertProfileService
         });
 
         return $expert->fresh('domains');
+    }
+
+    /**
+     * Nouvelle photo : orientée selon l'EXIF, réduite à 600 px de côté au plus, enregistrée
+     * sur S3 ; l'ancienne est supprimée une fois la nouvelle en place.
+     */
+    public function updateAvatar(Expert $expert, ?UploadedFile $file): Expert
+    {
+        Validator::make(['avatar' => $file], [
+            'avatar' => [
+                'required', 'image', 'mimes:jpg,jpeg,png,webp', 'max:' . self::AVATAR_MAX_KB,
+                'dimensions:min_width=' . self::AVATAR_MIN_EDGE . ',min_height=' . self::AVATAR_MIN_EDGE,
+            ],
+        ], [
+            'avatar.required'   => 'Choisissez une image.',
+            'avatar.image'      => 'Le fichier doit être une image.',
+            'avatar.mimes'      => 'Formats acceptés : JPG, PNG ou WebP.',
+            'avatar.max'        => "L'image ne doit pas dépasser 5 Mo.",
+            'avatar.dimensions' => "L'image doit faire au moins 200 × 200 pixels.",
+        ])->validate();
+
+        // intervention/image v2 : version imposée par Voyager.
+        $image = (new ImageManager(['driver' => 'gd']))->make($file->getRealPath());
+        $image->orientate();
+        $image->resize(self::AVATAR_MAX_EDGE, self::AVATAR_MAX_EDGE, function ($constraint) {
+            $constraint->aspectRatio();
+            $constraint->upsize();
+        });
+        $encoded = $image->encode('jpg', self::AVATAR_QUALITY);
+
+        $disk = Storage::disk(self::AVATAR_DISK);
+        $path = "experts/{$expert->id}/" . Str::uuid() . '.jpg';
+        $disk->put($path, (string) $encoded, ['visibility' => 'public', 'ContentType' => 'image/jpeg']);
+
+        $old = $expert->avatar;
+        $expert->forceFill(['avatar' => $path])->save();
+
+        if ($old && $old !== $path && $disk->exists($old)) {
+            $disk->delete($old);
+        }
+
+        return $expert;
     }
 
     /**

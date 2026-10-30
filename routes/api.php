@@ -311,6 +311,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
             Route::post('/requests/{booking}/no-show', [ExpertBookingRequestController::class, 'reportNoShow'])->whereNumber('booking');
 
             Route::put('/profile', [ExpertBookingSetupController::class, 'updateProfile']);
+            Route::post('/avatar', [ExpertBookingSetupController::class, 'updateAvatar'])->middleware('throttle:10,1');
             Route::post('/domains', [ExpertBookingSetupController::class, 'storeDomain']);
         });
 

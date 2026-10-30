@@ -347,6 +347,19 @@ class ExpertBookingSetupController extends Controller
     }
 
     /**
+     * Nouvelle photo de profil (version web de l'application : sélecteur de fichier du navigateur).
+     * POST /booking/me/avatar  (multipart, champ « avatar »)
+     */
+    public function updateAvatar(Request $request): JsonResponse
+    {
+        $expertId = $this->requireExpert($request);
+
+        $this->profile->updateAvatar(Expert::findOrFail($expertId), $request->file('avatar'));
+
+        return $this->success($this->payload($expertId));
+    }
+
+    /**
      * Ajoute un domaine à la liste commune ; renvoie l'existant si le libellé est déjà pris.
      * POST /booking/me/domains
      * Corps : label
@@ -682,6 +695,8 @@ class ExpertBookingSetupController extends Controller
                     'credentials_max' => ExpertProfileService::CREDENTIALS_MAX,
                     'lede_max'        => ExpertProfileService::LEDE_MAX,
                     'domain_max'      => ExpertProfileService::DOMAIN_MAX,
+                    'avatar_max_kb'   => ExpertProfileService::AVATAR_MAX_KB,
+                    'avatar_min_edge' => ExpertProfileService::AVATAR_MIN_EDGE,
                 ],
                 'max_exception_days'   => ExpertBookingSetupService::MAX_EXCEPTION_RANGE_DAYS,
                 'book_ahead'           => [
