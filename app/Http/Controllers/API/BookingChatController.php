@@ -43,7 +43,9 @@ class BookingChatController extends Controller
     {
         $userId = $request->user()->id;
 
+        // Fil ouvert depuis un thème sans message envoyé : absent de la liste (des deux côtés).
         $page = $this->chat->conversationsQuery($userId)
+            ->whereNotNull('last_message_id')
             ->with(['user', 'expert'])
             ->orderByDesc('last_message_at')
             ->orderByDesc('id')
@@ -86,10 +88,17 @@ class BookingChatController extends Controller
         $request->validate([
             'offer_id' => ['required', 'integer'],
             'mode'     => ['nullable', 'in:' . implode(',', array_keys(\App\Models\ExpertOfferMode::MODE_LABELS))],
+            // draft = true : fil ouvert sans encadré « à propos du thème » (le demandeur écrit lui-même).
+            'draft'    => ['nullable', 'boolean'],
         ]);
 
         $userId = $request->user()->id;
-        $conversation = $this->chat->startFromOffer($userId, (int) $request->input('offer_id'), $request->input('mode'));
+        $conversation = $this->chat->startFromOffer(
+            $userId,
+            (int) $request->input('offer_id'),
+            $request->input('mode'),
+            !$request->boolean('draft')
+        );
 
         return $this->success($this->detail($conversation, $userId), 201);
     }

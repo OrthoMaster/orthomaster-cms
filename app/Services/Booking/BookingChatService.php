@@ -153,7 +153,11 @@ class BookingChatService
      *
      * @throws ValidationException thème indisponible, ou son propre thème
      */
-    public function startFromOffer(int $userId, int $offerId, ?string $mode = null): BookingConversation
+    /**
+     * $inquiry = false (« brouillon ») : ouvre seulement le fil, sans encadré ni notification ;
+     * l'application pré-remplit la saisie et rien n'est envoyé tant que le demandeur n'écrit pas.
+     */
+    public function startFromOffer(int $userId, int $offerId, ?string $mode = null, bool $inquiry = true): BookingConversation
     {
         $offer = ExpertOffer::active()->with('modes')->find($offerId);
         if (!$offer) {
@@ -174,11 +178,15 @@ class BookingChatService
         $conversation = $this->conversationFor($offer->expert_id, $userId);
 
         $notify = false;
-        DB::transaction(function () use ($conversation, $offer, $mode, $userId, &$notify) {
+        DB::transaction(function () use ($conversation, $offer, $mode, $userId, $inquiry, &$notify) {
             $locked = BookingConversation::whereKey($conversation->id)->lockForUpdate()->first();
 
             if (!$locked->opened_at) {
                 $locked->update(['opened_at' => now()]);
+            }
+
+            if (!$inquiry) {
+                return;
             }
 
             $last = $locked->last_message_id ? BookingMessage::find($locked->last_message_id) : null;
