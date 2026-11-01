@@ -80,7 +80,19 @@
         'locations'    => ['Lieux', 'voyager-location', $activeLocations->count()],
         'availability' => ['Disponibilités', 'voyager-calendar', $rules->count()],
         'offers'       => ['Offres', 'voyager-wallet', $offers->count()],
+        'showcase'     => ['Page vitrine', 'voyager-world', null],
     ];
+
+    // Page vitrine : libellé et couleur de l'état.
+    $showcaseStates = [
+        'new'         => ['Pas encore créée', ''],
+        'draft'       => ['Brouillon, jamais publiée', 'booking-pill--onsite'],
+        'published'   => ['En ligne', 'booking-pill--on'],
+        'pending'     => ['En ligne · modifications non publiées', 'booking-pill--online'],
+        'unpublished' => ['Retirée', 'booking-pill--danger'],
+    ];
+    $showcaseDomain = config('brochures.domain');
+    $fmtDate = fn ($date) => $date ? $date->copy()->timezone(config('app.timezone'))->format('d/m/Y à H:i') : null;
 @endphp
 
 @section('page_title', 'Rendez-vous — ' . $expert->name)
@@ -101,6 +113,23 @@
 
 @section('css')
     <style>
+        /* --- Page vitrine --- */
+        .showcase-slug { margin-top: 15px; max-width: 760px; }
+        .showcase-slug .input-group-addon { color: #6b7280; }
+        .showcase-links { margin-top: 20px; }
+        .showcase-links th { width: 240px; white-space: nowrap; }
+        .showcase-links td, .showcase-links th { vertical-align: middle !important; }
+        .showcase-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+        .showcase-actions form { margin: 0; }
+        .showcase-actions .btn { margin: 0; }
+        .showcase-h { font-weight: 600; margin-bottom: 10px; }
+        .showcase-identity { display: flex; gap: 12px; align-items: center; margin-bottom: 10px; }
+        .showcase-avatar { width: 64px; height: 64px; border-radius: 50%; overflow: hidden; background: #eef2f6;
+            display: flex; align-items: center; justify-content: center; font-size: 26px; color: #9aa4b2; flex: none; }
+        .showcase-avatar img { width: 100%; height: 100%; object-fit: cover; }
+        .showcase-swatch { display: inline-block; width: 14px; height: 14px; border-radius: 4px; vertical-align: -2px; margin: 0 4px; }
+        .showcase-content th { width: 160px; }
+
         /* --- Badges --- */
         .booking-pill {
             display: inline-block;
@@ -526,7 +555,7 @@
     <div class="page-content container-fluid">
 
         {{-- Les erreurs des formulaires en modale s'affichent dans la modale. --}}
-        @if ($errors->any() && !in_array($oldForm, ['offer', 'location'], true))
+        @if ($errors->any() && !in_array($oldForm, ['offer', 'location', 'showcase'], true))
             <div class="alert alert-danger">
                 <ul class="list-unstyled" style="margin: 0;">
                     @foreach ($errors->all() as $error)
@@ -1098,6 +1127,233 @@
                 </div>
             </div>
         </div>
+
+        {{-- ---------- Page vitrine ---------- --}}
+        @php
+            $sc = $showcase;
+            [$scLabel, $scClass] = $showcaseStates[$sc['state']];
+            $content = $sc['content'];
+        @endphp
+        <div class="stats-pane" data-pane="showcase" @if ($activeTab !== 'showcase') style="display:none" @endif>
+            {{-- ===== Adresse, liens et publication ===== --}}
+            <div class="panel panel-bordered">
+                <div class="panel-body">
+                    <div class="booking-toolbar">
+                        <h4 style="margin: 0;">
+                            Page vitrine <span class="booking-pill {{ $scClass }}">{{ $scLabel }}</span>
+                        </h4>
+                        <p class="booking-muted" style="margin: 0;">
+                            @if ($sc['published_at']) Publiée le {{ $fmtDate($sc['published_at']) }}. @endif
+                            @if ($sc['draft_saved_at']) Dernière modification le {{ $fmtDate($sc['draft_saved_at']) }}. @endif
+                        </p>
+                    </div>
+
+                    {{-- Adresse (slug) --}}
+                    <form method="POST" action="{{ route('booking.experts.showcase.slug', $expert->id) }}" class="showcase-slug">
+                        @csrf
+                        @method('PUT')
+                        <input type="hidden" name="_tab" value="showcase">
+                        <input type="hidden" name="_form" value="showcase">
+                        <label for="showcase-slug">Adresse de la page</label>
+                        <div class="input-group">
+                            <span class="input-group-addon">https://{{ $showcaseDomain }}/</span>
+                            <input type="text" id="showcase-slug" name="slug" class="form-control"
+                                value="{{ $oldForm === 'showcase' ? old('slug') : $sc['slug'] }}"
+                                placeholder="{{ $sc['suggested_slug'] }}" maxlength="{{ \App\Support\Brochures\BrochurePublisher::SLUG_MAX }}"
+                                autocomplete="off" spellcheck="false">
+                            <span class="input-group-btn">
+                                <button type="submit" class="btn btn-primary" style="margin: 0;">Enregistrer</button>
+                            </span>
+                        </div>
+                        @if ($oldForm === 'showcase' && $errors->has('slug'))
+                            <p class="text-danger" style="margin: 6px 0 0;">{{ $errors->first('slug') }}</p>
+                        @endif
+                        <p class="booking-muted" style="margin: 6px 0 0;">
+                            Lettres minuscules, chiffres et tirets.
+                            @if (!$sc['slug'] && $sc['suggested_slug'])
+                                <a href="#" data-action="suggest-slug" data-slug="{{ $sc['suggested_slug'] }}">Proposer « {{ $sc['suggested_slug'] }} »</a>
+                            @endif
+                            @if ($sc['slug'])
+                                Changer l'adresse rend l'ancienne introuvable (liens déjà partagés compris).
+                            @endif
+                        </p>
+                    </form>
+
+                    @if ($sc['slug'])
+                        {{-- Liens --}}
+                        <table class="table showcase-links">
+                            <tbody>
+                                <tr>
+                                    <th>Page publique</th>
+                                    <td><a href="{{ $sc['public_url'] }}" target="_blank" rel="noopener">{{ $sc['public_url'] }}</a>
+                                        @if (!in_array($sc['state'], ['published', 'pending'], true))
+                                            <span class="booking-muted">(introuvable tant que la page n'est pas en ligne)</span>
+                                        @endif
+                                    </td>
+                                    <td class="text-right">
+                                        <button type="button" class="btn btn-default btn-sm" data-copy="{{ $sc['public_url'] }}">Copier</button>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <th>Lien de l'éditeur pour l'expert</th>
+                                    <td class="booking-muted">Lien personnel et permanent : l'expert y modifie sa page, sans compte.</td>
+                                    <td class="text-right">
+                                        <button type="button" class="btn btn-default btn-sm" data-copy="{{ $sc['editor_url'] }}">Copier le lien</button>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <th>Éditeur (administrateur)</th>
+                                    <td class="booking-muted">Modifier la page vous-même ; « Publier » y est aussi disponible.</td>
+                                    <td class="text-right">
+                                        <a href="{{ $sc['admin_editor_url'] }}" target="_blank" rel="noopener" class="btn btn-default btn-sm">
+                                            <i class="voyager-edit"></i> Ouvrir l'éditeur
+                                        </a>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+
+                        {{-- Actions --}}
+                        <div class="showcase-actions">
+                            @if ($sc['can_publish'])
+                                <form method="POST" action="{{ route('booking.experts.showcase.publish', $expert->id) }}">
+                                    @csrf
+                                    <button type="submit" class="btn btn-success">
+                                        <i class="voyager-check"></i>
+                                        {{ $sc['state'] === 'unpublished' && !$sc['draft_pending'] ? 'Remettre en ligne' : 'Publier' }}
+                                    </button>
+                                </form>
+                            @endif
+                            @if ($sc['draft_pending'] && $sc['published_at'])
+                                <form method="POST" action="{{ route('booking.experts.showcase.draft.destroy', $expert->id) }}"
+                                    onsubmit="return confirm('Abandonner les modifications non publiées ? La page revient à la version en ligne.');">
+                                    @csrf
+                                    @method('DELETE')
+                                    <button type="submit" class="btn btn-default">Abandonner les modifications</button>
+                                </form>
+                            @endif
+                            @if ($sc['published_at'])
+                                <form method="POST" action="{{ route('booking.experts.showcase.unpublish', $expert->id) }}"
+                                    onsubmit="return confirm('Retirer la page ? Son adresse affichera une page introuvable. Le contenu est conservé.');">
+                                    @csrf
+                                    <button type="submit" class="btn btn-danger">Retirer la page</button>
+                                </form>
+                            @endif
+                        </div>
+                    @else
+                        <p class="alert alert-info" style="margin: 15px 0 0;">
+                            Enregistrez d'abord l'adresse de la page : elle donne le lien de l'éditeur à envoyer à l'expert
+                            et l'adresse publique.
+                        </p>
+                    @endif
+                </div>
+            </div>
+
+            {{-- ===== Contenu ===== --}}
+            <div class="panel panel-bordered">
+                <div class="panel-body">
+                    <h4 style="margin-top: 0;">Contenu
+                        <small class="booking-muted">
+                            {{ $sc['draft_pending'] ? '(version en cours de modification)' : ($content ? '(version publiée)' : '') }}
+                        </small>
+                    </h4>
+
+                    <div class="row">
+                        {{-- Profil : commun avec l'application, modifié directement sur l'expert --}}
+                        <div class="col-md-5">
+                            <p class="showcase-h">Profil <span class="booking-muted">· commun avec l'application</span></p>
+                            <div class="showcase-identity">
+                                <div class="showcase-avatar">
+                                    @if ($expertModel->avatar_url)
+                                        <img src="{{ $expertModel->avatar_url }}" alt="">
+                                    @else
+                                        <i class="voyager-person"></i>
+                                    @endif
+                                </div>
+                                <div>
+                                    @if ($expertModel->honorific)<div class="booking-muted">{{ $expertModel->honorific }}</div>@endif
+                                    <strong>{{ $expertModel->name }}</strong>
+                                    @if ($expertModel->credentials)<div>{{ $expertModel->credentials }}</div>@endif
+                                </div>
+                            </div>
+                            @if ($expertModel->lede)
+                                <p style="white-space: pre-line;">{{ $expertModel->lede }}</p>
+                            @endif
+                            @if ($expertModel->domains->isNotEmpty())
+                                <p>
+                                    @foreach ($expertModel->domains as $domain)
+                                        <span class="booking-pill">{{ $domain->label }}</span>
+                                    @endforeach
+                                </p>
+                            @endif
+                            <p class="booking-muted">
+                                Couleur :
+                                @if ($expertModel->palette && isset($sc['palettes'][$expertModel->palette]))
+                                    <span class="showcase-swatch" style="background: {{ $sc['palettes'][$expertModel->palette][1] }}"></span>
+                                    {{ $sc['palettes'][$expertModel->palette][0] }}
+                                @else
+                                    par défaut
+                                @endif
+                            </p>
+                        </div>
+
+                        {{-- Page : brouillon puis publication --}}
+                        <div class="col-md-7">
+                            <p class="showcase-h">Page</p>
+                            @if (!$content)
+                                <p class="booking-muted">Aucun contenu : l'expert (ou vous) le saisit dans l'éditeur.</p>
+                            @else
+                                <table class="table showcase-content">
+                                    <tbody>
+                                        <tr>
+                                            <th>Modèle 3D</th>
+                                            <td>{{ $sc['models'][$content['model']] ?? $content['model'] }}</td>
+                                        </tr>
+                                        <tr>
+                                            <th>Lieux d'exercice</th>
+                                            <td>
+                                                @forelse ($content['places'] as $place)
+                                                    <div>{{ collect([$place['name'], $place['address'], $place['city']])->filter()->implode(' · ') }}</div>
+                                                @empty
+                                                    <span class="booking-muted">—</span>
+                                                @endforelse
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <th>Liens</th>
+                                            <td>
+                                                @php $links = collect(['doctolib' => 'Doctolib', 'linkedin' => 'LinkedIn', 'facebook' => 'Facebook'])->filter(fn ($l, $k) => $content[$k] !== ''); @endphp
+                                                @forelse ($links as $key => $label)
+                                                    <a href="{{ $content[$key] }}" target="_blank" rel="noopener" style="margin-right: 10px;">{{ $label }}</a>
+                                                @empty
+                                                    <span class="booking-muted">—</span>
+                                                @endforelse
+                                            </td>
+                                        </tr>
+                                        @foreach (\App\Support\Brochures\BrochureDraft::TIMELINES as $key => $label)
+                                            <tr>
+                                                <th>{{ $content['titles'][$key] ?? $label }}</th>
+                                                <td>
+                                                    @forelse ($content[$key] as $entry)
+                                                        <div>
+                                                            @if ($entry['year'])<strong>{{ $entry['year'] }}</strong> — @endif
+                                                            {{ $entry['title'] }}
+                                                            @if ($entry['place'])<span class="booking-muted">· {{ $entry['place'] }}</span>@endif
+                                                        </div>
+                                                    @empty
+                                                        <span class="booking-muted">—</span>
+                                                    @endforelse
+                                                </td>
+                                            </tr>
+                                        @endforeach
+                                    </tbody>
+                                </table>
+                            @endif
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     {{-- ===================== MODALE LIEU ===================== --}}
@@ -1466,6 +1722,25 @@
                 history.replaceState(null, '', url);
 
                 showTab(name);
+            });
+
+            /* --- Page vitrine --- */
+            $('[data-action="suggest-slug"]').on('click', function (e) {
+                e.preventDefault();
+                $('#showcase-slug').val($(this).data('slug')).trigger('focus');
+            });
+
+            $('[data-copy]').on('click', function () {
+                var $btn = $(this), label = $btn.text();
+                var done = function () {
+                    $btn.text('Copié ✓');
+                    setTimeout(function () { $btn.text(label); }, 2000);
+                };
+                if (navigator.clipboard) {
+                    navigator.clipboard.writeText($btn.data('copy')).then(done, function () { window.prompt('Copier le lien :', $btn.data('copy')); });
+                } else {
+                    window.prompt('Copier le lien :', $btn.data('copy'));
+                }
             });
 
             $('#booking-timezone').select2({ width: '100%' });

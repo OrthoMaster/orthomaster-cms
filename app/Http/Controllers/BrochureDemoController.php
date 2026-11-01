@@ -7,6 +7,7 @@ use App\Models\Expert;
 use App\Models\ExpertBrochureDraft;
 use App\Services\Booking\ExpertProfileService;
 use App\Support\Brochures\BrochureDraft;
+use App\Support\Brochures\BrochurePublisher;
 use App\Support\Brochures\ExpertiseCatalog;
 use App\Support\Brochures\ExpertVideos;
 use Illuminate\Http\Request;
@@ -121,21 +122,8 @@ class BrochureDemoController extends Controller
     {
         abort_unless($this->isAdmin(), 403);
 
-        $now = now();
-
-        DB::transaction(function () use ($expert, $now) {
-            $draft = $expert->brochureDraft()->lockForUpdate()->first();
-            abort_unless($draft, 422, 'Aucune modification à publier.');
-
-            $expert->forceFill([
-                ...$draft->only(BrochureDraft::COLUMNS),
-                'brochure'              => $draft->data,
-                'brochure_published_at' => $now,
-            ])->save();
-
-            $draft->timestamps = false; // conserver la date du dernier enregistrement
-            $draft->forceFill(['published_at' => $now])->save();
-        });
+        // Même publication que l'onglet « Page vitrine » du CMS.
+        $now = BrochurePublisher::publish($expert);
 
         return response()->json(['ok' => true, 'published_at' => $now->format('d/m/Y H:i')]);
     }

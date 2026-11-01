@@ -42,6 +42,7 @@ use App\Http\Controllers\WebController;
 use App\Http\Controllers\Booking\ConfigController;
 use App\Http\Controllers\Booking\ConversationController;
 use App\Http\Controllers\Booking\ExpertSetupController;
+use App\Http\Controllers\Booking\ExpertShowcaseController;
 use App\Http\Controllers\Booking\OfferImageController;
 use App\Http\Controllers\Booking\PlacesController;
 use Illuminate\Support\Facades\Route;
@@ -501,6 +502,14 @@ Route::group(['prefix' => 'admin', 'middleware' => ['cmsAdmin']], function () {
 
                         Route::post('exceptions', 'storeExceptions')->name('exceptions.store');
                         Route::delete('exceptions/{exception}', 'destroyException')->name('exceptions.destroy');
+
+                        /* Page vitrine */
+                        Route::prefix('showcase')->name('showcase.')->controller(ExpertShowcaseController::class)->group(function () {
+                            Route::put('slug', 'updateSlug')->name('slug');
+                            Route::post('publish', 'publish')->name('publish');
+                            Route::post('unpublish', 'unpublish')->name('unpublish');
+                            Route::delete('draft', 'discardDraft')->name('draft.destroy');
+                        });
 
                         /* Images d'un thème */
                         Route::prefix('offers/{offer}/images')->name('offers.images.')->group(function () {

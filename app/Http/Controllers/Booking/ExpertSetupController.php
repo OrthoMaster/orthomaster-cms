@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Booking;
 
 use App\Http\Controllers\Controller;
+use App\Models\Expert;
 use App\Models\ExpertAvailabilityException;
 use App\Models\ExpertAvailabilityRule;
 use App\Models\ExpertBookingSetting;
@@ -12,6 +13,7 @@ use App\Models\ExpertOfferDate;
 use App\Models\ExpertOfferMode;
 use App\Models\ExpertOfferSlot;
 use App\Services\Booking\ExpertBookingSetupService;
+use App\Support\Brochures\BrochurePublisher;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -26,9 +28,10 @@ class ExpertSetupController extends Controller
 {
     /**
      * Onglets de la page d'un expert ; le premier est ouvert par défaut.
-     * Ordre de saisie naturel : lieux, puis grille (qui y fait référence), puis offres.
+     * Ordre de saisie naturel : lieux, puis grille (qui y fait référence), puis offres ;
+     * la page vitrine en dernier.
      */
-    public const TABS = ['settings', 'locations', 'availability', 'offers'];
+    public const TABS = ['settings', 'locations', 'availability', 'offers', 'showcase'];
 
     public function __construct(private ExpertBookingSetupService $setup)
     {
@@ -134,9 +137,14 @@ class ExpertSetupController extends Controller
 
         $tab = in_array($request->query('tab'), self::TABS, true) ? $request->query('tab') : self::TABS[0];
 
+        // Page vitrine : état, liens, contenu (onglet « Page vitrine »).
+        $expertModel = Expert::with(['domains', 'brochureDraft'])->findOrFail($expertId);
+        $showcase    = BrochurePublisher::overview($expertModel);
+
         return view('booking.experts.show', compact(
             'expert', 'settings', 'resolved', 'defaults', 'locations', 'lockedLocationIds', 'offers', 'offerSlots', 'offerDates',
-            'rules', 'exceptions', 'grid', 'gridDates', 'modeLabels', 'scheduleLabels', 'today', 'tab'
+            'rules', 'exceptions', 'grid', 'gridDates', 'modeLabels', 'scheduleLabels', 'today', 'tab',
+            'expertModel', 'showcase'
         ));
     }
 
