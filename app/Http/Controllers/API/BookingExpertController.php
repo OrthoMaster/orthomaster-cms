@@ -102,7 +102,7 @@ class BookingExpertController extends Controller
             ->map(fn ($row) => self::expertPayload($models[$row->id], false) + [
                 'online' => (bool) $row->is_online,
                 'offers' => $offersByExpert->get($row->id, collect())
-                    ->map(fn (ExpertOffer $offer) => self::offerSummary($offer))
+                    ->map(fn (ExpertOffer $offer) => $this->offerSummary($offer))
                     ->values(),
             ])
             ->values();
@@ -267,7 +267,7 @@ class BookingExpertController extends Controller
     }
 
     /** Ligne courte d'une offre sous l'expert dans la liste. */
-    private static function offerSummary(ExpertOffer $offer): array
+    private function offerSummary(ExpertOffer $offer): array
     {
         $modes = $offer->modes->where('active_flg', true);
 
@@ -278,6 +278,19 @@ class BookingExpertController extends Controller
             'modes'          => $modes->pluck('mode')->values(),
             'price_from'     => $modes->isEmpty() ? null : (float) $modes->min('price'),
             'currency'       => $offer->currency,
+            // Un format par ligne dans la liste : prix, et en présentiel les villes où le thème se tient.
+            'formats'        => $modes
+                ->sortBy(fn (ExpertOfferMode $m) => $m->mode === ExpertOfferMode::ONSITE ? 1 : 0)
+                ->map(fn (ExpertOfferMode $m) => [
+                    'mode'   => $m->mode,
+                    'price'  => (float) $m->price,
+                    'places' => $this->setup->offerLocations($m, $offer->expert_id)
+                        ->map(fn (ExpertLocation $l) => ['postal_code' => $l->postal_code, 'city' => $l->city])
+                        ->filter(fn (array $p) => $p['city'] || $p['postal_code'])
+                        ->unique(fn (array $p) => mb_strtolower(($p['postal_code'] ?? '') . '|' . ($p['city'] ?? '')))
+                        ->values(),
+                ])
+                ->values(),
         ];
     }
 
