@@ -28,6 +28,7 @@ use App\Http\Controllers\SystemNotificationController;
 use App\Http\Controllers\Tracking\TrkAppOpenController;
 use App\Http\Controllers\VideoController;
 use App\Http\Controllers\API\BookingExpertController;
+use App\Http\Controllers\API\BookingSearchController;
 use App\Http\Controllers\API\ExpertBookingSetupController;
 use App\Http\Controllers\API\AiVideoSearchController;
 use App\Http\Controllers\API\BookingRequestController;
@@ -258,12 +259,18 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('experts', [BookingExpertController::class, 'index']);
         Route::get('experts/{expertId}', [BookingExpertController::class, 'show'])->whereNumber('expertId');
         Route::get('experts/{expertId}/availability', [BookingExpertController::class, 'availability'])->whereNumber('expertId');
+        Route::get('experts/{expertId}/consultation-slots', [BookingExpertController::class, 'consultationSlots'])->whereNumber('expertId');
+
+        /* --- Utilisateur : parcourir les thèmes, recherche intelligente (experts | thèmes) --- */
+        Route::get('themes', [BookingExpertController::class, 'themes']);
+        Route::get('search', [BookingSearchController::class, 'search'])->middleware('throttle:30,1');
 
         /* --- Expert : sa propre configuration --- */
         Route::controller(ExpertBookingSetupController::class)->prefix('me')->group(function () {
             Route::get('/', 'show');
             Route::get('preview', 'preview');
             Route::put('settings', 'updateSettings');
+            Route::put('consultation', 'updateConsultation');
 
             Route::post('offers', 'storeOffer');
             Route::put('offers/{offer}', 'updateOffer');

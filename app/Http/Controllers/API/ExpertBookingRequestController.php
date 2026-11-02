@@ -10,6 +10,8 @@ use App\Models\BookingNoShowReport;
 use App\Services\Booking\BookingCheckoutService;
 use App\Services\Booking\BookingDecisionService;
 use App\Services\Booking\BookingNoShowService;
+use App\Services\Booking\ConsultationService;
+use App\Services\Booking\ExpertBookingSetupService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -29,7 +31,9 @@ class ExpertBookingRequestController extends Controller
 
     public function __construct(
         private BookingDecisionService $decisions,
-        private BookingNoShowService $noShows
+        private BookingNoShowService $noShows,
+        private ConsultationService $consultations,
+        private ExpertBookingSetupService $setup
     ) {
     }
 
@@ -95,10 +99,16 @@ class ExpertBookingRequestController extends Controller
 
     /**
      * POST /booking/me/requests/{booking}/accept
+     * Corps : location_id? (présentiel hors calendrier : lieu choisi par l'expert)
      */
     public function accept(Request $request, int $bookingId): JsonResponse
     {
-        $booking = $this->decisions->accept($this->find($request, $bookingId));
+        $request->validate(['location_id' => ['nullable', 'integer']]);
+
+        $booking = $this->decisions->accept(
+            $this->find($request, $bookingId),
+            locationId: $request->filled('location_id') ? (int) $request->input('location_id') : null
+        );
 
         return $this->success($this->detail($booking->load(['user', 'declineReason', 'noShowReports'])));
     }
@@ -129,11 +139,24 @@ class ExpertBookingRequestController extends Controller
 
     /* ===================== OUTILS ===================== */
 
-    /** Fiche complète, avec l'état du signalement d'absence côté expert. */
+    /**
+     * Fiche complète, avec l'état du signalement d'absence côté expert,
+     * les rendez-vous acceptés qui chevauchent (simple avertissement) et,
+     * en présentiel hors calendrier, les lieux parmi lesquels choisir à l'acceptation.
+     */
     private function detail(Booking $booking): array
     {
+        $needsLocation = BookingDecisionService::needsLocation($booking);
+
         return self::payload($booking, true) + [
-            'noshow' => $this->noShows->payload($booking, BookingNoShowReport::REPORTER_EXPERT),
+            'noshow'         => $this->noShows->payload($booking, BookingNoShowReport::REPORTER_EXPERT),
+            'conflicts'      => $this->consultations->conflicts($booking),
+            'needs_location' => $needsLocation && $booking->status === Booking::STATUS_PENDING,
+            'locations'      => $needsLocation
+                ? $this->setup->activeLocations($booking->expert_id)
+                    ->map(fn ($l) => ['id' => $l->id, 'label' => $l->label, 'city' => $l->city, 'address_line' => $l->address_line, 'postal_code' => $l->postal_code])
+                    ->values()
+                : [],
         ];
     }
 
@@ -176,6 +199,9 @@ class ExpertBookingRequestController extends Controller
             'id'               => $booking->id,
             'status'           => self::displayStatus($booking),
             'offer_title'      => $booking->offer_title,
+            'kind'             => $booking->kind ?? Booking::KIND_OFFER,
+            'off_calendar'     => (bool) $booking->off_calendar,
+            'duration_minutes' => $booking->duration_minutes,
             'mode'             => $booking->mode,
             'blocks_count'     => $booking->blocks_count,
             // Le demandeur : nom affiché seulement ; l'e-mail reste côté plateforme.
@@ -196,6 +222,7 @@ class ExpertBookingRequestController extends Controller
         if ($detailed) {
             $data += [
                 'message'          => $booking->message,
+                'subject'          => $booking->subject,
                 'payment_required' => $booking->payment_required,
                 'amount_ht'        => (float) $booking->amount_ht,
                 'commission_rate'  => (float) $booking->commission_rate,

@@ -19,6 +19,13 @@
     $onsite    = $booking->mode === ExpertOfferMode::ONSITE;
     $modeLabel = ExpertOfferMode::MODE_LABELS[$booking->mode] ?? $booking->mode;
 
+    // v3 : consultation sur mesure, demandes hors calendrier (lieu à choisir en présentiel).
+    $isConsultation = $booking->kind === \App\Models\Booking::KIND_CONSULTATION;
+    $needsLocation  = \App\Services\Booking\BookingDecisionService::needsLocation($booking);
+    $acceptLocations = $needsLocation
+        ? \App\Models\ExpertLocation::where('expert_id', $booking->expert_id)->active()->orderBy('label')->get()
+        : collect();
+
     // Itinéraire Google Maps : coordonnées si connues, sinon l'adresse en texte.
     $mapsUrl = function (array $l) {
         $params = ['api' => 1];
@@ -374,7 +381,18 @@
                                 @endif
                             </dd>
                             <dt>Type</dt>
-                            <dd><span class="booking-pill booking-pill--{{ $booking->mode }}">{{ $modeLabel }}</span></dd>
+                            <dd>
+                                <span class="booking-pill booking-pill--{{ $booking->mode }}">{{ $modeLabel }}</span>
+                                @if ($booking->off_calendar)
+                                    <span class="booking-pill">Hors calendrier</span>
+                                @endif
+                            </dd>
+                            @if ($isConsultation)
+                                <dt>Durée</dt>
+                                <dd>{{ $booking->duration_minutes }} min</dd>
+                                <dt>Sujet</dt>
+                                <dd style="white-space: pre-line;">{{ $booking->subject }}</dd>
+                            @endif
                             <dt>Demandeur</dt>
                             <dd>
                                 {{ $requester }}
@@ -735,6 +753,14 @@
                                           onsubmit="return confirm('Accepter au nom de l\'expert ? Le montant réservé sera débité.');"
                                           style="margin-bottom: 10px;">
                                         @csrf
+                                        @if ($needsLocation)
+                                            <select name="location_id" class="form-control" required style="margin-bottom: 8px;">
+                                                <option value="">Lieu (demande hors calendrier)…</option>
+                                                @foreach ($acceptLocations as $location)
+                                                    <option value="{{ $location->id }}">{{ $location->label }} — {{ $location->city }}</option>
+                                                @endforeach
+                                            </select>
+                                        @endif
                                         <button type="submit" class="btn btn-success btn-block">Accepter la demande</button>
                                     </form>
                                     <form method="POST" action="{{ route('booking.appointments.decline', $booking->id) }}"

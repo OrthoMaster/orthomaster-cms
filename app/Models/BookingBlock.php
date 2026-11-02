@@ -19,6 +19,8 @@ class BookingBlock extends Model
         'location_id'         => 'integer',
         // Copie de l'adresse au moment de la réservation (ExpertLocation::snapshot()).
         'location'            => 'array',
+        // Hors calendrier : en présentiel, lieu choisi par l'expert à l'acceptation.
+        'off_calendar'        => 'boolean',
         'meet_created_at'     => 'datetime',
         'meet_closed_at'      => 'datetime',
         'meet_reopened_until' => 'datetime',

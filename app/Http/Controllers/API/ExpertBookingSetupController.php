@@ -18,6 +18,7 @@ use App\Services\Booking\ExpertOfferImageService;
 use App\Services\Booking\ExpertProfileService;
 use App\Services\Booking\ExpertBookingSetupService;
 use App\Services\Booking\ExpertSlotService;
+use App\Services\Booking\ConsultationService;
 use App\Services\Google\GooglePlacesService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
@@ -45,6 +46,7 @@ class ExpertBookingSetupController extends Controller
         private ExpertOfferImageService $images,
         private ExpertProfileService $profile,
         private GooglePlacesService $places,
+        private ConsultationService $consultations,
     ) {
     }
 
@@ -117,6 +119,20 @@ class ExpertBookingSetupController extends Controller
     }
 
     /* ===================== RÉGLAGES ===================== */
+
+    /**
+     * Consultation sur mesure : activation, prix TTC de 30 minutes, durée maximale.
+     * Mise à jour partielle.
+     * PUT /booking/me/consultation
+     * Corps : enabled?, price?, max_minutes?
+     */
+    public function updateConsultation(Request $request): JsonResponse
+    {
+        $expertId = $this->requireExpert($request);
+        $this->consultations->save($expertId, $request->only(['enabled', 'price', 'max_minutes']));
+
+        return $this->success($this->payload($expertId));
+    }
 
     /**
      * Mise à jour partielle : un champ absent garde sa valeur actuelle,
@@ -727,6 +743,12 @@ class ExpertBookingSetupController extends Controller
                     'enabled'   => GooglePlacesService::enabled(),
                     'min_input' => GooglePlacesService::MIN_INPUT_LENGTH,
                 ],
+            ],
+            // Consultation sur mesure (toujours en ligne) : réglages de l'expert et bornes de saisie.
+            'consultation' => $this->consultations->settings($expertId) + [
+                'step_minutes'      => ConsultationService::STEP_MINUTES,
+                'max_minutes_limit' => ConsultationService::MAX_MINUTES_LIMIT,
+                'price_max'         => ConsultationService::PRICE_MAX,
             ],
             'offers'     => $offers,
             'locations'  => $locations,

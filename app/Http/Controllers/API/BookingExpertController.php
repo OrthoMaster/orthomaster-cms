@@ -12,6 +12,7 @@ use App\Models\ExpertOffer;
 use App\Models\ExpertOfferImage;
 use App\Models\ExpertOfferMode;
 use App\Services\Booking\ExpertBookingSetupService;
+use App\Services\Booking\ConsultationService;
 use App\Services\Booking\ExpertSlotService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -28,8 +29,11 @@ use Illuminate\Validation\Rule;
  */
 class BookingExpertController extends Controller
 {
-    public function __construct(private ExpertSlotService $slots, private ExpertBookingSetupService $setup)
-    {
+    public function __construct(
+        private ExpertSlotService $slots,
+        private ExpertBookingSetupService $setup,
+        private ConsultationService $consultations
+    ) {
     }
 
     /* ===================== EXPERTS ===================== */
@@ -104,6 +108,8 @@ class BookingExpertController extends Controller
                 'offers' => $offersByExpert->get($row->id, collect())
                     ->map(fn (ExpertOffer $offer) => $this->offerSummary($offer))
                     ->values(),
+                // Consultation sur mesure proposée : prix de 30 minutes et durées.
+                'consultation' => $row->is_online ? $this->consultations->publicPayload($row->id) : null,
             ])
             ->values();
 
@@ -144,10 +150,177 @@ class BookingExpertController extends Controller
 
         return $this->success([
             'expert'     => self::expertPayload($expert) + ['online' => $online],
+            'consultation' => $online ? $this->consultations->publicPayload($expertId) : null,
             'timezone'   => $bounds['timezone'],
             'first_date' => $bounds['first_date'],
             'last_date'  => $bounds['last_date'],
             'offers'     => $offers,
+        ]);
+    }
+
+    /* ===================== THÈMES ===================== */
+
+    /**
+     * Tous les thèmes réservables (offres actives avec un mode actif, chez un expert réservable),
+     * hors ceux de l'expert connecté. Le thème est l'élément principal, l'expert est secondaire.
+     * Recherche sur le titre, la description, le nom de l'expert et ses domaines.
+     * GET /booking/themes?page=1&q=
+     */
+    public function themes(Request $request): JsonResponse
+    {
+        $request->validate([
+            'page' => ['nullable', 'integer', 'min:1'],
+            'q'    => ['nullable', 'string', 'max:100'],
+        ]);
+
+        $page   = (int) $request->input('page', 1);
+        $search = trim((string) $request->input('q', ''));
+
+        $query = $this->themeQuery($request->user()->id)
+            ->when($search !== '', function ($q) use ($search) {
+                $like = '%' . $search . '%';
+                $q->where(fn ($w) => $w
+                    ->where('o.title', 'like', $like)
+                    ->orWhere('o.description', 'like', $like)
+                    ->orWhere('e.name', 'like', $like)
+                    ->orWhereIn('e.id', Expert::query()
+                        ->whereHas('domains', fn ($d) => $d->where('label', 'like', $like))
+                        ->select('id')));
+            });
+
+        $total = (clone $query)->count();
+        $ids   = $query->orderByDesc('o.id')->forPage($page, self::PER_PAGE)->pluck('o.id')->all();
+
+        return $this->success([
+            'themes'     => $this->themePayloads($ids),
+            'pagination' => [
+                'page'     => $page,
+                'per_page' => self::PER_PAGE,
+                'total'    => $total,
+                'has_more' => $page * self::PER_PAGE < $total,
+            ],
+        ]);
+    }
+
+    /**
+     * Thèmes réservables (requête de base, partagée avec la recherche intelligente).
+     */
+    public function themeQuery(int $userId): \Illuminate\Database\Query\Builder
+    {
+        [$onlineSql, $onlineBindings] = $this->onlineExpression();
+
+        return DB::table('expert_offers as o')
+            ->join('experts as e', 'e.id', '=', 'o.expert_id')
+            ->leftJoin('expert_booking_settings as s', 's.expert_id', '=', 'e.id')
+            ->where('o.active_flg', true)
+            ->whereNull('o.deleted_at')
+            ->whereExists(fn ($q) => $q->selectRaw('1')->from('expert_offer_modes as m')
+                ->whereColumn('m.offer_id', 'o.id')->where('m.active_flg', true))
+            ->whereNotNull('e.user_id')
+            ->where('e.user_id', '!=', $userId)
+            ->whereRaw($onlineSql, $onlineBindings);
+    }
+
+    /**
+     * Thèmes dans l'ordre des identifiants donnés : résumé du thème, première image,
+     * description, et l'expert en version courte.
+     *
+     * @param  int[]  $ids
+     */
+    public function themePayloads(array $ids): Collection
+    {
+        if (!$ids) {
+            return collect();
+        }
+
+        $offers  = ExpertOffer::whereIn('id', $ids)->with(['modes', 'images'])->get()->keyBy('id');
+        $experts = Expert::whereIn('id', $offers->pluck('expert_id')->unique())->get()->keyBy('id');
+
+        return collect($ids)
+            ->filter(fn ($id) => $offers->has($id) && $experts->has($offers[$id]->expert_id))
+            ->map(function ($id) use ($offers, $experts) {
+                $offer  = $offers[$id];
+                $expert = $experts[$offer->expert_id];
+
+                return $this->offerSummary($offer) + [
+                    'description'  => $offer->description,
+                    'blocks_count' => $offer->blocks_count,
+                    'image'        => $offer->images->first()?->payload(),
+                    'expert'       => [
+                        'id'              => $expert->id,
+                        'honorific_short' => ExpertProfileService::honorificShort($expert->honorific),
+                        'name'            => $expert->name,
+                        'credentials'     => $expert->credentials,
+                        'avatar_url'      => $expert->avatar_url,
+                        'palette_color'   => BrochureDraft::PALETTES[$expert->palette][1] ?? null,
+                    ],
+                ];
+            })
+            ->values();
+    }
+
+    /**
+     * Payloads d'experts (forme de la liste) dans l'ordre des identifiants donnés.
+     *
+     * @param  int[]  $ids
+     */
+    public function expertListPayloads(array $ids): Collection
+    {
+        if (!$ids) {
+            return collect();
+        }
+
+        $models = Expert::whereIn('id', $ids)->get()->keyBy('id');
+        $offersByExpert = ExpertOffer::active()
+            ->whereIn('expert_id', $ids)
+            ->whereHas('activeModes')
+            ->with('modes')
+            ->orderBy('order_dsp')
+            ->orderBy('id')
+            ->get()
+            ->groupBy('expert_id');
+
+        return collect($ids)
+            ->filter(fn ($id) => $models->has($id))
+            ->map(fn ($id) => self::expertPayload($models[$id], false) + [
+                'online'       => $this->isBookable($id),
+                'offers'       => $offersByExpert->get($id, collect())
+                    ->map(fn (ExpertOffer $offer) => $this->offerSummary($offer))
+                    ->values(),
+                'consultation' => $this->consultations->publicPayload($id),
+            ])
+            ->values();
+    }
+
+    /* ===================== CONSULTATION ===================== */
+
+    /**
+     * Heures de début possibles d'une consultation pour une durée, dans le calendrier.
+     * Hors calendrier, l'application propose 7 h – 21 h (voir consultation.off_calendar).
+     * GET /booking/experts/{expertId}/consultation-slots?duration_minutes=&from=Y-m-d&to=Y-m-d
+     */
+    public function consultationSlots(Request $request, int $expertId): JsonResponse
+    {
+        abort_unless($this->consultations->isOpen($expertId), 404, "Cet expert ne propose pas de consultation pour le moment.");
+
+        $request->validate([
+            'duration_minutes' => ['required', 'integer'],
+            'from'             => ['nullable', 'date_format:Y-m-d'],
+            'to'               => ['nullable', 'date_format:Y-m-d', 'after_or_equal:from'],
+        ]);
+
+        $bounds = $this->slots->bounds($expertId);
+
+        return $this->success([
+            'timezone'   => $bounds['timezone'],
+            'first_date' => $bounds['first_date'],
+            'last_date'  => $bounds['last_date'],
+            'days'       => $this->consultations->slots(
+                $expertId,
+                $request->input('from'),
+                $request->input('to'),
+                (int) $request->input('duration_minutes')
+            ),
         ]);
     }
 
@@ -365,10 +538,12 @@ class BookingExpertController extends Controller
     private function onlineExpression(): array
     {
         // Le second EXISTS : un jour spécial ouvert à la main suffit, il sert aux « Dates précises » (2a).
+        // Un expert sans thème mais qui propose la consultation (avec un prix) est aussi réservable.
         $sql = '(COALESCE(s.enabled_flg, 0) = 1
-            AND EXISTS (SELECT 1 FROM expert_offers o
+            AND (EXISTS (SELECT 1 FROM expert_offers o
                 JOIN expert_offer_modes m ON m.offer_id = o.id AND m.active_flg = 1
                 WHERE o.expert_id = e.id AND o.active_flg = 1 AND o.deleted_at IS NULL)
+                OR (COALESCE(s.consultation_enabled, 0) = 1 AND s.consultation_price IS NOT NULL))
             AND (EXISTS (SELECT 1 FROM expert_availability_rules r
                     WHERE r.expert_id = e.id AND (r.valid_until IS NULL OR r.valid_until >= ?))
                 OR EXISTS (SELECT 1 FROM expert_availability_exceptions x
@@ -379,7 +554,7 @@ class BookingExpertController extends Controller
         return [$sql, [$today, $today]];
     }
 
-    private function isBookable(int $expertId): bool
+    public function isBookable(int $expertId): bool
     {
         [$sql, $bindings] = $this->onlineExpression();
 

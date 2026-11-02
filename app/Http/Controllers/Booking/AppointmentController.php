@@ -313,7 +313,12 @@ class AppointmentController extends Controller
      */
     public function accept(Request $request, int $bookingId): RedirectResponse
     {
-        $this->admin->accept($this->find($bookingId), $request->user()->id);
+        // Présentiel hors calendrier : lieu choisi dans le formulaire.
+        $this->admin->accept(
+            $this->find($bookingId),
+            $request->user()->id,
+            $request->filled('location_id') ? (int) $request->input('location_id') : null
+        );
 
         return $this->back($bookingId, "Demande acceptée au nom de l'expert : le montant a été débité.");
     }

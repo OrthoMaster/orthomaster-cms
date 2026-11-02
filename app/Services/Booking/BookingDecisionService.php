@@ -5,6 +5,8 @@ namespace App\Services\Booking;
 use App\Models\Booking;
 use App\Models\BookingDeclineReason;
 use App\Models\BookingEvent;
+use App\Models\ExpertLocation;
+use App\Models\ExpertOfferMode;
 use App\Models\Invoice;
 use App\Services\StripeService;
 use Illuminate\Support\Facades\DB;
@@ -35,12 +37,26 @@ class BookingDecisionService
 
     /**
      * $actor / $adminId : l'administration peut répondre au nom de l'expert depuis le CMS.
+     * $locationId : en présentiel, lieu des demi-journées demandées hors calendrier (choisi par l'expert).
      */
-    public function accept(Booking $booking, string $actor = BookingEvent::ACTOR_EXPERT, ?int $adminId = null): Booking
+    public function accept(Booking $booking, string $actor = BookingEvent::ACTOR_EXPERT, ?int $adminId = null, ?int $locationId = null): Booking
     {
         $expired = false;
 
-        $booking = $this->withPending($booking, function (Booking $booking) use ($actor, $adminId, &$expired) {
+        // Hors calendrier en présentiel : le lieu doit être choisi avant tout débit.
+        $location = null;
+        if (self::needsLocation($booking)) {
+            $location = $locationId
+                ? ExpertLocation::where('expert_id', $booking->expert_id)->active()->find($locationId)
+                : null;
+            if (!$location) {
+                throw ValidationException::withMessages([
+                    'location_id' => 'Choisissez le lieu du rendez-vous demandé hors calendrier.',
+                ]);
+            }
+        }
+
+        $booking = $this->withPending($booking, function (Booking $booking) use ($actor, $adminId, &$expired, $location) {
             // Délai dépassé mais job pas encore passé : on applique l'expiration tout de suite.
             if ($booking->respond_by && $booking->respond_by->isPast()) {
                 $this->expireLocked($booking);
@@ -64,6 +80,13 @@ class BookingDecisionService
                 }
 
                 $invoice->markAsPaid();
+            }
+
+            if ($location) {
+                $booking->blocks()
+                    ->where('off_calendar', true)
+                    ->whereNull('location_id')
+                    ->update(['location_id' => $location->id, 'location' => json_encode($location->snapshot())]);
             }
 
             $booking->update([
@@ -91,6 +114,21 @@ class BookingDecisionService
         }
 
         return $booking->fresh(['blocks']);
+    }
+
+    /**
+     * Présentiel avec au moins une demi-journée hors calendrier sans lieu :
+     * l'expert choisit le lieu en acceptant.
+     */
+    public static function needsLocation(Booking $booking): bool
+    {
+        if ($booking->mode !== ExpertOfferMode::ONSITE || !$booking->off_calendar) {
+            return false;
+        }
+
+        $blocks = $booking->relationLoaded('blocks') ? $booking->blocks : $booking->blocks()->get();
+
+        return $blocks->contains(fn ($b) => $b->off_calendar && !$b->location_id);
     }
 
     /* ===================== REFUSER ===================== */

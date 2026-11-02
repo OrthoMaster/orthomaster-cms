@@ -204,9 +204,9 @@ class BookingAdminService
 
     /* ===================== RÉPONDRE AU NOM DE L'EXPERT ===================== */
 
-    public function accept(Booking $booking, int $adminId): Booking
+    public function accept(Booking $booking, int $adminId, ?int $locationId = null): Booking
     {
-        return $this->decisions->accept($booking, BookingEvent::ACTOR_ADMIN, $adminId);
+        return $this->decisions->accept($booking, BookingEvent::ACTOR_ADMIN, $adminId, $locationId);
     }
 
     public function decline(Booking $booking, array $input, int $adminId): Booking

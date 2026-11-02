@@ -25,6 +25,11 @@ class Booking extends Model
     /** Annulation faite par l'administration sans la rattacher à une partie. */
     public const CANCELLED_BY_ADMIN  = 'admin';
 
+    /** Thème proposé par l'expert (offre). */
+    public const KIND_OFFER        = 'offer';
+    /** Consultation sur mesure : sujet libre, en ligne, durée par tranches de 30 minutes. */
+    public const KIND_CONSULTATION = 'consultation';
+
     /** Statuts qui retiennent les demi-journées. */
     public const HOLDING_STATUSES = [self::STATUS_PENDING, self::STATUS_ACCEPTED];
 
@@ -36,6 +41,8 @@ class Booking extends Model
         'offer_id'          => 'integer',
         'invoice_id'        => 'integer',
         'blocks_count'      => 'integer',
+        'off_calendar'      => 'boolean',
+        'duration_minutes'  => 'integer',
         'amount_ht'         => 'decimal:2',
         'tva_rate'          => 'decimal:2',
         'tva_amount'        => 'decimal:2',
@@ -59,6 +66,11 @@ class Booking extends Model
     public function scopeSubmitted(Builder $query): Builder
     {
         return $query->whereNotNull('requested_at');
+    }
+
+    public function isConsultation(): bool
+    {
+        return $this->kind === self::KIND_CONSULTATION;
     }
 
     public function blocks(): HasMany

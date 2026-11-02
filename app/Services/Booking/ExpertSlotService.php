@@ -74,6 +74,8 @@ class ExpertSlotService
      * $ignoreEnabled sert à l'aperçu de l'expert : il voit sa grille même désactivé.
      * $offerMode limite le résultat au calendrier d'une offre dans un mode ; sans lui,
      * c'est la grille générale de l'expert (comportement d'avant les modes).
+     * $ignoreHeld garde les demi-journées déjà retenues : une consultation ne bloque rien
+     * et n'est pas bloquée (l'expert est seulement averti des chevauchements).
      *
      * @return Collection<int, array{date:string, period:string, start_at:Carbon, end_at:Carbon, start_local:string, end_local:string, location_id:?int, location:?ExpertLocation}>
      */
@@ -82,7 +84,8 @@ class ExpertSlotService
         ?string $from = null,
         ?string $to = null,
         bool $ignoreEnabled = false,
-        ?ExpertOfferMode $offerMode = null
+        ?ExpertOfferMode $offerMode = null,
+        bool $ignoreHeld = false
     ): Collection {
         $settings = $this->setup->resolved($expertId);
 
@@ -118,7 +121,7 @@ class ExpertSlotService
             && $mode === ExpertOfferMode::ONLINE;
         $allowed   = $this->offerFilter($offerMode, $from, $to, $settings['timezone']);
         $locations = $this->setup->activeLocations($expertId);
-        $held      = $this->heldKeys($expertId, $from, $to);
+        $held      = $ignoreHeld ? [] : $this->heldKeys($expertId, $from, $to);
         $tz        = $settings['timezone'];
         $blocks    = collect();
 
@@ -221,6 +224,44 @@ class ExpertSlotService
             ->get(['date', 'period'])
             ->mapWithKeys(fn (BookingBlock $b) => [$b->date->toDateString() . '|' . $b->period => true])
             ->all();
+    }
+
+    /**
+     * Demi-journée hors calendrier (« Hors calendrier ») : horaires de l'expert, sans lieu.
+     * Seules les bornes de réservation (délai minimum, limite) sont vérifiées ; la grille
+     * et les fermetures ne comptent pas, c'est l'expert qui accepte ou refuse.
+     * null si la date est hors bornes ou la demi-journée déjà retenue.
+     *
+     * @return array{date:string, period:string, start_at:Carbon, end_at:Carbon, start_local:string, end_local:string, location_id:null, location:null}|null
+     */
+    public function offCalendarBlock(int $expertId, string $date, string $period): ?array
+    {
+        $settings = $this->setup->resolved($expertId);
+        $bounds   = $this->bounds($expertId);
+        $tz       = $settings['timezone'];
+
+        if ($date > $bounds['last_date'] || !in_array($period, ExpertBookingSetupService::PERIODS, true)) {
+            return null;
+        }
+
+        $startLocal = $settings[$period . '_start'];
+        $endLocal   = $settings[$period . '_end'];
+        $start      = Carbon::parse($date . ' ' . $startLocal, $tz);
+
+        if ($start->lt($bounds['earliest_at']) || isset($this->heldKeys($expertId, $date, $date)[$date . '|' . $period])) {
+            return null;
+        }
+
+        return [
+            'date'        => $date,
+            'period'      => $period,
+            'start_at'    => $start->copy()->utc(),
+            'end_at'      => Carbon::parse($date . ' ' . $endLocal, $tz)->utc(),
+            'start_local' => $startLocal,
+            'end_local'   => $endLocal,
+            'location_id' => null,
+            'location'    => null,
+        ];
     }
 
     /** @return array{0:string, 1:string} */
