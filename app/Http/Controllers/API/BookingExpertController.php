@@ -45,18 +45,21 @@ class BookingExpertController extends Controller
      * Tous les experts sauf l'expert connecté : ceux qui acceptent des demandes en tête,
      * puis les autres, par nom. Recherche sur le nom, le titre, les références et les domaines.
      * Chaque expert réservable porte la liste courte de ses offres (repliable dans la liste).
-     * GET /booking/experts?page=1&q=
+     * GET /booking/experts?page=1&q=&consultation=1
      */
     public function index(Request $request): JsonResponse
     {
         $request->validate([
-            'page' => ['nullable', 'integer', 'min:1'],
-            'q'    => ['nullable', 'string', 'max:100'],
+            'page'         => ['nullable', 'integer', 'min:1'],
+            'q'            => ['nullable', 'string', 'max:100'],
+            'consultation' => ['nullable', 'boolean'],
         ]);
 
         $page   = (int) $request->input('page', 1);
         $search = trim((string) $request->input('q', ''));
         $userId = $request->user()->id;
+        // Consultation : seulement les experts qui la proposent (activée, avec un prix, réservation activée).
+        $consultationOnly = $request->boolean('consultation');
         [$onlineSql, $onlineBindings] = $this->onlineExpression();
 
         $query = DB::table('experts as e')
@@ -64,6 +67,10 @@ class BookingExpertController extends Controller
             // Sans compte, un expert (simple auteur de contenus) ne peut pas recevoir de demande.
             ->whereNotNull('e.user_id')
             ->where('e.user_id', '!=', $userId)
+            ->when($consultationOnly, fn ($q) => $q
+                ->where('s.enabled_flg', true)
+                ->where('s.consultation_enabled', true)
+                ->whereNotNull('s.consultation_price'))
             ->when($search !== '', function ($q) use ($search) {
                 $like = '%' . $search . '%';
                 $q->where(fn ($w) => $w
