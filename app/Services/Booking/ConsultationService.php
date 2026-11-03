@@ -26,7 +26,8 @@ class ConsultationService
     public const DEFAULT_MAX_MINUTES = 180;
     public const MAX_MINUTES_LIMIT   = 480;
     public const PRICE_MAX           = 10000;
-    public const SUBJECT_MAX         = 2000;
+    // Sujet d'une consultation : court, l'échange se fait ensuite dans la messagerie.
+    public const SUBJECT_MAX         = 300;
 
     /** Hors calendrier : heures de début possibles. */
     public const OFF_CALENDAR_FIRST_START = '07:00';
