@@ -562,7 +562,8 @@ class BookingExpertController extends Controller
     {
         // Thèmes et Consultation s'activent séparément : l'un ou l'autre suffit.
         // Le second EXISTS : un jour spécial ouvert à la main suffit, il sert aux « Dates précises » (2a).
-        $sql = '((' . self::THEMES_ON_SQL . ') OR (' . self::CONSULTATION_ON_SQL . '))
+        // Parenthèse extérieure : l'expression est utilisée dans SELECT … AS is_online et dans WHERE.
+        $sql = '(((' . self::THEMES_ON_SQL . ') OR (' . self::CONSULTATION_ON_SQL . '))
             AND (EXISTS (SELECT 1 FROM expert_availability_rules r
                     WHERE r.expert_id = e.id AND (r.valid_until IS NULL OR r.valid_until >= ?))
                 OR EXISTS (SELECT 1 FROM expert_availability_exceptions x
