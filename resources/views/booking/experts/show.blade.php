@@ -5,6 +5,7 @@
     use App\Models\ExpertOffer;
     use App\Models\ExpertOfferMode;
     use App\Services\Booking\ExpertBookingSetupService as Setup;
+    use App\Services\Booking\ConsultationService;
     use Carbon\Carbon;
     use Illuminate\Support\Str;
 
@@ -79,7 +80,8 @@
         'settings'     => ['Réglages', 'voyager-settings', null],
         'locations'    => ['Lieux', 'voyager-location', $activeLocations->count()],
         'availability' => ['Disponibilités', 'voyager-calendar', $rules->count()],
-        'offers'       => ['Offres', 'voyager-wallet', $offers->count()],
+        'offers'       => ['Thèmes (offres)', 'voyager-wallet', $offers->count()],
+        'consultation' => ['Consultation', 'voyager-chat', null],
         'showcase'     => ['Page vitrine', 'voyager-world', null],
     ];
 
@@ -592,17 +594,23 @@
                                 <label>
                                     <input type="checkbox" name="enabled_flg" value="1"
                                         @checked($oldForm === 'settings' ? old('enabled_flg') : $resolved['enabled_flg'])>
-                                    <strong>Accepter les demandes de rendez-vous</strong>
+                                    <strong>Accepter les demandes de rendez-vous (Thèmes et Consultation)</strong>
                                 </label>
                             </div>
                             <p class="booking-muted">
-                                Désactiver n'annule pas les rendez-vous existants : seules les nouvelles demandes sont bloquées.
+                                Interrupteur général de l'expert. Décoché : l'expert n'apparaît plus comme disponible et ne reçoit
+                                aucune nouvelle demande, ni pour ses thèmes ni en consultation. Les rendez-vous déjà demandés ou
+                                acceptés ne sont pas annulés.
                             </p>
                         </div>
 
                         <div class="booking-section">
                             <h3>Délais de réservation</h3>
-                            <p class="booking-intro">Laissez vide pour utiliser la valeur par défaut.</p>
+                            <p class="booking-intro">
+                                Fixent à partir de quand et jusqu'à quand un confrère peut demander un rendez-vous.
+                                Laissez un champ vide pour appliquer la valeur par défaut de la plateforme.
+                                La consultation peut avoir son propre délai minimum (onglet « Consultation »).
+                            </p>
 
                             <div class="row">
                                 <div class="form-group col-md-4">
@@ -617,23 +625,28 @@
                                     </select>
                                 </div>
                                 <div class="form-group col-md-4">
-                                    <label for="min_notice_days">Délai minimum avant le rendez-vous (jours)</label>
+                                    <label for="min_notice_days">Délai minimum avant un thème (jours)</label>
                                     <input type="number" min="1" max="{{ Setup::MAX_NOTICE_DAYS }}"
                                            name="min_notice_days" id="min_notice_days" class="form-control"
                                            value="{{ $settingsValue('min_notice_days') }}"
                                            placeholder="{{ $defaults['min_notice_days'] }}">
                                     <span class="help-block">
-                                        Par défaut : {{ $defaults['min_notice_days'] }} {{ $defaults['min_notice_days'] > 1 ? 'jours' : 'jour' }}
-                                        — 1 jour = réservable dès le lendemain matin.
+                                        Par défaut : {{ $defaults['min_notice_days'] }} {{ $defaults['min_notice_days'] > 1 ? 'jours' : 'jour' }}.
+                                        Nombre de jours entre la demande et le premier rendez-vous possible :
+                                        1 = dès le lendemain matin, 2 = dès le surlendemain…
+                                        Sert aussi à la consultation si elle n'a pas son propre délai.
                                     </span>
                                 </div>
                                 <div class="form-group col-md-4">
-                                    <label for="max_advance_months">Réservation au plus tard dans (mois)</label>
+                                    <label for="max_advance_months">Réservable jusqu'à (mois à l'avance)</label>
                                     <input type="number" min="1" max="{{ Setup::MAX_ADVANCE_MONTHS }}"
                                            name="max_advance_months" id="max_advance_months" class="form-control"
                                            value="{{ $settingsValue('max_advance_months') }}"
                                            placeholder="{{ $defaults['max_advance_months'] }}">
-                                    <span class="help-block">Par défaut : {{ $defaults['max_advance_months'] }} mois</span>
+                                    <span class="help-block">
+                                        Par défaut : {{ $defaults['max_advance_months'] }} mois.
+                                        Au-delà, les dates ne sont pas proposées (thèmes et consultation).
+                                    </span>
                                 </div>
                             </div>
                         </div>
@@ -641,6 +654,8 @@
                         <div class="booking-section">
                             <h3>Horaires des demi-journées</h3>
                             <p class="booking-intro">
+                                Heures de début et de fin du matin et de l'après-midi : un thème se réserve par demi-journée entière,
+                                une consultation commence à une demi-heure comprise dans la demi-journée.
                                 Chaque bloc dure entre {{ Setup::BLOCK_MIN_MINUTES / 60 }} et {{ Setup::BLOCK_MAX_MINUTES / 60 }} heures.
                                 Laissez vide pour reprendre l'horaire par défaut.
                             </p>
@@ -1124,6 +1139,113 @@
                             @endforelse
                         </tbody>
                     </table>
+                </div>
+            </div>
+        </div>
+
+        {{-- ---------- Consultation ---------- --}}
+        @php
+            $consultValue = fn (string $key, $fallback) => $oldForm === 'consultation' ? old($key) : $fallback;
+            $consultMax   = (int) $consultValue('max_minutes', $consultation['max_minutes']);
+            $durationText = function (int $m) {
+                $h = intdiv($m, 60);
+                $r = $m % 60;
+                return $h === 0 ? $r . ' min' : ($r ? $h . ' h ' . $r : $h . ' h');
+            };
+        @endphp
+        <div class="stats-pane" data-pane="consultation" @if ($activeTab !== 'consultation') style="display:none" @endif>
+            <div class="panel panel-bordered">
+                <div class="panel-body">
+                    <form method="POST" action="{{ route('booking.experts.consultation.update', $expert->id) }}">
+                        @csrf
+                        @method('PUT')
+                        <input type="hidden" name="_tab" value="consultation">
+                        <input type="hidden" name="_form" value="consultation">
+
+                        <div class="booking-section">
+                            <p class="booking-intro">
+                                La consultation sur mesure permet à un confrère de poser sa propre question à cet expert,
+                                toujours en visio, en réservant 30 minutes, 1 h, 1 h 30… Le prix est celui de 30 minutes
+                                multiplié par le nombre de tranches. Elle ne bloque pas les demi-journées des thèmes :
+                                l'expert est seulement averti s'il a déjà un rendez-vous accepté au même moment.
+                            </p>
+                            <div class="checkbox">
+                                <label>
+                                    <input type="checkbox" name="enabled" value="1"
+                                        @checked($consultValue('enabled', $consultation['enabled']))>
+                                    <strong>Proposer la consultation sur mesure</strong>
+                                </label>
+                            </div>
+                            <p class="booking-muted">
+                                Visible par les confrères seulement si « Accepter les demandes de rendez-vous » est aussi coché
+                                dans l'onglet « Réglages » et qu'un prix est indiqué.
+                                @if (!$resolved['enabled_flg'])
+                                    <strong>Actuellement décoché : la consultation n'est pas proposée.</strong>
+                                @endif
+                            </p>
+                        </div>
+
+                        <div class="booking-section">
+                            <h3>Prix et durée</h3>
+                            <div class="row">
+                                <div class="form-group col-md-4">
+                                    <label for="consult-price">Prix pour 30 minutes (€ TTC)</label>
+                                    <input type="text" inputmode="decimal" name="price" id="consult-price" class="form-control"
+                                           value="{{ $consultValue('price', $consultation['price'] !== null ? str_replace('.', ',', (string) $consultation['price']) : '') }}"
+                                           placeholder="Ex. 60">
+                                    <span class="help-block">
+                                        Obligatoire pour proposer la consultation. Exemple : 60 € → 1 h = 120 €, 1 h 30 = 180 €.
+                                        0 = consultation offerte.
+                                    </span>
+                                </div>
+                                <div class="form-group col-md-4">
+                                    <label for="consult-max">Durée maximale qu'un confrère peut réserver</label>
+                                    <select name="max_minutes" id="consult-max" class="form-control">
+                                        @for ($m = ConsultationService::STEP_MINUTES * 2; $m <= ConsultationService::MAX_MINUTES_LIMIT; $m += ConsultationService::STEP_MINUTES)
+                                            <option value="{{ $m }}" @selected($consultMax === $m)>{{ $durationText($m) }}</option>
+                                        @endfor
+                                    </select>
+                                    <span class="help-block">
+                                        Le confrère choisit entre 30 minutes et cette durée, par tranches de 30 minutes.
+                                        Par défaut : {{ $durationText(ConsultationService::DEFAULT_MAX_MINUTES) }}.
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="booking-section">
+                            <h3>Délai de réservation</h3>
+                            <div class="row">
+                                <div class="form-group col-md-4">
+                                    <label for="consult-notice">Délai minimum avant une consultation (jours)</label>
+                                    <input type="number" min="1" max="{{ Setup::MAX_NOTICE_DAYS }}"
+                                           name="min_notice_days" id="consult-notice" class="form-control"
+                                           value="{{ $consultValue('min_notice_days', $consultation['min_notice_days']) }}"
+                                           placeholder="{{ $consultation['themes_min_notice'] }}">
+                                    <span class="help-block">
+                                        Vide = même délai que les thèmes, actuellement
+                                        {{ $consultation['themes_min_notice'] }} {{ $consultation['themes_min_notice'] > 1 ? 'jours' : 'jour' }}
+                                        (onglet « Réglages »). 1 = dès le lendemain matin.
+                                        S'applique aussi aux consultations demandées hors calendrier.
+                                    </span>
+                                </div>
+                                <div class="form-group col-md-8">
+                                    <label>Horaires proposés</label>
+                                    <p class="booking-muted" style="margin: 0;">
+                                        Dans le calendrier : toute demi-heure des demi-journées ouvertes (onglet « Disponibilités »),
+                                        à condition que la consultation se termine avant la fin de la demi-journée.<br>
+                                        Hors calendrier : le confrère propose un jour et une heure de début entre
+                                        {{ ConsultationService::OFF_CALENDAR_FIRST_START }} et {{ ConsultationService::OFF_CALENDAR_LAST_START }} ;
+                                        l'expert accepte ou refuse.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="booking-section">
+                            <button type="submit" class="btn btn-primary">Enregistrer la consultation</button>
+                        </div>
+                    </form>
                 </div>
             </div>
         </div>

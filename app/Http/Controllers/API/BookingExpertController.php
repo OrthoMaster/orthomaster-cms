@@ -316,7 +316,8 @@ class BookingExpertController extends Controller
             'to'               => ['nullable', 'date_format:Y-m-d', 'after_or_equal:from'],
         ]);
 
-        $bounds = $this->slots->bounds($expertId);
+        // Délai minimum propre à la consultation.
+        $bounds = $this->consultations->bounds($expertId);
 
         return $this->success([
             'timezone'   => $bounds['timezone'],

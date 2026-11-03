@@ -24,6 +24,7 @@ class ExpertBookingSetting extends Model
         'consultation_enabled',
         'consultation_price',
         'consultation_max_minutes',
+        'consultation_min_notice_days',
     ];
 
     protected $casts = [
@@ -34,5 +35,6 @@ class ExpertBookingSetting extends Model
         'consultation_enabled'     => 'boolean',
         'consultation_price'       => 'decimal:2',
         'consultation_max_minutes' => 'integer',
+        'consultation_min_notice_days' => 'integer',
     ];
 }

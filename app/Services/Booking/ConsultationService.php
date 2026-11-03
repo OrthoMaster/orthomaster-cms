@@ -41,16 +41,32 @@ class ConsultationService
 
     /* ===================== RÉGLAGES DE L'EXPERT ===================== */
 
-    /** @return array{enabled:bool, price:?float, max_minutes:int} */
+    /**
+     * min_notice_days     : délai propre à la consultation (null = celui des Thèmes) ;
+     * min_notice_resolved : délai effectivement appliqué ; themes_min_notice : celui des Thèmes.
+     *
+     * @return array{enabled:bool, price:?float, max_minutes:int, min_notice_days:?int, min_notice_resolved:int, themes_min_notice:int}
+     */
     public function settings(int $expertId): array
     {
-        $own = ExpertBookingSetting::where('expert_id', $expertId)->first();
+        $own    = ExpertBookingSetting::where('expert_id', $expertId)->first();
+        $themes = (int) $this->setup->resolved($expertId)['min_notice_days'];
+        $notice = $own?->consultation_min_notice_days;
 
         return [
-            'enabled'     => (bool) ($own->consultation_enabled ?? false),
-            'price'       => $own?->consultation_price !== null ? (float) $own->consultation_price : null,
-            'max_minutes' => (int) ($own?->consultation_max_minutes ?: self::DEFAULT_MAX_MINUTES),
+            'enabled'             => (bool) ($own->consultation_enabled ?? false),
+            'price'               => $own?->consultation_price !== null ? (float) $own->consultation_price : null,
+            'max_minutes'         => (int) ($own?->consultation_max_minutes ?: self::DEFAULT_MAX_MINUTES),
+            'min_notice_days'     => $notice !== null ? (int) $notice : null,
+            'min_notice_resolved' => $notice !== null ? (int) $notice : $themes,
+            'themes_min_notice'   => $themes,
         ];
+    }
+
+    /** Bornes de réservation d'une consultation : délai minimum propre, même limite lointaine. */
+    public function bounds(int $expertId): array
+    {
+        return $this->slots->bounds($expertId, $this->settings($expertId)['min_notice_resolved']);
     }
 
     /** Proposée aux demandeurs : activée, avec un prix, et prise de rendez-vous de l'expert activée. */
@@ -63,7 +79,7 @@ class ConsultationService
 
     /**
      * Mise à jour partielle : un champ absent garde sa valeur.
-     * Corps : enabled?, price?, max_minutes?
+     * Corps : enabled?, price?, max_minutes?, min_notice_days? (null = délai des Thèmes)
      */
     public function save(int $expertId, array $input): array
     {
@@ -73,16 +89,21 @@ class ConsultationService
             'enabled'     => ['sometimes', 'boolean'],
             'price'       => ['sometimes', 'nullable', 'numeric', 'min:0', 'max:' . self::PRICE_MAX],
             'max_minutes' => ['sometimes', 'nullable', 'integer', 'min:' . self::STEP_MINUTES, 'max:' . self::MAX_MINUTES_LIMIT],
+            'min_notice_days' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:' . ExpertBookingSetupService::MAX_NOTICE_DAYS],
         ], [], [
             'enabled'     => 'activation',
             'price'       => 'prix pour 30 minutes',
             'max_minutes' => 'durée maximale',
+            'min_notice_days' => 'délai minimum avant la consultation',
         ])->validate();
 
         $next = [
             'enabled'     => array_key_exists('enabled', $data) ? (bool) $data['enabled'] : $current['enabled'],
             'price'       => array_key_exists('price', $data) ? ($data['price'] === null ? null : round((float) $data['price'], 2)) : $current['price'],
             'max_minutes' => array_key_exists('max_minutes', $data) ? ($data['max_minutes'] ?? self::DEFAULT_MAX_MINUTES) : $current['max_minutes'],
+            'min_notice_days' => array_key_exists('min_notice_days', $data)
+                ? ($data['min_notice_days'] === null ? null : (int) $data['min_notice_days'])
+                : $current['min_notice_days'],
         ];
 
         if ($next['max_minutes'] % self::STEP_MINUTES !== 0) {
@@ -98,6 +119,7 @@ class ConsultationService
                 'consultation_enabled'     => $next['enabled'],
                 'consultation_price'       => $next['price'],
                 'consultation_max_minutes' => $next['max_minutes'],
+                'consultation_min_notice_days' => $next['min_notice_days'],
             ]
         );
 
@@ -117,10 +139,14 @@ class ConsultationService
             return null;
         }
 
-        $s = $this->settings($expertId);
+        $s      = $this->settings($expertId);
+        $bounds = $this->bounds($expertId);
 
         return [
             'price_30'     => $s['price'],
+            // Bornes propres à la consultation (délai minimum indépendant des Thèmes).
+            'first_date'   => $bounds['first_date'],
+            'last_date'    => $bounds['last_date'],
             'currency'     => 'eur',
             'step_minutes' => self::STEP_MINUTES,
             'max_minutes'  => $s['max_minutes'],
@@ -154,7 +180,9 @@ class ConsultationService
         $this->assertDuration($expertId, $minutes);
         $tz = $this->setup->resolved($expertId)['timezone'];
 
-        return $this->slots->availableBlocks($expertId, $from, $to, false, null, true)
+        $notice = $this->settings($expertId)['min_notice_resolved'];
+
+        return $this->slots->availableBlocks($expertId, $from, $to, false, null, true, $notice)
             ->groupBy('date')
             ->map(fn (Collection $blocks, string $date) => [
                 'date'  => $date,
@@ -182,7 +210,8 @@ class ConsultationService
         }
 
         $settings = $this->setup->resolved($expertId);
-        $bounds   = $this->slots->bounds($expertId);
+        $bounds   = $this->bounds($expertId);
+        $notice   = $this->settings($expertId)['min_notice_resolved'];
         $tz       = $settings['timezone'];
         $start    = Carbon::parse($date . ' ' . $startTime, $tz);
         $end      = $start->copy()->addMinutes($minutes);
@@ -192,7 +221,7 @@ class ConsultationService
         }
 
         // Dans une demi-journée ouverte : horaire du calendrier.
-        $inCalendar = $this->slots->availableBlocks($expertId, $date, $date, false, null, true)
+        $inCalendar = $this->slots->availableBlocks($expertId, $date, $date, false, null, true, $notice)
             ->contains(fn (array $b) => $start->gte($b['start_at']) && $end->lte($b['end_at']));
 
         if (!$inCalendar && ($startTime < self::OFF_CALENDAR_FIRST_START || $startTime > self::OFF_CALENDAR_LAST_START)) {

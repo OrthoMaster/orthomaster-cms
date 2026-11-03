@@ -124,12 +124,12 @@ class ExpertBookingSetupController extends Controller
      * Consultation sur mesure : activation, prix TTC de 30 minutes, durée maximale.
      * Mise à jour partielle.
      * PUT /booking/me/consultation
-     * Corps : enabled?, price?, max_minutes?
+     * Corps : enabled?, price?, max_minutes?, min_notice_days? (null = délai des Thèmes)
      */
     public function updateConsultation(Request $request): JsonResponse
     {
         $expertId = $this->requireExpert($request);
-        $this->consultations->save($expertId, $request->only(['enabled', 'price', 'max_minutes']));
+        $this->consultations->save($expertId, $request->only(['enabled', 'price', 'max_minutes', 'min_notice_days']));
 
         return $this->success($this->payload($expertId));
     }

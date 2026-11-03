@@ -12,6 +12,7 @@ use App\Models\ExpertOffer;
 use App\Models\ExpertOfferDate;
 use App\Models\ExpertOfferMode;
 use App\Models\ExpertOfferSlot;
+use App\Services\Booking\ConsultationService;
 use App\Services\Booking\ExpertBookingSetupService;
 use App\Support\Brochures\BrochurePublisher;
 use Carbon\Carbon;
@@ -31,7 +32,7 @@ class ExpertSetupController extends Controller
      * Ordre de saisie naturel : lieux, puis grille (qui y fait référence), puis offres ;
      * la page vitrine en dernier.
      */
-    public const TABS = ['settings', 'locations', 'availability', 'offers', 'showcase'];
+    public const TABS = ['settings', 'locations', 'availability', 'offers', 'consultation', 'showcase'];
 
     public function __construct(private ExpertBookingSetupService $setup)
     {
@@ -141,10 +142,13 @@ class ExpertSetupController extends Controller
         $expertModel = Expert::with(['domains', 'brochureDraft'])->findOrFail($expertId);
         $showcase    = BrochurePublisher::overview($expertModel);
 
+        // Consultation sur mesure : réglages propres (onglet « Consultation »).
+        $consultation = app(ConsultationService::class)->settings($expertId);
+
         return view('booking.experts.show', compact(
             'expert', 'settings', 'resolved', 'defaults', 'locations', 'lockedLocationIds', 'offers', 'offerSlots', 'offerDates',
             'rules', 'exceptions', 'grid', 'gridDates', 'modeLabels', 'scheduleLabels', 'today', 'tab',
-            'expertModel', 'showcase'
+            'expertModel', 'showcase', 'consultation'
         ));
     }
 
@@ -169,6 +173,31 @@ class ExpertSetupController extends Controller
         ]);
 
         return $this->backTo($expertId, 'settings', 'Réglages enregistrés.');
+    }
+
+    /* ===================== CONSULTATION ===================== */
+
+    /**
+     * Consultation sur mesure : activation, prix de 30 minutes, durée maximale,
+     * délai minimum avant la consultation (vide = même délai que les Thèmes).
+     * PUT /booking/experts/{expertId}/consultation
+     */
+    public function updateConsultation(Request $request, int $expertId): RedirectResponse
+    {
+        $this->findExpert($expertId);
+
+        $price  = trim((string) $request->input('price', ''));
+        $notice = trim((string) $request->input('min_notice_days', ''));
+
+        app(ConsultationService::class)->save($expertId, [
+            // Une case décochée n'est pas envoyée : on la lit explicitement.
+            'enabled'         => $request->boolean('enabled'),
+            'price'           => $price === '' ? null : str_replace(',', '.', $price),
+            'max_minutes'     => $request->input('max_minutes'),
+            'min_notice_days' => $notice === '' ? null : $notice,
+        ]);
+
+        return $this->backTo($expertId, 'consultation', 'Réglages de la consultation enregistrés.');
     }
 
     /* ===================== LIEUX ===================== */

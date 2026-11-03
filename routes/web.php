@@ -486,6 +486,7 @@ Route::group(['prefix' => 'admin', 'middleware' => ['cmsAdmin']], function () {
                     Route::prefix('{expertId}')->whereNumber('expertId')->group(function () {
                         Route::get('/', 'show')->name('show');
                         Route::put('settings', 'updateSettings')->name('settings.update');
+                        Route::put('consultation', 'updateConsultation')->name('consultation.update');
 
                         Route::post('locations', 'storeLocation')->name('locations.store');
                         Route::put('locations/{location}', 'updateLocation')->name('locations.update');

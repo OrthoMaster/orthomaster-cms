@@ -48,15 +48,17 @@ class ExpertSlotService
      * Bornes de réservation actuelles d'un expert, en dates locales (Y-m-d).
      * Sert au calendrier de l'application pour griser les mois hors limites.
      *
+     * $noticeDays remplace le délai minimum de l'expert (consultation : délai propre).
+     *
      * @return array{timezone:string, earliest_at:Carbon, first_date:string, last_date:string}
      */
-    public function bounds(int $expertId): array
+    public function bounds(int $expertId, ?int $noticeDays = null): array
     {
         $settings = $this->setup->resolved($expertId);
         $now      = Carbon::now($settings['timezone']);
 
         // Jours calendaires : avec 1 jour, toute la journée de demain est ouverte, dès le matin.
-        $earliest = $now->copy()->startOfDay()->addDays($settings['min_notice_days']);
+        $earliest = $now->copy()->startOfDay()->addDays($noticeDays ?? $settings['min_notice_days']);
         $last     = $now->copy()->addMonthsNoOverflow($settings['max_advance_months']);
 
         return [
@@ -85,7 +87,8 @@ class ExpertSlotService
         ?string $to = null,
         bool $ignoreEnabled = false,
         ?ExpertOfferMode $offerMode = null,
-        bool $ignoreHeld = false
+        bool $ignoreHeld = false,
+        ?int $noticeDays = null
     ): Collection {
         $settings = $this->setup->resolved($expertId);
 
@@ -96,7 +99,7 @@ class ExpertSlotService
             return collect();
         }
 
-        $bounds = $this->bounds($expertId);
+        $bounds = $this->bounds($expertId, $noticeDays);
         [$from, $to] = $this->clampRange($from, $to, $bounds);
 
         if ($from > $to) {
