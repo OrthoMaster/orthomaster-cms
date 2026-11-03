@@ -45,8 +45,8 @@ class BookingExpertController extends Controller
      * Tous les experts sauf l'expert connecté : ceux qui acceptent des demandes en tête,
      * puis les autres, par nom. Recherche sur le nom, le titre, les références et les domaines.
      * Chaque expert réservable porte la liste courte de ses offres (repliable dans la liste).
-     * Filtres « Nom » (nom, titre) et « Ville » (un lieu actif de l'expert), combinables.
-     * GET /booking/experts?page=1&q=&consultation=1&name=&city=
+     * Filtre « Nom » (nom, titre).
+     * GET /booking/experts?page=1&q=&consultation=1&name=
      */
     public function index(Request $request): JsonResponse
     {
@@ -55,7 +55,6 @@ class BookingExpertController extends Controller
             'q'            => ['nullable', 'string', 'max:100'],
             'consultation' => ['nullable', 'boolean'],
             'name'         => ['nullable', 'string', 'max:100'],
-            'city'         => ['nullable', 'string', 'max:120'],
         ]);
 
         $page   = (int) $request->input('page', 1);
@@ -83,7 +82,7 @@ class BookingExpertController extends Controller
                         ->whereHas('domains', fn ($d) => $d->where('label', 'like', $like))
                         ->select('id')));
             });
-        self::applyNameCityFilters($query, (string) $request->input('name', ''), (string) $request->input('city', ''));
+        self::applyNameFilter($query, (string) $request->input('name', ''));
 
         $total = (clone $query)->count();
 
@@ -547,44 +546,30 @@ class BookingExpertController extends Controller
         return response()->json(['success' => true, 'data' => $data], $status);
     }
 
-    /**
-     * Filtres combinables de la liste (et de la recherche intelligente) sur la table experts « e » :
-     * nom ou titre ; ville (ou début de code postal) d'un lieu actif de l'expert.
-     */
-    public static function applyNameCityFilters($query, string $name, string $city): void
+    /** Filtre Nom de la liste (et de la recherche intelligente) sur la table experts « e » : nom ou titre. */
+    public static function applyNameFilter($query, string $name): void
     {
         $name = trim($name);
-        $city = trim($city);
-
         if ($name !== '') {
             $like = '%' . $name . '%';
             $query->where(fn ($w) => $w->where('e.name', 'like', $like)->orWhere('e.honorific', 'like', $like));
-        }
-
-        if ($city !== '') {
-            $query->whereExists(fn ($l) => $l
-                ->select(DB::raw(1))
-                ->from('expert_locations as l')
-                ->whereColumn('l.expert_id', 'e.id')
-                ->whereNull('l.archived_at')
-                ->where(fn ($c) => $c->where('l.city', 'like', '%' . $city . '%')->orWhere('l.postal_code', 'like', $city . '%')));
         }
     }
 
     /**
      * Experts que la recherche intelligente peut proposer : avec un compte, sauf l'utilisateur ;
-     * Consultation : seulement ceux qui la proposent. Filtres Nom et Ville appliqués avant l'IA.
+     * Consultation : seulement ceux qui la proposent. Filtre Nom appliqué avant l'IA.
      *
      * @return int[]
      */
-    public function searchableExpertIds(int $userId, bool $consultationOnly, string $name = '', string $city = ''): array
+    public function searchableExpertIds(int $userId, bool $consultationOnly, string $name = ''): array
     {
         $query = DB::table('experts as e')
             ->leftJoin('expert_booking_settings as s', 's.expert_id', '=', 'e.id')
             ->whereNotNull('e.user_id')
             ->where('e.user_id', '!=', $userId)
             ->when($consultationOnly, fn ($q) => $q->whereRaw(self::CONSULTATION_ON_SQL));
-        self::applyNameCityFilters($query, $name, $city);
+        self::applyNameFilter($query, $name);
 
         return $query->pluck('e.id')->map(fn ($id) => (int) $id)->all();
     }
