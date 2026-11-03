@@ -86,13 +86,22 @@ class BookingChatController extends Controller
     public function start(Request $request): JsonResponse
     {
         $request->validate([
-            'offer_id' => ['required', 'integer'],
+            // offer_id : depuis un thème ; expert_id : directement (Consultation), fil ouvert sans encadré.
+            'offer_id'  => ['required_without:expert_id', 'nullable', 'integer'],
+            'expert_id' => ['required_without:offer_id', 'nullable', 'integer'],
             'mode'     => ['nullable', 'in:' . implode(',', array_keys(\App\Models\ExpertOfferMode::MODE_LABELS))],
             // draft = true : fil ouvert sans encadré « à propos du thème » (le demandeur écrit lui-même).
             'draft'    => ['nullable', 'boolean'],
         ]);
 
         $userId = $request->user()->id;
+
+        if (!$request->filled('offer_id')) {
+            $conversation = $this->chat->startWithExpert($userId, (int) $request->input('expert_id'));
+
+            return $this->success($this->detail($conversation, $userId), 201);
+        }
+
         $conversation = $this->chat->startFromOffer(
             $userId,
             (int) $request->input('offer_id'),

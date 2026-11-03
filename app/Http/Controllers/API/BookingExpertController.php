@@ -94,7 +94,8 @@ class BookingExpertController extends Controller
             ->get();
 
         // Ordre et statut en query builder, puis models chargés en une requête pour l'avatar S3.
-        $models = Expert::whereIn('id', $rows->pluck('id'))->get()->keyBy('id');
+        // Domaines chargés : affichés sur les cartes (liste Consultation).
+        $models = Expert::with('domains')->whereIn('id', $rows->pluck('id'))->get()->keyBy('id');
 
         // Offres des experts réservables de la page, en une requête.
         $onlineIds = $rows->filter(fn ($row) => $row->is_online && $row->themes_on)->pluck('id')->all();
@@ -111,7 +112,7 @@ class BookingExpertController extends Controller
 
         $experts = $rows
             ->filter(fn ($row) => $models->has($row->id))
-            ->map(fn ($row) => self::expertPayload($models[$row->id], false) + [
+            ->map(fn ($row) => self::expertPayload($models[$row->id]) + [
                 'online' => (bool) $row->is_online,
                 'offers' => $offersByExpert->get($row->id, collect())
                     ->map(fn (ExpertOffer $offer) => $this->offerSummary($offer))
@@ -281,7 +282,7 @@ class BookingExpertController extends Controller
             return collect();
         }
 
-        $models = Expert::whereIn('id', $ids)->get()->keyBy('id');
+        $models = Expert::with('domains')->whereIn('id', $ids)->get()->keyBy('id');
         // Thèmes : seulement chez les experts qui acceptent les demandes sur leurs thèmes.
         $themesOnIds = DB::table('expert_booking_settings')->whereIn('expert_id', $ids)->where('enabled_flg', true)->pluck('expert_id')->all();
         $offersByExpert = ExpertOffer::active()
@@ -295,7 +296,7 @@ class BookingExpertController extends Controller
 
         return collect($ids)
             ->filter(fn ($id) => $models->has($id))
-            ->map(fn ($id) => self::expertPayload($models[$id], false) + [
+            ->map(fn ($id) => self::expertPayload($models[$id]) + [
                 'online'       => $this->isBookable($id),
                 'offers'       => $offersByExpert->get($id, collect())
                     ->map(fn (ExpertOffer $offer) => $this->offerSummary($offer))
@@ -375,7 +376,7 @@ class BookingExpertController extends Controller
     /**
      * Forme commune d'un expert. Domaines dans l'ordre défini par la position du pivot.
      * Le slug suffit : l'application compose l'adresse de la page vitrine web.
-     * Sans domaines pour la liste : ils n'y sont pas affichés, inutile de les charger.
+     * Liste et recherche les chargent aussi (pastilles de la carte Consultation).
      */
     public static function expertPayload(Expert $expert, bool $withDomains = true): array
     {

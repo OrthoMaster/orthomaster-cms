@@ -227,6 +227,35 @@ class BookingChatService
         return $conversation->refresh();
     }
 
+    /**
+     * Le demandeur contacte directement un expert (Consultation, sans thème) :
+     * ouvre seulement le fil, sans encadré ni notification ; l'application pré-remplit
+     * la saisie et rien n'est envoyé tant que le demandeur n'écrit pas.
+     *
+     * @throws ValidationException expert introuvable, sans compte, ou soi-même
+     */
+    public function startWithExpert(int $userId, int $expertId): BookingConversation
+    {
+        $expertUserId = DB::table('experts')->where('id', $expertId)->value('user_id');
+        if (!$expertUserId) {
+            throw ValidationException::withMessages(['expert_id' => "Cet expert ne peut pas être contacté pour le moment."]);
+        }
+        if ((int) $expertUserId === $userId) {
+            throw ValidationException::withMessages(['expert_id' => 'Vous ne pouvez pas vous contacter vous-même.']);
+        }
+
+        $conversation = $this->conversationFor($expertId, $userId);
+
+        DB::transaction(function () use ($conversation) {
+            $locked = BookingConversation::whereKey($conversation->id)->lockForUpdate()->first();
+            if (!$locked->opened_at) {
+                $locked->update(['opened_at' => now()]);
+            }
+        });
+
+        return $conversation->refresh();
+    }
+
     /* ===================== ÉVÉNEMENTS ===================== */
 
     /**
