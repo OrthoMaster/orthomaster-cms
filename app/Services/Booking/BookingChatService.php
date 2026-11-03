@@ -269,7 +269,7 @@ class BookingChatService
             return null;
         }
 
-        $booking = Booking::with('blocks')->find($event->booking_id);
+        $booking = Booking::with(['blocks', 'windows'])->find($event->booking_id);
         if (!$booking || !$booking->requested_at) {
             return null;
         }
@@ -295,6 +295,15 @@ class BookingChatService
                         ->map(fn (BookingBlock $b) => ['date' => $b->date->toDateString(), 'period' => $b->period])
                         ->values()
                         ->all(),
+                    // Créneaux proposés, tant que l'expert n'a pas choisi l'horaire (sinon les demi-journées).
+                    'windows'     => $booking->blocks->isEmpty() && $booking->windows->isNotEmpty()
+                        ? $booking->windows->map(fn ($w) => [
+                            'start_date' => $w->start_date->toDateString(),
+                            'start'      => $w->start_time ?? (self::PERIODS[$w->start_period] ?? ''),
+                            'end_date'   => $w->end_date->toDateString(),
+                            'end'        => $w->end_time ?? (self::PERIODS[$w->end_period] ?? ''),
+                        ])->values()->all()
+                        : null,
                     'reason'      => $event->type === 'declined' ? ($data['reason'] ?? null) : null,
                     'note'        => $event->type === 'declined' ? ($data['note'] ?? null) : null,
                 ], fn ($v) => $v !== null)),
@@ -630,6 +639,15 @@ class BookingChatService
                 $dates .= ' +' . ($blocks->count() - self::EVENT_DATES_SHOWN);
             }
             $parts[] = $dates;
+        }
+
+        // « créneaux : 12/11 09:00 → 12/11 12:00 ; 14/11 matin → 15/11 après-midi »
+        $windows = collect($data['windows'] ?? []);
+        if ($windows->isNotEmpty()) {
+            $parts[] = 'créneaux : ' . $windows
+                ->map(fn ($w) => Carbon::parse($w['start_date'])->format('d/m') . ' ' . $w['start']
+                    . ' → ' . Carbon::parse($w['end_date'])->format('d/m') . ' ' . $w['end'])
+                ->implode(' ; ');
         }
 
         return implode(', ', $parts);

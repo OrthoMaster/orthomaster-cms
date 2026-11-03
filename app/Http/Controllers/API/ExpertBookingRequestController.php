@@ -10,6 +10,7 @@ use App\Models\BookingNoShowReport;
 use App\Services\Booking\BookingCheckoutService;
 use App\Services\Booking\BookingDecisionService;
 use App\Services\Booking\BookingNoShowService;
+use App\Services\Booking\BookingWindowService;
 use App\Services\Booking\ConsultationService;
 use App\Services\Booking\ExpertBookingSetupService;
 use Illuminate\Database\Eloquent\Builder;
@@ -33,7 +34,8 @@ class ExpertBookingRequestController extends Controller
         private BookingDecisionService $decisions,
         private BookingNoShowService $noShows,
         private ConsultationService $consultations,
-        private ExpertBookingSetupService $setup
+        private ExpertBookingSetupService $setup,
+        private BookingWindowService $windows
     ) {
     }
 
@@ -99,15 +101,20 @@ class ExpertBookingRequestController extends Controller
 
     /**
      * POST /booking/me/requests/{booking}/accept
-     * Corps : location_id? (présentiel hors calendrier : lieu choisi par l'expert)
+     * Corps : location_id? (présentiel hors calendrier : lieu choisi par l'expert),
+     *         window_start? (demande par créneaux : horaire choisi, voir BookingWindowService)
      */
     public function accept(Request $request, int $bookingId): JsonResponse
     {
-        $request->validate(['location_id' => ['nullable', 'integer']]);
+        $request->validate([
+            'location_id'  => ['nullable', 'integer'],
+            'window_start' => ['nullable', 'string', 'max:20'],
+        ]);
 
         $booking = $this->decisions->accept(
             $this->find($request, $bookingId),
-            locationId: $request->filled('location_id') ? (int) $request->input('location_id') : null
+            locationId: $request->filled('location_id') ? (int) $request->input('location_id') : null,
+            windowStart: $request->input('window_start')
         );
 
         return $this->success($this->detail($booking->load(['user', 'declineReason', 'noShowReports'])));
@@ -148,7 +155,13 @@ class ExpertBookingRequestController extends Controller
     {
         $needsLocation = BookingDecisionService::needsLocation($booking);
 
+        $choosing = $booking->status === Booking::STATUS_PENDING && $booking->awaitsWindowChoice();
+
         return self::payload($booking, true) + [
+            // Créneaux : l'expert choisit l'horaire en acceptant (thème : demi-journées possibles ;
+            // consultation : l'application calcule les heures à partir des créneaux et de la durée).
+            'needs_window_choice' => $choosing,
+            'window_options'      => $choosing ? $this->windows->themeOptions($booking) : [],
             'noshow'         => $this->noShows->payload($booking, BookingNoShowReport::REPORTER_EXPERT),
             'conflicts'      => $this->consultations->conflicts($booking),
             'needs_location' => $needsLocation && $booking->status === Booking::STATUS_PENDING,
@@ -174,7 +187,7 @@ class ExpertBookingRequestController extends Controller
         return Booking::query()
             ->submitted()
             ->where('expert_id', $this->expertId($request))
-            ->with(['blocks', 'user', 'declineReason', 'noShowReports']);
+            ->with(['blocks', 'windows', 'user', 'declineReason', 'noShowReports']);
     }
 
     private function find(Request $request, int $bookingId): Booking
@@ -212,6 +225,8 @@ class ExpertBookingRequestController extends Controller
             'blocks'           => $booking->blocks
                 ->map(fn (BookingBlock $b) => BookingRequestController::blockPayload($b, true, BookingRequestController::meetVisible($booking)))
                 ->values(),
+            // Créneaux proposés hors calendrier (vide sinon) ; restent visibles après le choix.
+            'windows'          => app(BookingWindowService::class)->payload($booking),
             'respond_by'       => $booking->respond_by?->toIso8601String(),
             'requested_at'     => $booking->requested_at?->toIso8601String(),
             'responded_at'     => $booking->responded_at?->toIso8601String(),

@@ -26,6 +26,14 @@
         ? \App\Models\ExpertLocation::where('expert_id', $booking->expert_id)->active()->orderBy('label')->get()
         : collect();
 
+    // Hors calendrier par créneaux : horaire à choisir en acceptant.
+    $windowService  = app(\App\Services\Booking\BookingWindowService::class);
+    $windows        = $booking->windows()->get();
+    $choosingWindow = $booking->status === 'pending' && $booking->awaitsWindowChoice();
+    $windowOptions  = $choosingWindow && !$isConsultation ? collect($windowService->themeOptions($booking)) : collect();
+    $windowLabel    = fn ($w) => $w->start_date->format('d/m/Y') . ' ' . ($w->start_time ?? ($periods[$w->start_period] ?? $w->start_period))
+        . ' → ' . $w->end_date->format('d/m/Y') . ' ' . ($w->end_time ?? ($periods[$w->end_period] ?? $w->end_period));
+
     // Itinéraire Google Maps : coordonnées si connues, sinon l'adresse en texte.
     $mapsUrl = function (array $l) {
         $params = ['api' => 1];
@@ -433,6 +441,18 @@
                             @endif
                         </dl>
 
+                        @if ($windows->isNotEmpty())
+                            <h3 style="margin-top: 24px;">Créneaux proposés</h3>
+                            <ul style="padding-left: 18px;">
+                                @foreach ($windows as $w)
+                                    <li>{{ $windowLabel($w) }}</li>
+                                @endforeach
+                            </ul>
+                            @if ($choosingWindow)
+                                <p class="booking-muted">L'horaire sera choisi dans un de ces créneaux à l'acceptation.</p>
+                            @endif
+                        @endif
+
                         <h3 style="margin-top: 24px;">Demi-journées</h3>
                         <table class="table table-striped" style="margin: 0;">
                             <thead>
@@ -753,6 +773,21 @@
                                           onsubmit="return confirm('Accepter au nom de l\'expert ? Le montant réservé sera débité.');"
                                           style="margin-bottom: 10px;">
                                         @csrf
+                                        @if ($choosingWindow && $isConsultation)
+                                            <label class="booking-muted">Début (heure de l'expert, dans un créneau, par demi-heure)</label>
+                                            <input type="datetime-local" name="window_start_local" class="form-control" step="1800" required style="margin-bottom: 8px;">
+                                        @elseif ($choosingWindow)
+                                            <select name="window_start" class="form-control" required style="margin-bottom: 8px;">
+                                                <option value="">Première demi-journée…</option>
+                                                @foreach ($windowOptions as $o)
+                                                    <option value="{{ $o['value'] }}" @disabled(!$o['available'])>
+                                                        {{ \Carbon\Carbon::parse($o['date'])->format('d/m/Y') }} {{ $periods[$o['period']] ?? $o['period'] }}
+                                                        ({{ $o['start_local'] }} → {{ \Carbon\Carbon::parse($o['end_date'])->format('d/m') }} {{ $o['end_local'] }})
+                                                        {{ $o['available'] ? '' : '— indisponible' }}
+                                                    </option>
+                                                @endforeach
+                                            </select>
+                                        @endif
                                         @if ($needsLocation)
                                             <select name="location_id" class="form-control" required style="margin-bottom: 8px;">
                                                 <option value="">Lieu (demande hors calendrier)…</option>

@@ -73,6 +73,21 @@ class Booking extends Model
         return $this->kind === self::KIND_CONSULTATION;
     }
 
+    /** Créneaux proposés hors calendrier (l'expert choisit l'horaire en acceptant). */
+    public function windows(): HasMany
+    {
+        return $this->hasMany(BookingWindow::class)->orderBy('position');
+    }
+
+    /** Demande par créneaux dont l'horaire n'est pas encore choisi (aucune demi-journée). */
+    public function awaitsWindowChoice(): bool
+    {
+        $windows = $this->relationLoaded('windows') ? $this->windows : $this->windows()->get();
+        $blocks  = $this->relationLoaded('blocks') ? $this->blocks : $this->blocks()->get();
+
+        return $windows->isNotEmpty() && $blocks->isEmpty();
+    }
+
     public function blocks(): HasMany
     {
         return $this->hasMany(BookingBlock::class)->orderBy('date')->orderBy('start_local');

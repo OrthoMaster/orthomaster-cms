@@ -3,12 +3,14 @@
 namespace App\Services\Booking;
 
 use App\Models\Booking;
+use App\Models\BookingBlock;
 use App\Models\BookingDeclineReason;
 use App\Models\BookingEvent;
 use App\Models\ExpertLocation;
 use App\Models\ExpertOfferMode;
 use App\Models\Invoice;
 use App\Services\StripeService;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
@@ -29,7 +31,7 @@ class BookingDecisionService
 {
     public const DECLINE_NOTE_MAX = 300;
 
-    public function __construct(private StripeService $stripe)
+    public function __construct(private StripeService $stripe, private BookingWindowService $windows)
     {
     }
 
@@ -38,8 +40,31 @@ class BookingDecisionService
     /**
      * $actor / $adminId : l'administration peut répondre au nom de l'expert depuis le CMS.
      * $locationId : en présentiel, lieu des demi-journées demandées hors calendrier (choisi par l'expert).
+     * $windowStart : demande par créneaux, horaire choisi par l'expert (« Y-m-d H:i » pour une
+     *   consultation, « Y-m-d|période » pour un thème) ; les demi-journées sont créées à ce moment.
      */
-    public function accept(Booking $booking, string $actor = BookingEvent::ACTOR_EXPERT, ?int $adminId = null, ?int $locationId = null): Booking
+    public function accept(
+        Booking $booking,
+        string $actor = BookingEvent::ACTOR_EXPERT,
+        ?int $adminId = null,
+        ?int $locationId = null,
+        ?string $windowStart = null
+    ): Booking {
+        try {
+            return $this->acceptChecked($booking, $actor, $adminId, $locationId, $windowStart);
+        } catch (QueryException $e) {
+            // 23000 : index unique hold_key, une demi-journée choisie vient d'être retenue ailleurs.
+            if ($e->getCode() !== '23000') {
+                throw $e;
+            }
+
+            throw ValidationException::withMessages([
+                'window_start' => "Une des demi-journées choisies vient d'être retenue : choisissez un autre horaire.",
+            ]);
+        }
+    }
+
+    private function acceptChecked(Booking $booking, string $actor, ?int $adminId, ?int $locationId, ?string $windowStart): Booking
     {
         $expired = false;
 
@@ -56,13 +81,37 @@ class BookingDecisionService
             }
         }
 
-        $booking = $this->withPending($booking, function (Booking $booking) use ($actor, $adminId, &$expired, $location) {
+        $booking = $this->withPending($booking, function (Booking $booking) use ($actor, $adminId, &$expired, $location, $windowStart) {
             // Délai dépassé mais job pas encore passé : on applique l'expiration tout de suite.
             if ($booking->respond_by && $booking->respond_by->isPast()) {
                 $this->expireLocked($booking);
                 $expired = true;
 
                 return $booking;
+            }
+
+            // Créneaux : les demi-journées de l'horaire choisi, retenues avant tout débit
+            // (un conflit annule la transaction, rien n'est encaissé).
+            if ($booking->awaitsWindowChoice()) {
+                foreach ($this->windows->blocksFor($booking, $windowStart) as $block) {
+                    $booking->blocks()->create([
+                        'expert_id'    => $booking->expert_id,
+                        'date'         => $block['date'],
+                        'period'       => $block['period'],
+                        'start_local'  => $block['start_local'],
+                        'end_local'    => $block['end_local'],
+                        'start_at'     => $block['start_at'],
+                        'end_at'       => $block['end_at'],
+                        'location_id'  => null,
+                        'location'     => null,
+                        'off_calendar' => true,
+                        // Une consultation ne retient rien (voir submit).
+                        'hold_key'     => $booking->isConsultation()
+                            ? null
+                            : BookingBlock::holdKey($booking->expert_id, $block['date'], $block['period']),
+                    ]);
+                }
+                $booking->unsetRelation('blocks');
             }
 
             $invoice = $booking->invoice_id ? Invoice::find($booking->invoice_id) : null;
@@ -98,7 +147,8 @@ class BookingDecisionService
                 $booking,
                 'accepted',
                 $actor,
-                ['captured' => $booking->payment_required ? (float) $booking->amount_ttc : 0],
+                ['captured' => $booking->payment_required ? (float) $booking->amount_ttc : 0]
+                    + ($windowStart ? ['window_start' => $windowStart] : []),
                 $actor === BookingEvent::ACTOR_ADMIN ? BookingEvent::ACTOR_EXPERT : null,
                 $adminId
             );
@@ -124,6 +174,11 @@ class BookingDecisionService
     {
         if ($booking->mode !== ExpertOfferMode::ONSITE || !$booking->off_calendar) {
             return false;
+        }
+
+        // Créneaux sans horaire choisi : les demi-journées seront créées sans lieu.
+        if ($booking->awaitsWindowChoice()) {
+            return true;
         }
 
         $blocks = $booking->relationLoaded('blocks') ? $booking->blocks : $booking->blocks()->get();

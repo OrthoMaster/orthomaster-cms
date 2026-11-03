@@ -375,8 +375,9 @@ class PaymentController extends Controller
      * Crée la demande (en attente de paiement), sa facture et l'intention de paiement à
      * capture manuelle. Paiement désactivé : la demande part directement chez l'expert.
      * POST /payments/bookings/create-intent
-     * Corps : offer_id, mode (online|onsite), blocks[{date, period}], off_calendar?, address, message?
-     * Consultation : kind=consultation, expert_id, date, start_time, duration_minutes, subject, address, message?
+     * Corps : offer_id, mode (online|onsite), blocks[{date, period}] | windows[…], off_calendar?, address, message?
+     * Consultation : kind=consultation, expert_id, date + start_time | windows[…], duration_minutes, subject, address, message?
+     * windows : hors calendrier par créneaux (voir BookingWindowService).
      */
     public function createBookingPaymentIntent(Request $request): JsonResponse
     {
@@ -384,7 +385,7 @@ class PaymentController extends Controller
         // Sans mode (ancienne version de l'application) : en ligne, le seul mode d'avant.
         $booking = $this->bookingCheckout->prepare($request->user(), $request->only([
             'kind', 'offer_id', 'blocks', 'off_calendar', 'address', 'message',
-            'expert_id', 'date', 'start_time', 'duration_minutes', 'subject',
+            'expert_id', 'date', 'start_time', 'duration_minutes', 'subject', 'windows',
         ]) + ['mode' => $request->input('mode', ExpertOfferMode::ONLINE)]);
 
         if (!$booking->payment_required) {

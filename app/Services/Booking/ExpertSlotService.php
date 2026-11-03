@@ -219,7 +219,7 @@ class ExpertSlotService
      *
      * @return array<string, true> clés « date|période »
      */
-    private function heldKeys(int $expertId, string $from, string $to): array
+    public function heldKeys(int $expertId, string $from, string $to): array
     {
         return BookingBlock::where('expert_id', $expertId)
             ->whereBetween('date', [$from, $to])

@@ -294,7 +294,7 @@ class ConsultationService
 
     /* ===================== OUTILS ===================== */
 
-    private function assertDuration(int $expertId, int $minutes): void
+    public function assertDuration(int $expertId, int $minutes): void
     {
         if (!in_array($minutes, $this->durations($expertId), true)) {
             throw ValidationException::withMessages(['duration_minutes' => 'Durée non proposée par cet expert.']);

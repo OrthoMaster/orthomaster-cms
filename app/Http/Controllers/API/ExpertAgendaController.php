@@ -84,7 +84,7 @@ class ExpertAgendaController extends Controller
 
         $page = Booking::query()
             ->submitted()
-            ->with(['blocks', 'user', 'expert', 'declineReason', 'noShowReports', 'invoice'])
+            ->with(['blocks', 'windows', 'user', 'expert', 'declineReason', 'noShowReports', 'invoice'])
             ->where(function (Builder $q) use ($expertId, $userId) {
                 // Animés : acceptés et entièrement passés (les demandes refusées restent dans Demandes).
                 $q->where(fn (Builder $h) => $h
@@ -133,7 +133,7 @@ class ExpertAgendaController extends Controller
         return Booking::query()
             ->submitted()
             ->where('user_id', $userId)
-            ->with(['blocks', 'user', 'expert', 'declineReason', 'noShowReports', 'invoice']);
+            ->with(['blocks', 'windows', 'user', 'expert', 'declineReason', 'noShowReports', 'invoice']);
     }
 
     private function roleOf(Booking $booking, int $userId): string

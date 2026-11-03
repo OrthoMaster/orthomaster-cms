@@ -314,10 +314,15 @@ class AppointmentController extends Controller
     public function accept(Request $request, int $bookingId): RedirectResponse
     {
         // Présentiel hors calendrier : lieu choisi dans le formulaire.
+        // Créneaux : horaire choisi (consultation : champ date-heure « Y-m-dTH:i »).
+        $windowStart = $request->input('window_start')
+            ?: ($request->filled('window_start_local') ? str_replace('T', ' ', substr($request->input('window_start_local'), 0, 16)) : null);
+
         $this->admin->accept(
             $this->find($bookingId),
             $request->user()->id,
-            $request->filled('location_id') ? (int) $request->input('location_id') : null
+            $request->filled('location_id') ? (int) $request->input('location_id') : null,
+            $windowStart
         );
 
         return $this->back($bookingId, "Demande acceptée au nom de l'expert : le montant a été débité.");

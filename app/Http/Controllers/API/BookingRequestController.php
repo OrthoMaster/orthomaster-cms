@@ -10,6 +10,7 @@ use App\Models\ExpertOfferMode;
 use App\Models\ExpertLocation;
 use App\Services\Booking\BookingCheckoutService;
 use App\Services\Booking\BookingNoShowService;
+use App\Services\Booking\BookingWindowService;
 use App\Models\BookingNoShowReport;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
@@ -152,7 +153,7 @@ class BookingRequestController extends Controller
         return Booking::query()
             ->submitted()
             ->where('user_id', $userId)
-            ->with(['blocks', 'expert', 'declineReason', 'noShowReports', 'invoice']);
+            ->with(['blocks', 'windows', 'expert', 'declineReason', 'noShowReports', 'invoice']);
     }
 
     /** Une demi-journée de la demande se termine après maintenant. */
@@ -202,6 +203,8 @@ class BookingRequestController extends Controller
             'blocks'           => $booking->blocks
                 ->map(fn (BookingBlock $b) => self::blockPayload($b, $booking->status === Booking::STATUS_ACCEPTED, self::meetVisible($booking)))
                 ->values(),
+            // Créneaux proposés hors calendrier (vide sinon) : l'expert y choisit l'horaire.
+            'windows'          => app(BookingWindowService::class)->payload($booking),
             'amount_ttc'       => (float) $booking->amount_ttc,
             'currency'         => $booking->currency,
             'payment_required' => $booking->payment_required,

@@ -125,10 +125,14 @@ class BookingCheckoutService
     /**
      * Thème (kind = offer, par défaut) ou consultation (kind = consultation).
      *
-     * Thème : offer_id, mode, blocks[{date, period}], off_calendar?, address, message?
-     *   off_calendar = true : les demi-journées absentes du calendrier sont demandées
-     *   « hors calendrier » (horaires de l'expert, lieu choisi par l'expert à l'acceptation).
-     * Consultation : expert_id, date, start_time (H:i), duration_minutes, subject, address, message?
+     * Thème : offer_id, mode, blocks[{date, period}] | windows[{start_date, start_period, end_date, end_period}],
+     *   address, message?
+     *   windows : hors calendrier par créneaux (1 à 3) ; l'expert choisit les demi-journées
+     *   (et en présentiel le lieu) en acceptant. Voir BookingWindowService.
+     *   off_calendar = true avec blocks : ancienne forme (demi-journées hors calendrier une à une).
+     * Consultation : expert_id, duration_minutes, subject, address, message?, et
+     *   date + start_time (H:i) dans l'agenda de l'expert, ou windows[{start_date, start_time, end_date, end_time}]
+     *   hors calendrier par créneaux.
      */
     public function prepare(User $user, array $input): Booking
     {
@@ -139,9 +143,10 @@ class BookingCheckoutService
         $data = Validator::make($input, [
             'offer_id'        => ['required', 'integer'],
             'mode'            => ['required', 'in:' . implode(',', array_keys(ExpertOfferMode::MODE_LABELS))],
-            'blocks'          => ['required', 'array', 'min:1'],
+            'blocks'          => ['required_without:windows', 'array', 'min:1'],
             'blocks.*.date'   => ['required', 'date_format:Y-m-d'],
             'blocks.*.period' => ['required', 'in:' . implode(',', ExpertBookingSetupService::PERIODS)],
+            'windows'         => ['required_without:blocks', 'array', 'min:1', 'max:' . BookingWindowService::MAX_WINDOWS],
             'off_calendar'    => ['nullable', 'boolean'],
             'address'         => ['required', 'string', 'max:' . self::ADDRESS_MAX],
             'message'         => ['nullable', 'string', 'max:' . self::MESSAGE_MAX],
@@ -175,15 +180,21 @@ class BookingCheckoutService
             throw ValidationException::withMessages(['offer_id' => 'Vous ne pouvez pas réserver votre propre thème.']);
         }
 
-        $blocks = $this->resolveBlocks($expert->id, $offer, $offerMode, $data['blocks'], (bool) ($data['off_calendar'] ?? false));
-        $offCalendar = collect($blocks)->contains(fn (array $b) => $b['off_calendar']);
+        // Créneaux : aucune demi-journée tant que l'expert n'a pas choisi.
+        $windows = !empty($data['windows'])
+            ? app(BookingWindowService::class)->themeWindows($expert->id, $data['windows'], (int) $offer->blocks_count)
+            : [];
+        $blocks = $windows
+            ? []
+            : $this->resolveBlocks($expert->id, $offer, $offerMode, $data['blocks'], (bool) ($data['off_calendar'] ?? false));
+        $offCalendar = $windows || collect($blocks)->contains(fn (array $b) => $b['off_calendar']);
         $price  = self::pricing($offerMode, $offer->currency);
         $paid   = self::paymentRequired($price['amount_ttc']);
 
         // Une nouvelle tentative remplace la précédente restée sans paiement.
         $this->abandonPrevious($user->id, $offer->id);
 
-        return DB::transaction(function () use ($user, $expert, $offer, $offerMode, $blocks, $price, $paid, $data, $offCalendar) {
+        return DB::transaction(function () use ($user, $expert, $offer, $offerMode, $blocks, $windows, $price, $paid, $data, $offCalendar) {
             $invoice = null;
             if ($paid) {
                 $invoice = Invoice::create([
@@ -239,7 +250,11 @@ class BookingCheckoutService
                 ]);
             }
 
-            return $booking->load('blocks');
+            foreach ($windows as $window) {
+                $booking->windows()->create($window);
+            }
+
+            return $booking->load(['blocks', 'windows']);
         });
     }
 
@@ -251,8 +266,9 @@ class BookingCheckoutService
     {
         $data = Validator::make($input, [
             'expert_id'        => ['required', 'integer'],
-            'date'             => ['required', 'date_format:Y-m-d'],
-            'start_time'       => ['required', 'date_format:H:i'],
+            'date'             => ['required_without:windows', 'date_format:Y-m-d'],
+            'start_time'       => ['required_without:windows', 'date_format:H:i'],
+            'windows'          => ['required_without:date', 'array', 'min:1', 'max:' . BookingWindowService::MAX_WINDOWS],
             'duration_minutes' => ['required', 'integer'],
             'subject'          => ['required', 'string', 'max:' . ConsultationService::SUBJECT_MAX],
             'address'          => ['required', 'string', 'max:' . self::ADDRESS_MAX],
@@ -279,13 +295,21 @@ class BookingCheckoutService
         }
 
         $minutes = (int) $data['duration_minutes'];
-        $block   = $consultations->resolve($expert->id, $data['date'], $data['start_time'], $minutes);
+        // Créneaux hors calendrier : la durée est vérifiée ici, l'horaire sera choisi par l'expert.
+        $windows = [];
+        $block   = null;
+        if (!empty($data['windows'])) {
+            $consultations->assertDuration($expert->id, $minutes);
+            $windows = app(BookingWindowService::class)->consultationWindows($expert->id, $data['windows'], $minutes);
+        } else {
+            $block = $consultations->resolve($expert->id, $data['date'], $data['start_time'], $minutes);
+        }
         $price   = $consultations->pricing($expert->id, $minutes);
         $paid    = self::paymentRequired($price['amount_ttc']);
 
         $this->abandonPreviousConsultation($user->id, $expert->id);
 
-        return DB::transaction(function () use ($user, $expert, $block, $price, $paid, $data, $minutes) {
+        return DB::transaction(function () use ($user, $expert, $block, $windows, $price, $paid, $data, $minutes) {
             $invoice = null;
             if ($paid) {
                 $invoice = Invoice::create([
@@ -308,7 +332,7 @@ class BookingCheckoutService
                 'expert_id'         => $expert->id,
                 'offer_id'          => null,
                 'kind'              => Booking::KIND_CONSULTATION,
-                'off_calendar'      => $block['off_calendar'],
+                'off_calendar'      => $windows ? true : $block['off_calendar'],
                 'mode'              => ExpertOfferMode::ONLINE,
                 'invoice_id'        => $invoice?->id,
                 'status'            => Booking::STATUS_AWAITING_PAYMENT,
@@ -328,20 +352,26 @@ class BookingCheckoutService
                 'subject'           => trim($data['subject']),
             ]);
 
-            $booking->blocks()->create([
-                'expert_id'    => $expert->id,
-                'date'         => $block['date'],
-                'period'       => $block['period'],
-                'start_local'  => $block['start_local'],
-                'end_local'    => $block['end_local'],
-                'start_at'     => $block['start_at'],
-                'end_at'       => $block['end_at'],
-                'location_id'  => null,
-                'location'     => null,
-                'off_calendar' => $block['off_calendar'],
-            ]);
+            if ($block) {
+                $booking->blocks()->create([
+                    'expert_id'    => $expert->id,
+                    'date'         => $block['date'],
+                    'period'       => $block['period'],
+                    'start_local'  => $block['start_local'],
+                    'end_local'    => $block['end_local'],
+                    'start_at'     => $block['start_at'],
+                    'end_at'       => $block['end_at'],
+                    'location_id'  => null,
+                    'location'     => null,
+                    'off_calendar' => $block['off_calendar'],
+                ]);
+            }
 
-            return $booking->load('blocks');
+            foreach ($windows as $window) {
+                $booking->windows()->create($window);
+            }
+
+            return $booking->load(['blocks', 'windows']);
         });
     }
 
@@ -508,7 +538,8 @@ class BookingCheckoutService
     {
         $now   = now();
         $first = $booking->blocks->min('start_at');
-        $start = $first ? Carbon::parse($first) : null;
+        // Créneaux : l'expert peut répondre jusqu'au dernier début encore possible.
+        $start = $first ? Carbon::parse($first) : app(BookingWindowService::class)->latestStart($booking);
 
         $limit = $now->copy()->addHours(self::RESPOND_WITHIN_HOURS);
         if ($start) {
@@ -613,6 +644,8 @@ class BookingCheckoutService
                 // Même forme que les autres API ; accès seulement une fois le rendez-vous accepté (3c).
                 'location'    => BookingRequestController::blockLocation($b, $booking->status === Booking::STATUS_ACCEPTED),
             ])->values(),
+            // Créneaux proposés hors calendrier (vide sinon).
+            'windows'          => app(BookingWindowService::class)->payload($booking),
         ];
     }
 }
