@@ -174,6 +174,15 @@ class ExpertBookingSetupService
         }
         $this->assertBlocks($times);
 
+        // Thèmes : on n'active les demandes qu'avec au moins un thème actif (avec un format actif).
+        // Contrôle seulement au passage à « activé » : un réglage enregistré plus tard ne bloque pas.
+        $wasEnabled = (bool) ExpertBookingSetting::where('expert_id', $expertId)->value('enabled_flg');
+        if ($data['enabled_flg'] && !$wasEnabled && !$this->hasActiveTheme($expertId)) {
+            throw ValidationException::withMessages([
+                'enabled_flg' => "Ajoutez et activez au moins un thème avant d'accepter des demandes sur les thèmes.",
+            ]);
+        }
+
         return ExpertBookingSetting::updateOrCreate(
             ['expert_id' => $expertId],
             [
@@ -187,6 +196,15 @@ class ExpertBookingSetupService
                 'afternoon_end'      => $data['afternoon_end'] ?? null,
             ]
         );
+    }
+
+    /** Au moins un thème actif avec un format (en ligne / en présentiel) actif. */
+    public function hasActiveTheme(int $expertId): bool
+    {
+        return ExpertOffer::where('expert_id', $expertId)
+            ->where('active_flg', true)
+            ->whereHas('modes', fn ($q) => $q->where('active_flg', true))
+            ->exists();
     }
 
     private function assertBlocks(array $times): void

@@ -598,6 +598,7 @@
                                 </label>
                             </div>
                             <p class="booking-muted">
+                                Nécessite au moins un thème actif (onglet « Thèmes (offres) »).
                                 Décoché : les thèmes de l'expert ne sont plus proposés et aucune nouvelle demande sur un thème
                                 n'est possible. La consultation s'active à part, dans l'onglet « Consultation ».
                                 Les rendez-vous déjà demandés ou acceptés ne sont pas annulés.
