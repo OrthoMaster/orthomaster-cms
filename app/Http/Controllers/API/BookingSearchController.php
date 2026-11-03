@@ -22,23 +22,30 @@ class BookingSearchController extends Controller
 
     /**
      * GET /booking/search?type=experts|themes&q=
+     * Experts : consultation=1 (liste Consultation : domaines, références et présentation
+     * seulement, sans les thèmes) ; name= et city= restreignent les candidats avant l'IA.
      */
     public function search(Request $request): JsonResponse
     {
         $data = $request->validate([
             'type' => ['required', Rule::in([BookingSearchService::TYPE_EXPERTS, BookingSearchService::TYPE_THEMES])],
-            'q'    => ['required', 'string', 'min:2', 'max:200'],
+            'q'            => ['required', 'string', 'min:2', 'max:200'],
+            'consultation' => ['nullable', 'boolean'],
+            'name'         => ['nullable', 'string', 'max:100'],
+            'city'         => ['nullable', 'string', 'max:120'],
         ]);
 
         $userId = $request->user()->id;
         $themes = $data['type'] === BookingSearchService::TYPE_THEMES;
 
         // Ce que l'utilisateur peut voir : thèmes réservables, ou tous les experts avec un compte sauf lui.
+        $consultation = !$themes && $request->boolean('consultation');
         $eligible = $themes
             ? $this->catalog->themeQuery($userId)->pluck('o.id')->map(fn ($id) => (int) $id)->all()
-            : DB::table('experts')->whereNotNull('user_id')->where('user_id', '!=', $userId)->pluck('id')->map(fn ($id) => (int) $id)->all();
+            : $this->catalog->searchableExpertIds($userId, $consultation, (string) ($data['name'] ?? ''), (string) ($data['city'] ?? ''));
 
-        $found   = $this->search->search($data['type'], $data['q'], $eligible, $userId);
+        $searchType = $consultation ? BookingSearchService::TYPE_CONSULTANTS : $data['type'];
+        $found   = $this->search->search($searchType, $data['q'], $eligible, $userId);
         $ids     = array_column($found['results'], 'id');
         $reasons = array_column($found['results'], 'reason', 'id');
 

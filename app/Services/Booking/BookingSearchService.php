@@ -30,8 +30,10 @@ class BookingSearchService
 {
     public const TYPE_EXPERTS = 'experts';
     public const TYPE_THEMES  = 'themes';
+    /** Experts de la liste Consultation : domaines, références et présentation, sans les thèmes. */
+    public const TYPE_CONSULTANTS = 'consultants';
 
-    private const VECTOR_TYPES = [self::TYPE_EXPERTS => 'expert', self::TYPE_THEMES => 'theme'];
+    private const VECTOR_TYPES = [self::TYPE_EXPERTS => 'expert', self::TYPE_THEMES => 'theme', self::TYPE_CONSULTANTS => 'consultant'];
 
     /** Candidats envoyés à Gemini, et résultats renvoyés au plus. */
     private const CANDIDATES = 20;
@@ -148,6 +150,18 @@ class BookingSearchService
                 ]));
 
                 return [$offer->id => ['title' => (string) $offer->title, 'text' => Str::limit($text, self::TEXT_MAX, '')]];
+            })->all();
+        }
+
+        if ($type === self::TYPE_CONSULTANTS) {
+            return Expert::with('domains')->whereIn('id', $ids)->get()->mapWithKeys(function (Expert $expert) {
+                $text = implode("\n", array_filter([
+                    $expert->domains->isNotEmpty() ? 'Domaines : ' . $expert->domains->pluck('label')->implode(', ') : null,
+                    $expert->credentials,
+                    $expert->lede,
+                ]));
+
+                return [$expert->id => ['title' => trim($expert->honorific . ' ' . $expert->name), 'text' => Str::limit($text, self::TEXT_MAX, '')]];
             })->all();
         }
 
@@ -280,7 +294,11 @@ class BookingSearchService
      */
     private function rerank(string $type, string $query, array $candidateIds, array $docs): array
     {
-        $what = $type === self::TYPE_THEMES ? 'thèmes de formation proposés par des experts' : 'experts';
+        $what = match ($type) {
+            self::TYPE_THEMES      => 'thèmes de formation proposés par des experts',
+            self::TYPE_CONSULTANTS => 'experts à consulter en visio (selon leurs domaines, leurs références et leur présentation)',
+            default                => 'experts',
+        };
 
         $system = "Tu aides des professionnels de l'orthopédie et de la pharmacie à trouver des {$what} "
             . "pour un rendez-vous d'échange. On te donne une recherche et une liste de candidats numérotés par id. "
