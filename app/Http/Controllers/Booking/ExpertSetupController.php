@@ -60,11 +60,15 @@ class ExpertSetupController extends Controller
             ->leftJoin('expert_booking_settings as s', 's.expert_id', '=', 'e.id')
             ->select('e.id', 'e.name')
             ->selectRaw('COALESCE(s.enabled_flg, 0) as enabled_flg')
+            ->selectRaw('COALESCE(s.consultation_enabled, 0) as consultation_enabled')
+            ->addSelect('s.consultation_price')
             ->selectSub($offersCount, 'offers_count')
             ->selectSub($rulesCount, 'rules_count')
             ->when($request->filled('q'), fn ($q) => $q->where('e.name', 'like', '%' . $request->input('q') . '%'))
+            // Thèmes et Consultation s'activent séparément.
             ->when($request->input('status') === 'enabled', fn ($q) => $q->where('s.enabled_flg', 1))
             ->when($request->input('status') === 'disabled', fn ($q) => $q->whereRaw('COALESCE(s.enabled_flg, 0) = 0'))
+            ->when($request->input('status') === 'consultation', fn ($q) => $q->where('s.consultation_enabled', 1))
             ->orderBy('e.name')
             ->get();
 

@@ -68,7 +68,6 @@ class BookingExpertController extends Controller
             ->whereNotNull('e.user_id')
             ->where('e.user_id', '!=', $userId)
             ->when($consultationOnly, fn ($q) => $q
-                ->where('s.enabled_flg', true)
                 ->where('s.consultation_enabled', true)
                 ->whereNotNull('s.consultation_price'))
             ->when($search !== '', function ($q) use ($search) {
@@ -87,6 +86,8 @@ class BookingExpertController extends Controller
         $rows = $query
             ->select('e.id')
             ->selectRaw("{$onlineSql} as is_online", $onlineBindings)
+            // Thèmes : seulement si l'expert accepte les demandes sur ses thèmes.
+            ->selectRaw('(' . self::THEMES_ON_SQL . ') as themes_on')
             ->orderByDesc('is_online')
             ->orderBy('e.name')
             ->forPage($page, self::PER_PAGE)
@@ -96,7 +97,7 @@ class BookingExpertController extends Controller
         $models = Expert::whereIn('id', $rows->pluck('id'))->get()->keyBy('id');
 
         // Offres des experts réservables de la page, en une requête.
-        $onlineIds = $rows->filter(fn ($row) => $row->is_online)->pluck('id')->all();
+        $onlineIds = $rows->filter(fn ($row) => $row->is_online && $row->themes_on)->pluck('id')->all();
         $offersByExpert = $onlineIds
             ? ExpertOffer::active()
                 ->whereIn('expert_id', $onlineIds)
@@ -142,8 +143,10 @@ class BookingExpertController extends Controller
         $expert = Expert::with('domains')->whereNotNull('user_id')->findOrFail($expertId);
         $online = $this->isBookable($expertId);
         $bounds = $this->slots->bounds($expertId);
+        // Thèmes et Consultation s'activent séparément.
+        $themesOn = $online && $this->setup->resolved($expertId)['enabled_flg'];
 
-        $offers = $online
+        $offers = $themesOn
             ? ExpertOffer::active()
                 ->whereHas('activeModes')
                 ->with(['images', 'modes'])
@@ -225,6 +228,7 @@ class BookingExpertController extends Controller
                 ->whereColumn('m.offer_id', 'o.id')->where('m.active_flg', true))
             ->whereNotNull('e.user_id')
             ->where('e.user_id', '!=', $userId)
+            ->where('s.enabled_flg', true)
             ->whereRaw($onlineSql, $onlineBindings);
     }
 
@@ -278,8 +282,10 @@ class BookingExpertController extends Controller
         }
 
         $models = Expert::whereIn('id', $ids)->get()->keyBy('id');
+        // Thèmes : seulement chez les experts qui acceptent les demandes sur leurs thèmes.
+        $themesOnIds = DB::table('expert_booking_settings')->whereIn('expert_id', $ids)->where('enabled_flg', true)->pluck('expert_id')->all();
         $offersByExpert = ExpertOffer::active()
-            ->whereIn('expert_id', $ids)
+            ->whereIn('expert_id', $themesOnIds)
             ->whereHas('activeModes')
             ->with('modes')
             ->orderBy('order_dsp')
@@ -536,8 +542,17 @@ class BookingExpertController extends Controller
         return response()->json(['success' => true, 'data' => $data], $status);
     }
 
+    /** Thèmes réservables : demandes sur les thèmes activées et au moins un thème actif avec un format actif. */
+    private const THEMES_ON_SQL = 'COALESCE(s.enabled_flg, 0) = 1
+        AND EXISTS (SELECT 1 FROM expert_offers o
+            JOIN expert_offer_modes m ON m.offer_id = o.id AND m.active_flg = 1
+            WHERE o.expert_id = e.id AND o.active_flg = 1 AND o.deleted_at IS NULL)';
+
+    /** Consultation proposée : activée, avec un prix (indépendante des thèmes). */
+    private const CONSULTATION_ON_SQL = 'COALESCE(s.consultation_enabled, 0) = 1 AND s.consultation_price IS NOT NULL';
+
     /**
-     * « En ligne » = réservation activée + au moins une offre active avec un mode actif
+     * « En ligne » = (thèmes activés avec un thème actif, ou consultation activée avec un prix)
      * + au moins une règle encore valable ou un jour ouvert à la main à venir. Une seule expression SQL pour le tri de la liste
      * et les contrôles.
      *
@@ -545,13 +560,9 @@ class BookingExpertController extends Controller
      */
     private function onlineExpression(): array
     {
+        // Thèmes et Consultation s'activent séparément : l'un ou l'autre suffit.
         // Le second EXISTS : un jour spécial ouvert à la main suffit, il sert aux « Dates précises » (2a).
-        // Un expert sans thème mais qui propose la consultation (avec un prix) est aussi réservable.
-        $sql = '(COALESCE(s.enabled_flg, 0) = 1
-            AND (EXISTS (SELECT 1 FROM expert_offers o
-                JOIN expert_offer_modes m ON m.offer_id = o.id AND m.active_flg = 1
-                WHERE o.expert_id = e.id AND o.active_flg = 1 AND o.deleted_at IS NULL)
-                OR (COALESCE(s.consultation_enabled, 0) = 1 AND s.consultation_price IS NOT NULL))
+        $sql = '((' . self::THEMES_ON_SQL . ') OR (' . self::CONSULTATION_ON_SQL . '))
             AND (EXISTS (SELECT 1 FROM expert_availability_rules r
                     WHERE r.expert_id = e.id AND (r.valid_until IS NULL OR r.valid_until >= ?))
                 OR EXISTS (SELECT 1 FROM expert_availability_exceptions x

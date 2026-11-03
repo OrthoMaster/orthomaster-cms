@@ -594,13 +594,13 @@
                                 <label>
                                     <input type="checkbox" name="enabled_flg" value="1"
                                         @checked($oldForm === 'settings' ? old('enabled_flg') : $resolved['enabled_flg'])>
-                                    <strong>Accepter les demandes de rendez-vous (Thèmes et Consultation)</strong>
+                                    <strong>Accepter les demandes sur les Thèmes</strong>
                                 </label>
                             </div>
                             <p class="booking-muted">
-                                Interrupteur général de l'expert. Décoché : l'expert n'apparaît plus comme disponible et ne reçoit
-                                aucune nouvelle demande, ni pour ses thèmes ni en consultation. Les rendez-vous déjà demandés ou
-                                acceptés ne sont pas annulés.
+                                Décoché : les thèmes de l'expert ne sont plus proposés et aucune nouvelle demande sur un thème
+                                n'est possible. La consultation s'active à part, dans l'onglet « Consultation ».
+                                Les rendez-vous déjà demandés ou acceptés ne sont pas annulés.
                             </p>
                         </div>
 
@@ -1173,15 +1173,13 @@
                                 <label>
                                     <input type="checkbox" name="enabled" value="1"
                                         @checked($consultValue('enabled', $consultation['enabled']))>
-                                    <strong>Proposer la consultation sur mesure</strong>
+                                    <strong>Accepter les demandes de Consultation</strong>
                                 </label>
                             </div>
                             <p class="booking-muted">
-                                Visible par les confrères seulement si « Accepter les demandes de rendez-vous » est aussi coché
-                                dans l'onglet « Réglages » et qu'un prix est indiqué.
-                                @if (!$resolved['enabled_flg'])
-                                    <strong>Actuellement décoché : la consultation n'est pas proposée.</strong>
-                                @endif
+                                Indépendant des thèmes : un expert peut proposer seulement la consultation, seulement des thèmes,
+                                ou les deux. Visible par les confrères dès qu'un prix pour 30 minutes est indiqué.
+                                Décoché : aucune nouvelle demande de consultation ; celles déjà reçues ne sont pas annulées.
                             </p>
                         </div>
 

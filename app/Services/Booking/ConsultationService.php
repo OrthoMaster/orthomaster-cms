@@ -69,12 +69,15 @@ class ConsultationService
         return $this->slots->bounds($expertId, $this->settings($expertId)['min_notice_resolved']);
     }
 
-    /** Proposée aux demandeurs : activée, avec un prix, et prise de rendez-vous de l'expert activée. */
+    /**
+     * Proposée aux demandeurs : activée et avec un prix.
+     * Indépendante des thèmes (enabled_flg ne concerne que les thèmes).
+     */
     public function isOpen(int $expertId): bool
     {
         $s = $this->settings($expertId);
 
-        return $s['enabled'] && $s['price'] !== null && $this->setup->resolved($expertId)['enabled_flg'];
+        return $s['enabled'] && $s['price'] !== null;
     }
 
     /**
@@ -182,7 +185,8 @@ class ConsultationService
 
         $notice = $this->settings($expertId)['min_notice_resolved'];
 
-        return $this->slots->availableBlocks($expertId, $from, $to, false, null, true, $notice)
+        // ignoreEnabled : l'interrupteur enabled_flg ne concerne que les thèmes.
+        return $this->slots->availableBlocks($expertId, $from, $to, true, null, true, $notice)
             ->groupBy('date')
             ->map(fn (Collection $blocks, string $date) => [
                 'date'  => $date,
@@ -221,7 +225,7 @@ class ConsultationService
         }
 
         // Dans une demi-journée ouverte : horaire du calendrier.
-        $inCalendar = $this->slots->availableBlocks($expertId, $date, $date, false, null, true, $notice)
+        $inCalendar = $this->slots->availableBlocks($expertId, $date, $date, true, null, true, $notice)
             ->contains(fn (array $b) => $start->gte($b['start_at']) && $end->lte($b['end_at']));
 
         if (!$inCalendar && ($startTime < self::OFF_CALENDAR_FIRST_START || $startTime > self::OFF_CALENDAR_LAST_START)) {

@@ -167,8 +167,9 @@ class BookingCheckoutService
         }
 
         $expert = Expert::find($offer->expert_id);
-        if (!$expert || !$expert->user_id) {
-            throw ValidationException::withMessages(['offer_id' => "Cet expert n'accepte pas de rendez-vous pour le moment."]);
+        // Thèmes : l'expert doit accepter les demandes sur ses thèmes (la consultation s'active à part).
+        if (!$expert || !$expert->user_id || !$this->slots->themesEnabled($expert->id)) {
+            throw ValidationException::withMessages(['offer_id' => "Cet expert n'accepte pas de demandes sur ses thèmes pour le moment."]);
         }
         if ((int) $expert->user_id === (int) $user->id) {
             throw ValidationException::withMessages(['offer_id' => 'Vous ne pouvez pas réserver votre propre thème.']);

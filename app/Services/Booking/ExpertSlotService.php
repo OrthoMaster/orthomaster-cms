@@ -229,6 +229,12 @@ class ExpertSlotService
             ->all();
     }
 
+    /** L'expert accepte les demandes sur ses thèmes (interrupteur enabled_flg, propre aux thèmes). */
+    public function themesEnabled(int $expertId): bool
+    {
+        return (bool) $this->setup->resolved($expertId)['enabled_flg'];
+    }
+
     /**
      * Demi-journée hors calendrier (« Hors calendrier ») : horaires de l'expert, sans lieu.
      * Seules les bornes de réservation (délai minimum, limite) sont vérifiées ; la grille
