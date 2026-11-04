@@ -196,6 +196,8 @@ class BookingRequestController extends Controller
             'kind'             => $booking->kind ?? Booking::KIND_OFFER,
             'off_calendar'     => (bool) $booking->off_calendar,
             'duration_minutes' => $booking->duration_minutes,
+            // Consultation : sujet du demandeur (2 lignes sur les cartes, en entier sur la fiche).
+            'subject'          => $booking->subject,
             'mode'             => $booking->mode,
             'blocks_count'     => $booking->blocks_count,
             'expert'           => $booking->expert ? BookingExpertController::expertPayload($booking->expert, false) : null,
@@ -225,7 +227,6 @@ class BookingRequestController extends Controller
                 'tva_rate'       => (float) $booking->tva_rate,
                 'tva_amount'     => (float) $booking->tva_amount,
                 'message'        => $booking->message,
-                'subject'        => $booking->subject,
                 'client_address' => $booking->client_address,
                 'decline_reason' => $booking->declineReason?->label,
                 'decline_note'   => $booking->decline_note,

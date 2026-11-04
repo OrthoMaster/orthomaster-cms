@@ -215,6 +215,8 @@ class ExpertBookingRequestController extends Controller
             'kind'             => $booking->kind ?? Booking::KIND_OFFER,
             'off_calendar'     => (bool) $booking->off_calendar,
             'duration_minutes' => $booking->duration_minutes,
+            // Consultation : sujet du demandeur (2 lignes sur les cartes, en entier sur la fiche).
+            'subject'          => $booking->subject,
             'mode'             => $booking->mode,
             'blocks_count'     => $booking->blocks_count,
             // Le demandeur : nom affiché seulement ; l'e-mail reste côté plateforme.
@@ -237,7 +239,6 @@ class ExpertBookingRequestController extends Controller
         if ($detailed) {
             $data += [
                 'message'          => $booking->message,
-                'subject'          => $booking->subject,
                 'payment_required' => $booking->payment_required,
                 'amount_ht'        => (float) $booking->amount_ht,
                 'commission_rate'  => (float) $booking->commission_rate,
