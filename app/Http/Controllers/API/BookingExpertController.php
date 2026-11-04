@@ -18,6 +18,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 
 /**
@@ -316,6 +317,75 @@ class BookingExpertController extends Controller
      * Hors calendrier, l'application propose 7 h – 21 h (voir consultation.off_calendar).
      * GET /booking/experts/{expertId}/consultation-slots?duration_minutes=&from=Y-m-d&to=Y-m-d
      */
+    /**
+     * Médias OrthoMaster de l'expert (lié par expert_video), pour sa fiche : d'abord ceux qui
+     * partagent un centre d'intérêt suivi par l'utilisateur, puis les plus récents. 5 au plus.
+     * Même forme que les listes de médias (GET /medias/newests) : la page média s'ouvre avec.
+     * GET /booking/experts/{expertId}/medias?limit=5
+     */
+    public function medias(Request $request, int $expertId): JsonResponse
+    {
+        $limit    = max(1, min(10, (int) $request->input('limit', 5)));
+        $topicIds = DB::table('topic_user')->where('user_id', $request->user()->id)->pluck('topic_id')->map(fn ($id) => (int) $id)->all();
+
+        $query = DB::table('content')
+            ->leftJoin('videos', 'videos.id', '=', 'content.video_id')
+            ->where('content.published', true)
+            ->where(fn ($q) => $q->whereNull('videos.id')->orWhere('videos.published_at', '<=', now()))
+            ->whereExists(fn ($q) => $q->select(DB::raw(1))
+                ->from('expert_video as ev')
+                ->where('ev.expert_id', $expertId)
+                ->where(fn ($w) => $w->whereColumn('ev.video_id', 'content.video_id')->orWhereColumn('ev.content_id', 'content.id_content')))
+            ->select([
+                'content.id_content',
+                'content.video_id',
+                'content.creation',
+                'content.duration',
+                'content.version',
+                'content.s3_path',
+                'content.aws_object_path',
+                'content.title',
+                'content.id_past_event',
+                'content.id_media_category',
+                'videos.published_at',
+                'videos.thumbnail as video_thumbnail',
+            ])
+            // Tous les experts du média, comme dans les listes de médias.
+            ->selectRaw("(SELECT GROUP_CONCAT(DISTINCT e.name ORDER BY e.name SEPARATOR ' - ')
+                FROM expert_video ev2 JOIN experts e ON e.id = ev2.expert_id
+                WHERE ev2.video_id = content.video_id OR ev2.content_id = content.id_content) as expert_names");
+
+        // Centres d'intérêt suivis : les médias qui en partagent le plus passent devant.
+        if ($topicIds) {
+            $placeholders = implode(',', array_fill(0, count($topicIds), '?'));
+            $query->selectRaw(
+                "(SELECT COUNT(*) FROM topic_video tv WHERE tv.content_id = content.id_content AND tv.topic_id IN ({$placeholders})) as topic_matches",
+                $topicIds
+            )->orderByDesc('topic_matches');
+        }
+
+        $s3ImagePath = 'https://content-orthomaster-prod.s3.eu-west-1.amazonaws.com/application-data/';
+        $disk        = Storage::disk('s3_root');
+
+        $medias = $query
+            ->orderByRaw('COALESCE(videos.published_at, content.creation) DESC')
+            ->limit($limit)
+            ->get()
+            ->map(function ($c) use ($disk, $s3ImagePath) {
+                // Vignette : même règle que les listes de médias (MediaController::attachThumbnails).
+                $c->thumbnail = $c->version !== 'v2'
+                    ? $disk->url($c->s3_path . '/' . $c->title . '/logo.png')
+                    : ($c->video_thumbnail ? $s3ImagePath . ltrim($c->video_thumbnail, '/') : null);
+                $c->matches_interests = isset($c->topic_matches) && (int) $c->topic_matches > 0;
+                unset($c->topic_matches);
+
+                return $c;
+            })
+            ->values();
+
+        return $this->success(['medias' => $medias]);
+    }
+
     public function consultationSlots(Request $request, int $expertId): JsonResponse
     {
         abort_unless($this->consultations->isOpen($expertId), 404, "Cet expert ne propose pas de consultation pour le moment.");

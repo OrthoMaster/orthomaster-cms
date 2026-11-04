@@ -260,6 +260,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('experts/{expertId}', [BookingExpertController::class, 'show'])->whereNumber('expertId');
         Route::get('experts/{expertId}/availability', [BookingExpertController::class, 'availability'])->whereNumber('expertId');
         Route::get('experts/{expertId}/consultation-slots', [BookingExpertController::class, 'consultationSlots'])->whereNumber('expertId');
+        Route::get('experts/{expertId}/medias', [BookingExpertController::class, 'medias'])->whereNumber('expertId');
 
         /* --- Utilisateur : parcourir les thèmes, recherche intelligente (experts | thèmes) --- */
         Route::get('themes', [BookingExpertController::class, 'themes']);
