@@ -11,6 +11,15 @@ use App\Support\Congress\CongressBoardService;
 class CongressPublicController extends Controller
 {
     /**
+     * Saisie du code affiché à l'écran, pour qui ne peut pas scanner le QR.
+     * GET /congres
+     */
+    public function enter()
+    {
+        return view('congres.enter');
+    }
+
+    /**
      * Page du public, ouverte depuis le QR.
      * GET /congres/{code}
      */
