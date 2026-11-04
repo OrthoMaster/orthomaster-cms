@@ -35,15 +35,19 @@
         .cg-empty { color: #6B7280; padding: 8px; }
 
         /* --- Cartes --- */
-        .cg-card { position: relative; padding: 10px; margin-bottom: 8px; border: 1px solid #E3E6EC; border-radius: 6px; background: #F7F8FA; cursor: grab; }
+        .cg-card { position: relative; padding: 8px 10px; margin-bottom: 8px; border: 1px solid #E3E6EC; border-radius: 6px; background: #F7F8FA; cursor: grab; }
         .cg-card.on-screen { background: #fff; border-left-width: 5px; }
         .cg-card.dragging { opacity: .4; }
         .cg-card.drop-before { box-shadow: 0 -3px 0 #2D55AF; }
-        .cg-text { color: #1B1F2A; overflow-wrap: anywhere; }
-        .cg-meta { display: flex; justify-content: space-between; gap: 8px; margin: 4px 0 8px; color: #6B7280; font-size: 12px; }
-        .cg-tools { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
-        .cg-tools select { flex: 1 1 100px; min-width: 0; width: auto; height: 26px; padding: 0 4px; font-size: 12px; }
-        .cg-tools .btn { margin: 0; padding: 2px 8px; font-size: 12px; }
+        .cg-text { padding-right: 52px; color: #1B1F2A; line-height: 20px; overflow-wrap: anywhere; }
+        .cg-meta { display: flex; justify-content: space-between; gap: 8px; margin-top: 4px; color: #6B7280; font-size: 12px; line-height: 16px; }
+
+        /* --- Boutons d'une carte --- */
+        .cg-tools { position: absolute; top: 6px; right: 6px; display: flex; gap: 4px; }
+        .cg-icon { width: 24px; height: 24px; padding: 0; border: 0; border-radius: 4px; background: transparent; color: #6B7280; font-size: 16px; line-height: 24px; text-align: center; cursor: pointer; }
+        .cg-icon:hover, .cg-icon:focus-visible { background: #E3E6EC; color: #1B1F2A; }
+        .cg-delete:hover, .cg-delete:focus-visible { background: #FDECEA; color: #C62828; }
+        .cg-delete.confirm { width: auto; padding: 0 8px; background: #E53935; color: #fff; font-size: 12px; font-weight: 600; }
         .cg-separator { margin: 10px 0; padding-top: 6px; border-top: 2px dashed #CFD4DE; color: #6B7280; font-size: 12px; }
 
         /* --- Petits écrans --- */
@@ -154,20 +158,11 @@
                         .append($('<span>').text('n° ' + (index + 1)))
                 );
 
-                const move = $('<select class="form-control input-sm cg-move" aria-label="Déplacer vers un autre thème">')
-                    .append('<option value="">Déplacer vers…</option>');
-                themes.filter((t) => t.id !== theme.id).forEach((t) => {
-                    move.append($('<option>').val(t.id).text(t.name));
-                });
-
                 const tools = $('<div class="cg-tools">');
                 if (index > 0) {
-                    tools.append('<button type="button" class="btn btn-xs btn-default cg-top">En tête</button>');
+                    tools.append('<button type="button" class="cg-icon cg-top" title="Mettre en tête" aria-label="Mettre en tête">&uarr;</button>');
                 }
-                if (themes.length > 1) {
-                    tools.append(move);
-                }
-                tools.append('<button type="button" class="btn btn-xs btn-danger cg-delete">Supprimer</button>');
+                tools.append('<button type="button" class="cg-icon cg-delete" title="Supprimer" aria-label="Supprimer">&times;</button>');
                 el.append(tools);
 
                 return el;
@@ -303,16 +298,6 @@
                 arrange(Number($(this).closest('.cg-col').attr('data-theme')), [id].concat(ids));
             });
 
-            $('#columns').on('change', '.cg-move', function () {
-                const themeId = Number(this.value);
-                if (!themeId) {
-                    return;
-                }
-                const id = Number($(this).closest('.cg-card').attr('data-id'));
-                const list = $('.cg-col[data-theme="' + themeId + '"] .cg-list');
-                arrange(themeId, idsOf(list).concat([id]));
-            });
-
             // Suppression définitive : deux clics, sans fenêtre de confirmation qui ralentirait la séance.
             $('#columns').on('click', '.cg-delete', function () {
                 const button = $(this);
@@ -325,11 +310,11 @@
                 }
 
                 confirming = id;
-                button.text('Confirmer ?');
+                button.addClass('confirm').text('Supprimer ?');
                 setTimeout(() => {
                     if (confirming === id) {
                         confirming = null;
-                        button.text('Supprimer');
+                        button.removeClass('confirm').html('&times;');
                     }
                 }, CONFIRM_MS);
             });
