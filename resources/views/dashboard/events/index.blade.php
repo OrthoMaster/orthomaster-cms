@@ -10,6 +10,9 @@
         <a href="{{ route('voyager.events.create') }}" target="_blank" class="btn btn-success">
             <i class="voyager-plus"></i> <span>Ajouter un congrès</span>
         </a>
+        <a href="{{ route('dashboard.congres') }}" class="btn btn-primary">
+            <i class="voyager-chat"></i> <span>Questions du public</span>
+        </a>
     </div>
 @stop
 

@@ -6,6 +6,7 @@ use App\Http\Controllers\API\AuthController;
 use App\Http\Controllers\API\CartController;
 use App\Http\Controllers\API\ChatbotController;
 use App\Http\Controllers\API\CompanyController;
+use App\Http\Controllers\API\CongressController;
 use App\Http\Controllers\API\ContractController;
 use App\Http\Controllers\API\DailyActionController;
 use App\Http\Controllers\API\DocumentController;
@@ -361,3 +362,12 @@ Route::get('/video/{videoCode}/mobile/master.m3u8', [VideoController::class, 'ge
 
 Route::post('/internal/calls', [IntEmpTrackerController::class, 'receiveData']);
 Route::post('/internal/heartbeat', [IntEmpTrackerController::class, 'receiveHeartbeat']);
+
+// Questions du public aux tables rondes.
+// Pas de limite sur l'écran (écriture en cache à chaque appel, toutes les 2 secondes) ; il ne fait que lire.
+Route::prefix('congres')->controller(CongressController::class)->group(function () {
+    Route::get('/ecran/{token}', 'screen');
+    Route::get('/{code}/status', 'status');
+    Route::post('/{code}/join', 'join')->middleware('throttle:congres-join');
+    Route::post('/{code}/questions', 'ask')->middleware('throttle:congres-question');
+});
