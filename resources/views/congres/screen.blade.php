@@ -28,17 +28,29 @@
         .zone-notes { flex: 1; min-height: 0; display: grid; gap: 14px; }
 
         /* --- Note --- */
-        .slot { position: relative; min-width: 0; min-height: 0; }
+        .slot { position: relative; min-width: 0; min-height: 0; isolation: isolate; }
+
+        /* Feuilles sous la dernière note : il reste des questions dans la pile. */
+        .slot::before, .slot::after {
+            content: ''; position: absolute; inset: 0; border-radius: 6px; background: var(--color);
+            box-shadow: 0 6px 12px rgba(0,0,0,.3); opacity: 0; transition: opacity 800ms ease;
+        }
+        .slot::before { z-index: 1; filter: brightness(.86); transform: translate(7px, 7px) rotate(-1deg); }
+        .slot::after { z-index: 0; filter: brightness(.7); transform: translate(14px, 14px) rotate(1.5deg); }
+        .slot.stack::before, .slot.stack::after { opacity: 1; }
+        .more {
+            position: absolute; left: 16px; bottom: -16px; z-index: 3; padding: 2px 16px; border-radius: 999px;
+            background: #fff; color: #14224A; font-size: 24px; font-weight: 700; line-height: 32px;
+            opacity: 0; transition: opacity 800ms ease;
+        }
+        .slot.stack .more { opacity: 1; }
+        .slot.stack .note span { max-width: calc(100% - 96px); }
+
         .note {
-            position: absolute; inset: 0; box-sizing: border-box; padding: 16px 18px 10px;
+            position: absolute; inset: 0; z-index: 2; box-sizing: border-box; padding: 16px 18px 10px;
             color: #1B1F2A; border-radius: 6px; box-shadow: 0 8px 18px rgba(0,0,0,.35);
             display: flex; flex-direction: column; justify-content: space-between; gap: 4px;
             transform: rotate(var(--tilt));
-        }
-        .note.enter { animation: drop 420ms cubic-bezier(.2,1.3,.4,1); }
-        @keyframes drop {
-            from { opacity: 0; transform: scale(1.28) rotate(calc(var(--tilt) * 4)); }
-            to { opacity: 1; transform: rotate(var(--tilt)); }
         }
         .note p { flex: 1; min-height: 0; margin: 0; font-weight: 500; overflow: hidden; overflow-wrap: anywhere; }
         .note span { flex: none; align-self: flex-end; max-width: 100%; color: #3B4150; font-size: 17px; font-weight: 500; line-height: 22px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -149,6 +161,11 @@
     const DATA_URL = @json('/api/congres/ecran/' . $board->screen_token);
     const POLL_MS = 2000;
     const MIN_FONT_PX = 18;
+    // Lents à dessein : une salle regarde cet écran pendant des heures.
+    const ENTER_MS = 900;
+    const ENTER_STAGGER_MS = 150;
+    const MOVE_MS = 700;
+    const LEAVE_MS = 450;
 
     const stage = document.getElementById('stage');
     const zonesEl = document.getElementById('zones');
@@ -156,9 +173,11 @@
 
     let revision = '';
     let firstPaint = true;
+    let currentView = '';
+    let scale = 1;
 
     function fit() {
-        const scale = Math.min(window.innerWidth / 1920, window.innerHeight / 1080);
+        scale = Math.min(window.innerWidth / 1920, window.innerHeight / 1080);
         stage.style.transform = 'scale(' + scale + ')';
     }
     window.addEventListener('resize', fit);
@@ -196,9 +215,16 @@
     }
 
     function show(name) {
+        if (name === currentView) {
+            return;
+        }
         document.querySelectorAll('.view').forEach(function (el) {
             el.classList.toggle('on', el.id === 'view-' + name);
         });
+        if (currentView) {
+            document.getElementById('view-' + name).animate({ opacity: [0, 1] }, { duration: MOVE_MS, easing: 'ease-out' });
+        }
+        currentView = name;
     }
 
     // La taille suit la longueur : une question courte reste lisible du fond de la salle.
@@ -229,13 +255,14 @@
         }
     }
 
-    function buildSlot(question, theme, animate) {
+    function buildSlot(question, theme) {
         const slot = document.createElement('div');
         slot.className = 'slot';
         slot.dataset.id = question.id;
+        slot.style.setProperty('--color', theme.color);
 
         const note = document.createElement('article');
-        note.className = 'note' + (animate ? ' enter' : '');
+        note.className = 'note';
         note.style.background = theme.color;
         // Inclinaison dérivée de l'id : un rechargement ne déplace pas les notes.
         note.style.setProperty('--tilt', (((question.id * 37) % 5) - 2) * 0.6 + 'deg');
@@ -247,8 +274,11 @@
         const author = document.createElement('span');
         author.textContent = question.author;
 
+        const more = document.createElement('div');
+        more.className = 'more';
+
         note.append(text, author);
-        slot.append(note);
+        slot.append(note, more);
         return slot;
     }
 
@@ -263,13 +293,75 @@
         return zone;
     }
 
+    // Sans toucher aux éléments déjà à leur place : les réinsérer relancerait leurs animations.
+    function syncChildren(parent, wanted) {
+        wanted.forEach(function (child, index) {
+            if (parent.children[index] !== child) {
+                parent.insertBefore(child, parent.children[index] || null);
+            }
+        });
+        while (parent.children.length > wanted.length) {
+            parent.lastElementChild.remove();
+        }
+    }
+
+    function positions() {
+        const rects = new Map();
+        zonesEl.querySelectorAll('.slot, .zone-head').forEach(function (el) {
+            rects.set(el, el.getBoundingClientRect());
+        });
+        return rects;
+    }
+
+    function glideFrom(rects) {
+        rects.forEach(function (before, el) {
+            if (!el.isConnected) {
+                return;
+            }
+            const after = el.getBoundingClientRect();
+            const dx = (before.left - after.left) / scale;
+            const dy = (before.top - after.top) / scale;
+            if (Math.abs(dx) > 1 || Math.abs(dy) > 1) {
+                el.animate(
+                    [{ transform: 'translate(' + dx + 'px, ' + dy + 'px)' }, { transform: 'none' }],
+                    { duration: MOVE_MS, easing: 'cubic-bezier(.4, 0, .2, 1)' }
+                );
+            }
+        });
+    }
+
+    function appear(slot, index) {
+        const note = slot.querySelector('.note');
+        const tilt = note.style.getPropertyValue('--tilt');
+        note.animate(
+            [
+                { opacity: 0, transform: 'translateY(14px) rotate(' + tilt + ')' },
+                { opacity: 1, transform: 'rotate(' + tilt + ')' },
+            ],
+            { duration: ENTER_MS, delay: index * ENTER_STAGGER_MS, easing: 'ease-out', fill: 'backwards' }
+        );
+    }
+
+    function markStack(notes, theme) {
+        const slots = Array.from(notes.children);
+        const hidden = theme.total - theme.questions.length;
+        slots.forEach(function (slot, index) {
+            const last = hidden > 0 && index === slots.length - 1;
+            slot.classList.toggle('stack', last);
+            if (last) {
+                slot.querySelector('.more').textContent = '+' + hidden;
+            }
+        });
+    }
+
     function paintBoard(themes) {
+        const rects = positions();
+        const entering = [];
+
         zonesEl.style.gridTemplateRows = themes.length >= 4 ? 'repeat(2, minmax(0, 1fr))' : 'minmax(0, 1fr)';
 
-        const keep = [];
-        themes.forEach(function (theme) {
+        const zones = themes.map(function (theme) {
             const zone = zoneFor(theme);
-            keep.push(zone);
             zone.style.gridColumn = 'span ' + theme.layout.span;
 
             const name = zone.querySelector('.zone-name');
@@ -283,20 +375,59 @@
 
             // Les notes déjà affichées sont réutilisées : seule celle qui arrive s'anime.
             const current = {};
-            notes.querySelectorAll('.slot').forEach(function (slot) { current[slot.dataset.id] = slot; });
+            Array.from(notes.children).forEach(function (slot) { current[slot.dataset.id] = slot; });
             const wanted = theme.questions.map(function (question) {
                 const slot = current[question.id];
                 if (!slot) {
-                    return buildSlot(question, theme, !firstPaint);
+                    const created = buildSlot(question, theme);
+                    entering.push(created);
+                    return created;
                 }
                 // Un thème qui apparaît ou disparaît change la taille des notes déjà en place.
                 setType(slot.querySelector('p'), question.text, theme);
                 return slot;
             });
-            notes.replaceChildren.apply(notes, wanted);
+            syncChildren(notes, wanted);
+            markStack(notes, theme);
+            return zone;
         });
-        zonesEl.replaceChildren.apply(zonesEl, keep);
+
+        syncChildren(zonesEl, zones);
         zonesEl.querySelectorAll('.note p').forEach(shrinkToFit);
+
+        if (!firstPaint) {
+            glideFrom(rects);
+            entering.forEach(appear);
+        }
+    }
+
+    // Ce qui quitte l'écran s'efface avant que les autres notes ne bougent.
+    function leaving(themes) {
+        const themeIds = new Set(themes.map(function (theme) { return String(theme.id); }));
+        const questionIds = new Set();
+        themes.forEach(function (theme) {
+            theme.questions.forEach(function (question) { questionIds.add(String(question.id)); });
+        });
+
+        const gone = [];
+        zonesEl.querySelectorAll('.zone').forEach(function (zone) {
+            if (!themeIds.has(zone.dataset.theme)) {
+                gone.push(zone);
+                return;
+            }
+            zone.querySelectorAll('.slot').forEach(function (slot) {
+                if (!questionIds.has(slot.dataset.id)) {
+                    gone.push(slot);
+                }
+            });
+        });
+        return gone;
+    }
+
+    function fadeOut(elements) {
+        return Promise.all(elements.map(function (el) {
+            return el.animate({ opacity: [1, 0] }, { duration: LEAVE_MS, easing: 'ease-in', fill: 'forwards' }).finished;
+        }));
     }
 
     function paint(data) {
@@ -309,9 +440,14 @@
         } else {
             // Visible d'abord : un élément masqué n'a pas de hauteur à mesurer.
             show('board');
-            paintBoard(data.themes);
-            firstPaint = false;
+            const gone = leaving(data.themes);
+            return (gone.length ? fadeOut(gone) : Promise.resolve()).then(function () {
+                gone.forEach(function (el) { el.remove(); });
+                paintBoard(data.themes);
+                firstPaint = false;
+            });
         }
+        return null;
     }
 
     function poll() {
@@ -333,7 +469,7 @@
                 offlineEl.style.display = 'none';
                 if (data) {
                     revision = data.revision;
-                    paint(data);
+                    return paint(data);
                 }
             })
             // Réseau coupé : on garde ce qui est affiché et on réessaie.
