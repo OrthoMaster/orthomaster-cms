@@ -1,0 +1,336 @@
+@extends('voyager::master')
+
+@section('page_title', ' ' . $board->title)
+
+@section('page_header')
+    <div class="container-fluid">
+        <h1 class="page-title">
+            <i class="voyager-chat"></i> {{ $board->title }}
+        </h1>
+        <span class="label" id="status-label"></span>
+        <button type="button" class="btn btn-success" id="start"></button>
+        <button type="button" class="btn btn-danger" id="stop">Arrêter</button>
+        <a href="{{ route('dashboard.congres.edit', $board) }}" class="btn btn-default">Modifier</a>
+        <a href="{{ route('dashboard.congres') }}" class="btn btn-default">Liste</a>
+    </div>
+@stop
+
+@section('css')
+    <style>
+        /* --- Liens --- */
+        .cg-links label { font-weight: 600; }
+        .cg-link { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+        .cg-link .form-control { flex: 1 1 320px; min-width: 0; }
+
+        /* --- Colonnes --- */
+        #columns { display: flex; gap: 16px; align-items: flex-start; overflow-x: auto; padding-bottom: 12px; }
+        .cg-col { flex: 1 1 280px; min-width: 280px; background: #fff; border-radius: 8px; padding: 12px; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+        .cg-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 6px 12px; margin-bottom: 10px; border-radius: 999px; color: #1B1F2A; font-weight: 600; }
+        .cg-list { min-height: 72px; }
+        .cg-empty { color: #6B7280; padding: 8px; }
+
+        /* --- Cartes --- */
+        .cg-card { position: relative; padding: 10px; margin-bottom: 8px; border: 1px solid #E3E6EC; border-radius: 6px; background: #F7F8FA; cursor: grab; }
+        .cg-card.on-screen { background: #fff; border-left-width: 5px; }
+        .cg-card.dragging { opacity: .4; }
+        .cg-card.drop-before { box-shadow: 0 -3px 0 #2D55AF; }
+        .cg-text { color: #1B1F2A; overflow-wrap: anywhere; }
+        .cg-meta { display: flex; justify-content: space-between; gap: 8px; margin: 4px 0 8px; color: #6B7280; font-size: 12px; }
+        .cg-tools { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+        .cg-tools select { flex: 1 1 110px; min-width: 0; height: 30px; padding: 2px 4px; }
+        .cg-tools .btn { margin: 0; }
+        .cg-separator { margin: 10px 0; padding-top: 6px; border-top: 2px dashed #CFD4DE; color: #6B7280; font-size: 12px; }
+    </style>
+@stop
+
+@section('content')
+    <div class="page-content container-fluid">
+        <div class="panel panel-bordered">
+            <div class="panel-body cg-links">
+                <label for="screen-url">Lien de projection</label>
+                <div class="cg-link">
+                    <input type="text" class="form-control" id="screen-url" readonly value="{{ $board->screenUrl() }}">
+                    <button type="button" class="btn btn-default" data-copy="screen-url">Copier</button>
+                    <a class="btn btn-default" id="screen-open" href="{{ $board->screenUrl() }}" target="_blank" rel="noopener">Ouvrir</a>
+                    <button type="button" class="btn btn-default" id="screen-reset">Générer un nouveau lien</button>
+                </div>
+                <label for="reader-url">Lien du public (QR affiché sur l'écran)</label>
+                <div class="cg-link">
+                    <input type="text" class="form-control" id="reader-url" readonly value="{{ $board->readerUrl() }}">
+                    <button type="button" class="btn btn-default" data-copy="reader-url">Copier</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="columns"></div>
+    </div>
+@stop
+
+@section('javascript')
+    <script>
+        $(document).ready(function () {
+            const POLL_MS = 3000;
+            const CONFIRM_MS = 3000;
+            const URLS = {
+                data: @json(route('dashboard.congres.live.data', $board)),
+                start: @json(route('dashboard.congres.start', $board)),
+                stop: @json(route('dashboard.congres.stop', $board)),
+                arrange: @json(route('dashboard.congres.arrange', $board)),
+                link: @json(route('dashboard.congres.screen-link', $board)),
+                question: @json(url('admin/dashboard/congres/' . $board->id . '/questions')),
+            };
+            const CSRF = @json(csrf_token());
+            const STATUS = {
+                draft: ['Brouillon', 'label-warning', 'Démarrer'],
+                live: ['En cours', 'label-success', ''],
+                closed: ['Terminée', 'label-default', 'Rouvrir'],
+            };
+
+            let revision = '';
+            let themes = [];
+            let dragged = null;
+            let confirming = null;
+
+            function send(url, method, body) {
+                return fetch(url, {
+                    method,
+                    headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-CSRF-TOKEN': CSRF },
+                    body: body ? JSON.stringify(body) : undefined,
+                }).then((response) => {
+                    if (!response.ok) {
+                        throw new Error('HTTP ' + response.status);
+                    }
+                    return response.json();
+                });
+            }
+
+            function fail() {
+                toastr.error('Action impossible. La page va se recharger.');
+                revision = '';
+                load();
+            }
+
+            /* --- Affichage --- */
+
+            function paintStatus(status) {
+                const [text, css, action] = STATUS[status];
+                $('#status-label').attr('class', 'label ' + css).text(text);
+                $('#start').text(action).toggle(status !== 'live');
+                $('#stop').toggle(status === 'live');
+            }
+
+            function card(question, index, theme) {
+                const onScreen = index < theme.layout.capacity;
+                const el = $('<div class="cg-card" draggable="true">')
+                    .attr('data-id', question.id)
+                    .toggleClass('on-screen', onScreen);
+                if (onScreen) {
+                    el.css('border-left-color', theme.color);
+                }
+
+                el.append($('<div class="cg-text">').text(question.text));
+                el.append(
+                    $('<div class="cg-meta">')
+                        .append($('<span>').text(question.author))
+                        .append($('<span>').text('n° ' + (index + 1)))
+                );
+
+                const move = $('<select class="form-control input-sm cg-move" aria-label="Déplacer vers un autre thème">')
+                    .append('<option value="">Déplacer vers…</option>');
+                themes.filter((t) => t.id !== theme.id).forEach((t) => {
+                    move.append($('<option>').val(t.id).text(t.name));
+                });
+
+                const tools = $('<div class="cg-tools">');
+                if (index > 0) {
+                    tools.append('<button type="button" class="btn btn-xs btn-default cg-top">En tête</button>');
+                }
+                if (themes.length > 1) {
+                    tools.append(move);
+                }
+                tools.append('<button type="button" class="btn btn-xs btn-danger cg-delete">Supprimer</button>');
+                el.append(tools);
+
+                return el;
+            }
+
+            function paintColumns() {
+                const columns = $('#columns').empty();
+
+                themes.forEach((theme) => {
+                    const col = $('<div class="cg-col">').attr('data-theme', theme.id);
+                    col.append(
+                        $('<div class="cg-head">').css('background', theme.color)
+                            .append($('<span>').text(theme.name))
+                            .append($('<span>').text(theme.total))
+                    );
+
+                    const list = $('<div class="cg-list">');
+                    if (theme.questions.length === 0) {
+                        list.append('<div class="cg-empty">Aucune question</div>');
+                    }
+                    theme.questions.forEach((question, index) => {
+                        if (index === theme.layout.capacity) {
+                            list.append('<div class="cg-separator">En attente, hors écran</div>');
+                        }
+                        list.append(card(question, index, theme));
+                    });
+
+                    columns.append(col.append(list));
+                });
+            }
+
+            /* --- Données --- */
+
+            function load() {
+                // Pas de relecture sous la souris : la carte déplacée disparaîtrait.
+                if (dragged || confirming) {
+                    return Promise.resolve();
+                }
+
+                return fetch(URLS.data + '?rev=' + encodeURIComponent(revision), { headers: { Accept: 'application/json' } })
+                    .then((response) => {
+                        if (response.status === 200) {
+                            return response.json();
+                        }
+                        return null;
+                    })
+                    .then((data) => {
+                        if (data && !dragged && !confirming) {
+                            revision = data.revision;
+                            themes = data.themes;
+                            paintStatus(data.status);
+                            paintColumns();
+                        }
+                    })
+                    .catch(() => {});
+            }
+
+            function reload() {
+                revision = '';
+                return load();
+            }
+
+            function idsOf(list) {
+                return list.find('.cg-card').map(function () { return Number($(this).attr('data-id')); }).get();
+            }
+
+            function arrange(themeId, ids) {
+                send(URLS.arrange, 'POST', { theme_id: themeId, ids }).then(reload).catch(fail);
+            }
+
+            /* --- Glisser-déposer --- */
+
+            $('#columns').on('dragstart', '.cg-card', function (event) {
+                dragged = this;
+                event.originalEvent.dataTransfer.effectAllowed = 'move';
+                event.originalEvent.dataTransfer.setData('text/plain', $(this).attr('data-id'));
+                $(this).addClass('dragging');
+            });
+
+            $('#columns').on('dragover', '.cg-col', function (event) {
+                event.preventDefault();
+                $('.drop-before').removeClass('drop-before');
+                const target = $(event.target).closest('.cg-card');
+                if (target.length && target[0] !== dragged) {
+                    target.addClass('drop-before');
+                }
+            });
+
+            $('#columns').on('drop', '.cg-col', function (event) {
+                event.preventDefault();
+                const target = $(event.target).closest('.cg-card');
+                const list = $(this).find('.cg-list');
+
+                if (target.length && target[0] !== dragged) {
+                    target.before(dragged);
+                } else if (!target.length) {
+                    list.append(dragged);
+                }
+
+                const themeId = Number($(this).attr('data-theme'));
+                const ids = idsOf(list);
+                finishDrag();
+                arrange(themeId, ids);
+            });
+
+            function finishDrag() {
+                $(dragged).removeClass('dragging');
+                $('.drop-before').removeClass('drop-before');
+                dragged = null;
+            }
+
+            $('#columns').on('dragend', '.cg-card', finishDrag);
+
+            /* --- Actions sur une carte --- */
+
+            $('#columns').on('click', '.cg-top', function () {
+                const list = $(this).closest('.cg-list');
+                const id = Number($(this).closest('.cg-card').attr('data-id'));
+                const ids = idsOf(list).filter((other) => other !== id);
+                arrange(Number($(this).closest('.cg-col').attr('data-theme')), [id].concat(ids));
+            });
+
+            $('#columns').on('change', '.cg-move', function () {
+                const themeId = Number(this.value);
+                if (!themeId) {
+                    return;
+                }
+                const id = Number($(this).closest('.cg-card').attr('data-id'));
+                const list = $('.cg-col[data-theme="' + themeId + '"] .cg-list');
+                arrange(themeId, idsOf(list).concat([id]));
+            });
+
+            // Suppression définitive : deux clics, sans fenêtre de confirmation qui ralentirait la séance.
+            $('#columns').on('click', '.cg-delete', function () {
+                const button = $(this);
+                const id = button.closest('.cg-card').attr('data-id');
+
+                if (confirming === id) {
+                    confirming = null;
+                    send(URLS.question + '/' + id, 'DELETE').then(reload).catch(fail);
+                    return;
+                }
+
+                confirming = id;
+                button.text('Confirmer ?');
+                setTimeout(() => {
+                    if (confirming === id) {
+                        confirming = null;
+                        button.text('Supprimer');
+                    }
+                }, CONFIRM_MS);
+            });
+
+            /* --- Séance et liens --- */
+
+            $('#start').on('click', () => send(URLS.start, 'POST').then(reload).catch(fail));
+            $('#stop').on('click', () => send(URLS.stop, 'POST').then(reload).catch(fail));
+
+            $('[data-copy]').on('click', function () {
+                const input = document.getElementById($(this).attr('data-copy'));
+                input.select();
+                if (navigator.clipboard) {
+                    navigator.clipboard.writeText(input.value);
+                } else {
+                    document.execCommand('copy');
+                }
+                toastr.success('Lien copié');
+            });
+
+            $('#screen-reset').on('click', function () {
+                if (!window.confirm('L\'écran qui utilise le lien actuel affichera « Lien désactivé ». Continuer ?')) {
+                    return;
+                }
+                send(URLS.link, 'POST').then((data) => {
+                    $('#screen-url').val(data.screen_url);
+                    $('#screen-open').attr('href', data.screen_url);
+                    toastr.success('Nouveau lien généré');
+                }).catch(fail);
+            });
+
+            load();
+            setInterval(load, POLL_MS);
+        });
+    </script>
+@stop

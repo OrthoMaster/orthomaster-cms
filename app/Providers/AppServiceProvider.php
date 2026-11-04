@@ -3,6 +3,9 @@
 namespace App\Providers;
 
 use App\Voyager\CustomSchemaManager;
+use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use TCG\Voyager\Database\Schema\SchemaManager;
 
@@ -30,6 +33,12 @@ class AppServiceProvider extends ServiceProvider
                 return \TCG\Voyager\Models\Setting::orderBy('order')->get();
             });
         }
+
+        // Congrès : toute la salle peut partager une même IP WiFi, la limite ne se compte donc pas par IP.
+        RateLimiter::for('congres-join', fn (Request $request) => Limit::perMinute(600)->by('congres-join|' . $request->route('code')));
+        RateLimiter::for('congres-question', fn (Request $request) => Limit::perMinute(10)->by(
+            'congres-question|' . sha1((string) ($request->header('X-Participant-Token') ?: $request->ip()))
+        ));
 
         \App\Models\OldContent::observe(\App\Observers\OldContentAiSearchObserver::class);
         \App\Models\Video::observe(\App\Observers\VideoAiSearchObserver::class);

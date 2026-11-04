@@ -17,6 +17,8 @@ use App\Http\Controllers\CompanyController;
 use App\Http\Controllers\DailyQuestionController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DashboardDailyActionController;
+use App\Http\Controllers\CongressPublicController;
+use App\Http\Controllers\DashboardCongressController;
 use App\Http\Controllers\DashboardEventController;
 use App\Http\Controllers\DashboardLessonController;
 use App\Http\Controllers\DashboardReportController;
@@ -162,6 +164,26 @@ Route::group(['prefix' => 'admin', 'middleware' => ['cmsAdmin']], function () {
             Route::get('/{id}/linked/{type}', [MediaController::class, 'linkedList'])->name('linked');
         });
     Route::get('medias/list', [MediaController::class, 'list'])->name('medias.list');
+
+    // Questions du public aux tables rondes
+    Route::prefix('dashboard/congres')
+        ->name('dashboard.congres')
+        ->controller(DashboardCongressController::class)
+        ->group(function () {
+            Route::get('/', 'index');
+            Route::get('/create', 'create')->name('.create');
+            Route::post('/', 'store')->name('.store');
+            Route::get('/{board}/edit', 'edit')->name('.edit');
+            Route::put('/{board}', 'update')->name('.update');
+            Route::delete('/{board}', 'destroy')->name('.destroy');
+            Route::get('/{board}/live', 'live')->name('.live');
+            Route::get('/{board}/live/data', 'liveData')->name('.live.data');
+            Route::post('/{board}/start', 'start')->name('.start');
+            Route::post('/{board}/stop', 'stop')->name('.stop');
+            Route::post('/{board}/screen-link', 'regenerateScreenLink')->name('.screen-link');
+            Route::post('/{board}/arrange', 'arrange')->name('.arrange');
+            Route::delete('/{board}/questions/{question}', 'deleteQuestion')->name('.questions.destroy');
+        });
 
     // Events
     Route::get('dashboard/events', [DashboardEventController::class, 'index'])
@@ -618,6 +640,10 @@ Route::get('medias/shared/{code}/search-experts', [MediaController::class, 'shar
     ->name('medias.shared.search-experts');
 Route::get('medias/shared/{code}/search-videos', [MediaController::class, 'sharedSearchVideos'])
     ->name('medias.shared.search-videos');
+
+// Questions du public aux tables rondes (auth.orthomaster.fr/congres)
+Route::get('/congres/{code}', [CongressPublicController::class, 'reader'])->name('congres.reader');
+Route::get('/congres/{code}/ecran/{token}', [CongressPublicController::class, 'screen'])->name('congres.screen');
 
 // Redirection publique des short links (idéalement sur le domaine go.orthomaster.fr)
 Route::get('/sh/{code}', [MktToolsController::class, 'redirect'])->name('mkt.shortlink.redirect');

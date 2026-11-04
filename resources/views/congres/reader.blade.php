@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="fr">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="robots" content="noindex">
+    <title>{{ $board->title }}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* --- Base --- */
+        * { box-sizing: border-box; }
+        body { margin: 0; min-height: 100vh; background: #FFF3E0; color: #1B1F2A; font-family: Poppins, Arial, sans-serif; font-size: 16px; line-height: 24px; }
+        main { max-width: 480px; margin: 0 auto; padding: 24px 16px 40px; }
+        [hidden] { display: none !important; }
+
+        /* --- En-tête --- */
+        .congress { color: #A85F00; font-size: 14px; font-weight: 600; }
+        h1 { margin: 4px 0 20px; font-size: 24px; line-height: 32px; font-weight: 600; overflow-wrap: anywhere; }
+
+        /* --- Carte --- */
+        .card { background: #fff; border-radius: 16px; padding: 20px; box-shadow: 0 4px 14px rgba(29,52,112,.08); }
+        label, .legend { display: block; margin: 0 0 8px; font-weight: 600; }
+        input[type=text], textarea {
+            width: 100%; padding: 12px 14px; border: 1px solid #CFD4DE; border-radius: 10px;
+            font: inherit; font-size: 16px; color: inherit; background: #fff;
+        }
+        input[type=text]:focus, textarea:focus { outline: 2px solid #FF9600; border-color: #FF9600; }
+        textarea { min-height: 112px; resize: none; }
+        .counter { margin-top: 4px; text-align: right; color: #5B6270; font-size: 13px; }
+        fieldset { margin: 0 0 18px; padding: 0; border: 0; }
+
+        /* --- Thèmes --- */
+        .themes { display: flex; flex-wrap: wrap; gap: 8px; }
+        label.theme { position: relative; display: block; margin: 0; font-weight: 500; cursor: pointer; }
+        .theme input { position: absolute; opacity: 0; inset: 0; margin: 0; width: 100%; height: 100%; }
+        .theme span { display: block; min-height: 44px; padding: 10px 16px; border-radius: 999px; border: 2px solid transparent; font-size: 15px; font-weight: 500; }
+        .theme input:checked + span { border-color: #1B1F2A; font-weight: 600; }
+        .theme input:focus-visible + span { outline: 2px solid #1D3470; outline-offset: 2px; }
+
+        /* --- Actions --- */
+        .primary { width: 100%; min-height: 50px; margin-top: 18px; border: 0; border-radius: 12px; background: #FF9600; color: #1B1F2A; font: inherit; font-weight: 600; cursor: pointer; }
+        .primary:disabled { opacity: .55; cursor: default; }
+        .link { padding: 0; border: 0; background: none; color: #1D3470; font: inherit; font-size: 14px; text-decoration: underline; cursor: pointer; }
+        .who { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 14px; font-size: 14px; }
+        .error { margin-top: 12px; color: #C62828; font-size: 14px; }
+        .done { margin-top: 12px; padding: 10px 14px; border-radius: 10px; background: #D0E8D5; font-size: 14px; font-weight: 500; }
+        .notice { margin: 14px 0 0; color: #5B6270; font-size: 13px; line-height: 19px; }
+        .state { text-align: center; }
+        .state strong { display: block; font-size: 20px; line-height: 28px; font-weight: 600; }
+    </style>
+</head>
+<body>
+<main>
+    @if ($board->congress_name)
+        <div class="congress">{{ $board->congress_name }}</div>
+    @endif
+    <h1>{{ $board->title }}</h1>
+
+    <div class="card state" id="state" hidden>
+        <strong id="state-title"></strong>
+        <span id="state-text"></span>
+    </div>
+
+    <form class="card" id="join" hidden>
+        <label for="name">Votre nom</label>
+        <input type="text" id="name" maxlength="60" autocomplete="name" required>
+        <p class="notice">Votre nom et vos questions s'affichent sur l'écran de la salle.</p>
+        <button type="submit" class="primary">Rejoindre</button>
+        <div class="error" id="join-error" role="alert" hidden></div>
+    </form>
+
+    <form class="card" id="ask" hidden>
+        <div class="who">
+            <span id="who"></span>
+            <button type="button" class="link" id="rename">Changer de nom</button>
+        </div>
+
+        <fieldset>
+            <legend class="legend">Thème</legend>
+            <div class="themes">
+                @foreach ($board->themes as $theme)
+                    <label class="theme">
+                        <input type="radio" name="theme" value="{{ $theme->id }}" @checked($board->themes->count() === 1)>
+                        <span style="background: {{ $theme->color }}">{{ $theme->name }}</span>
+                    </label>
+                @endforeach
+            </div>
+        </fieldset>
+
+        <label for="text">Votre question</label>
+        <textarea id="text" maxlength="{{ $maxLength }}" required></textarea>
+        <div class="counter"><span id="count">0</span> / {{ $maxLength }}</div>
+
+        <button type="submit" class="primary" id="send">Envoyer</button>
+        <div class="error" id="ask-error" role="alert" hidden></div>
+        <div class="done" id="ask-done" role="status" hidden>Question envoyée. Vous pouvez en poser une autre.</div>
+    </form>
+</main>
+
+<script>
+(function () {
+    const CODE = @json($board->code);
+    const API = '/api/congres/' + CODE;
+    const STORAGE_KEY = 'congres:' + CODE;
+    const STATUS_POLL_MS = 15000;
+
+    const el = (id) => document.getElementById(id);
+    let status = @json($board->status);
+    let identity = load();
+    let statusTimer = null;
+
+    // Le stockage peut être bloqué (navigation privée) : l'identité reste alors en mémoire pour la page.
+    function load() {
+        try {
+            return JSON.parse(localStorage.getItem(STORAGE_KEY));
+        } catch (e) {
+            return null;
+        }
+    }
+
+    function save(value) {
+        identity = value;
+        try {
+            if (value) {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(value));
+            } else {
+                localStorage.removeItem(STORAGE_KEY);
+            }
+        } catch (e) {
+            // Rien à faire : voir load().
+        }
+    }
+
+    function render() {
+        const live = status === 'live';
+        el('state').hidden = live;
+        el('join').hidden = !live || !!identity;
+        el('ask').hidden = !live || !identity;
+
+        if (status === 'draft') {
+            el('state-title').textContent = 'La séance n\'a pas encore commencé';
+            el('state-text').textContent = 'Cette page s\'ouvrira automatiquement.';
+        } else if (status === 'closed') {
+            el('state-title').textContent = 'Séance terminée';
+            el('state-text').textContent = 'Merci de votre participation.';
+        }
+
+        if (identity) {
+            el('who').textContent = identity.name;
+        }
+
+        // Hors séance seulement : en séance, une salle entière n'interroge pas le serveur pour rien.
+        clearTimeout(statusTimer);
+        if (!live) {
+            statusTimer = setTimeout(refreshStatus, STATUS_POLL_MS);
+        }
+    }
+
+    function refreshStatus() {
+        fetch(API + '/status', { headers: { Accept: 'application/json' } })
+            .then((response) => response.ok ? response.json() : Promise.reject())
+            .then((data) => { status = data.status; })
+            .catch(() => {})
+            .finally(render);
+    }
+
+    function show(id, message) {
+        const target = el(id);
+        target.textContent = message;
+        target.hidden = false;
+    }
+
+    function post(path, body, headers) {
+        return fetch(API + path, {
+            method: 'POST',
+            headers: Object.assign({ 'Content-Type': 'application/json', Accept: 'application/json' }, headers),
+            body: JSON.stringify(body),
+        });
+    }
+
+    el('join').addEventListener('submit', function (event) {
+        event.preventDefault();
+        el('join-error').hidden = true;
+
+        const name = el('name').value.trim();
+        if (name.length < 2) {
+            show('join-error', 'Indiquez votre nom.');
+            return;
+        }
+
+        post('/join', { name })
+            .then((response) => response.ok ? response.json() : Promise.reject())
+            .then((data) => {
+                save({ token: data.token, name: data.name });
+                render();
+            })
+            .catch(() => show('join-error', 'Connexion impossible. Réessayez.'));
+    });
+
+    el('rename').addEventListener('click', function () {
+        el('name').value = identity ? identity.name : '';
+        save(null);
+        render();
+    });
+
+    el('text').addEventListener('input', function () {
+        el('count').textContent = this.value.length;
+        el('ask-done').hidden = true;
+    });
+
+    el('ask').addEventListener('submit', function (event) {
+        event.preventDefault();
+        el('ask-error').hidden = true;
+        el('ask-done').hidden = true;
+
+        const theme = document.querySelector('input[name=theme]:checked');
+        const text = el('text').value.trim();
+
+        if (!theme) {
+            show('ask-error', 'Choisissez un thème.');
+            return;
+        }
+        if (text.length < 3) {
+            show('ask-error', 'Écrivez votre question.');
+            return;
+        }
+
+        el('send').disabled = true;
+
+        post('/questions', { theme_id: Number(theme.value), text }, { 'X-Participant-Token': identity.token })
+            .then((response) => {
+                if (response.ok) {
+                    el('text').value = '';
+                    el('count').textContent = '0';
+                    el('ask-done').hidden = false;
+                } else if (response.status === 401) {
+                    save(null);
+                    render();
+                } else if (response.status === 409) {
+                    refreshStatus();
+                } else if (response.status === 429) {
+                    show('ask-error', 'Trop de questions d\'affilée. Patientez une minute.');
+                } else {
+                    show('ask-error', 'Envoi impossible. Réessayez.');
+                }
+            })
+            .catch(() => show('ask-error', 'Pas de réseau. Votre question est conservée, réessayez.'))
+            .finally(() => { el('send').disabled = false; });
+    });
+
+    render();
+})();
+</script>
+</body>
+</html>
