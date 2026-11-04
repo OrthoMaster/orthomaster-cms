@@ -14,6 +14,7 @@ use Illuminate\Support\Str;
  */
 class CongressBoardService
 {
+    public const LOGO_URL = 'https://content-orthomaster-prod.s3.eu-west-1.amazonaws.com/application-data/logo-v2/bimi/logo_orange_mail_bimi.svg';
     public const MAX_THEMES = 6;
     public const QUESTION_MAX_LENGTH = 120;
 

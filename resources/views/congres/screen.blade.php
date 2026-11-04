@@ -63,10 +63,11 @@
         .scan { margin-top: 14px; font-size: 24px; line-height: 32px; font-weight: 500; }
         .host { color: #D5DDF0; font-size: 20px; }
         .code { font-size: 46px; line-height: 56px; font-weight: 700; letter-spacing: 4px; }
-        .brand { color: #FFAF32; font-size: 22px; font-weight: 700; }
+        .brand { display: block; width: 72px; height: 72px; border-radius: 14px; object-fit: contain; color: #FFAF32; font-size: 22px; font-weight: 700; }
 
         /* --- Attente --- */
         #waiting-grid { position: absolute; inset: 72px 96px; display: grid; grid-template-columns: minmax(0, 1fr) 640px; gap: 96px; align-items: center; }
+        #view-waiting .brand { width: 96px; height: 96px; margin-bottom: 24px; border-radius: 18px; }
         #view-waiting .congress { font-size: 34px; }
         #view-waiting h1 { margin: 18px 0 0; font-size: 84px; line-height: 98px; font-weight: 700; overflow-wrap: anywhere; }
         .invite { margin: 56px 0 0; font-size: 38px; line-height: 50px; font-weight: 500; }
@@ -104,7 +105,7 @@
                     <div class="host" data-host></div>
                     <div class="code">{{ $board->code }}</div>
                 </div>
-                <div class="brand">OrthoMaster</div>
+                <img class="brand" src="{{ \App\Support\Congress\CongressBoardService::LOGO_URL }}" alt="OrthoMaster">
             </aside>
         </div>
     </div>
@@ -112,6 +113,7 @@
     <div class="view" id="view-waiting">
         <div id="waiting-grid">
             <div>
+                <img class="brand" src="{{ \App\Support\Congress\CongressBoardService::LOGO_URL }}" alt="OrthoMaster">
                 @if ($board->congress_name)
                     <div class="congress">{{ $board->congress_name }}</div>
                 @endif

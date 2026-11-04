@@ -15,6 +15,7 @@
         [hidden] { display: none !important; }
 
         /* --- En-tête --- */
+        .logo { display: block; width: 48px; height: 48px; margin-bottom: 12px; border-radius: 10px; object-fit: contain; color: #A85F00; font-size: 14px; font-weight: 700; }
         .congress { color: #A85F00; font-size: 14px; font-weight: 600; }
         h1 { margin: 4px 0 20px; font-size: 24px; line-height: 32px; font-weight: 600; overflow-wrap: anywhere; }
 
@@ -61,6 +62,7 @@
 </head>
 <body>
 <main>
+    <img class="logo" src="{{ \App\Support\Congress\CongressBoardService::LOGO_URL }}" alt="OrthoMaster">
     @if ($board->congress_name)
         <div class="congress">{{ $board->congress_name }}</div>
     @endif
