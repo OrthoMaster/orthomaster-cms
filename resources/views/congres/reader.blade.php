@@ -44,8 +44,17 @@
         .link { padding: 0; border: 0; background: none; color: #1D3470; font: inherit; font-size: 14px; text-decoration: underline; cursor: pointer; }
         .who { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 14px; font-size: 14px; }
         .error { margin-top: 12px; color: #C62828; font-size: 14px; }
-        .done { margin-top: 12px; padding: 10px 14px; border-radius: 10px; background: #D0E8D5; font-size: 14px; font-weight: 500; }
         .notice { margin: 14px 0 0; color: #5B6270; font-size: 13px; line-height: 19px; }
+
+        /* --- Confirmation --- */
+        dialog { width: calc(100% - 32px); max-width: 400px; padding: 28px 20px 20px; border: 0; border-radius: 20px; color: inherit; text-align: center; box-shadow: 0 12px 40px rgba(29,52,112,.25); }
+        dialog::backdrop { background: rgba(20,34,74,.55); }
+        .check { display: block; width: 56px; height: 56px; margin: 0 auto 12px; }
+        dialog h2 { margin: 0; font-size: 20px; line-height: 28px; font-weight: 600; }
+        dialog p { margin: 4px 0 18px; color: #5B6270; font-size: 14px; line-height: 20px; }
+        .discover { display: flex; align-items: center; justify-content: center; min-height: 48px; padding: 8px 14px; border-radius: 12px; background: #FFF3E0; color: #1B1F2A; font-size: 15px; font-weight: 600; text-decoration: none; }
+        dialog .primary { margin-top: 10px; }
+
         .state { text-align: center; }
         .state strong { display: block; font-size: 20px; line-height: 28px; font-weight: 600; }
     </style>
@@ -94,9 +103,19 @@
 
         <button type="submit" class="primary" id="send">Envoyer</button>
         <div class="error" id="ask-error" role="alert" hidden></div>
-        <div class="done" id="ask-done" role="status" hidden>Question envoyée. Vous pouvez en poser une autre.</div>
     </form>
 </main>
+
+<dialog id="sent" aria-labelledby="sent-title">
+    <svg class="check" viewBox="0 0 56 56" aria-hidden="true">
+        <circle cx="28" cy="28" r="28" fill="#D0E8D5"/>
+        <path d="M17 29l8 8 15-16" fill="none" stroke="#2E7D32" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    <h2 id="sent-title">Question envoyée</h2>
+    <p>Merci, votre question a bien été transmise.</p>
+    <a class="discover" href="https://app.orthomaster.fr" target="_blank" rel="noopener">Voir plus de contenus OrthoMaster</a>
+    <button type="button" class="primary" id="sent-close" autofocus>Poser une autre question</button>
+</dialog>
 
 <script>
 (function () {
@@ -206,13 +225,16 @@
 
     el('text').addEventListener('input', function () {
         el('count').textContent = this.value.length;
-        el('ask-done').hidden = true;
+    });
+
+    el('sent-close').addEventListener('click', function () {
+        el('sent').close();
+        el('text').focus();
     });
 
     el('ask').addEventListener('submit', function (event) {
         event.preventDefault();
         el('ask-error').hidden = true;
-        el('ask-done').hidden = true;
 
         const theme = document.querySelector('input[name=theme]:checked');
         const text = el('text').value.trim();
@@ -233,7 +255,7 @@
                 if (response.ok) {
                     el('text').value = '';
                     el('count').textContent = '0';
-                    el('ask-done').hidden = false;
+                    el('sent').showModal();
                 } else if (response.status === 401) {
                     save(null);
                     render();
