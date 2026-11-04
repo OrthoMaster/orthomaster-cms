@@ -58,9 +58,7 @@
         #waiting-grid { position: absolute; inset: 72px 96px; display: grid; grid-template-columns: minmax(0, 1fr) 640px; gap: 96px; align-items: center; }
         #view-waiting .congress { font-size: 34px; }
         #view-waiting h1 { margin: 18px 0 0; font-size: 84px; line-height: 98px; font-weight: 700; overflow-wrap: anywhere; }
-        .invite { margin: 56px 0; font-size: 38px; line-height: 50px; font-weight: 500; }
-        #chips { display: flex; flex-wrap: wrap; gap: 16px; }
-        #chips span { color: #1B1F2A; font-size: 30px; font-weight: 600; line-height: 40px; padding: 8px 26px; border-radius: 999px; }
+        .invite { margin: 56px 0 0; font-size: 38px; line-height: 50px; font-weight: 500; }
         .qr-big { display: flex; flex-direction: column; align-items: center; gap: 24px; }
         .qr-big .host { font-size: 30px; }
         .qr-big .code { font-size: 72px; line-height: 80px; letter-spacing: 6px; }
@@ -108,7 +106,6 @@
                 @endif
                 <h1>{{ $board->title }}</h1>
                 <div class="invite">Posez vos questions aux intervenants depuis votre téléphone.</div>
-                <div id="chips"></div>
             </div>
             <div class="qr-big">
                 <div class="qr" data-qr style="width: 640px; height: 640px; border-radius: 14px"></div>
@@ -155,7 +152,6 @@
 
     const stage = document.getElementById('stage');
     const zonesEl = document.getElementById('zones');
-    const chipsEl = document.getElementById('chips');
     const offlineEl = document.getElementById('offline');
 
     let revision = '';
@@ -217,6 +213,12 @@
         return ['23px', '29px'];
     }
 
+    function setType(element, content, theme) {
+        const type = typeFor(content.length, theme.layout.rows === 3);
+        element.style.fontSize = type[0];
+        element.style.lineHeight = type[1];
+    }
+
     // Filet de sécurité : une question longue aux mots larges ne doit jamais être coupée.
     function shrinkToFit(text) {
         let size = parseFloat(text.style.fontSize);
@@ -239,9 +241,7 @@
         note.style.setProperty('--tilt', (((question.id * 37) % 5) - 2) * 0.6 + 'deg');
 
         const text = document.createElement('p');
-        const type = typeFor(question.text.length, theme.layout.rows === 3);
-        text.style.fontSize = type[0];
-        text.style.lineHeight = type[1];
+        setType(text, question.text, theme);
         text.textContent = question.text;
 
         const author = document.createElement('span');
@@ -285,7 +285,13 @@
             const current = {};
             notes.querySelectorAll('.slot').forEach(function (slot) { current[slot.dataset.id] = slot; });
             const wanted = theme.questions.map(function (question) {
-                return current[question.id] || buildSlot(question, theme, !firstPaint);
+                const slot = current[question.id];
+                if (!slot) {
+                    return buildSlot(question, theme, !firstPaint);
+                }
+                // Un thème qui apparaît ou disparaît change la taille des notes déjà en place.
+                setType(slot.querySelector('p'), question.text, theme);
+                return slot;
             });
             notes.replaceChildren.apply(notes, wanted);
         });
@@ -293,22 +299,12 @@
         zonesEl.querySelectorAll('.note p').forEach(shrinkToFit);
     }
 
-    function paintChips(themes) {
-        chipsEl.replaceChildren.apply(chipsEl, themes.map(function (theme) {
-            const chip = document.createElement('span');
-            chip.textContent = theme.name;
-            chip.style.background = theme.color;
-            return chip;
-        }));
-    }
-
     function paint(data) {
         if (data.status === 'draft') {
             show('draft');
         } else if (data.status === 'closed') {
             show('closed');
-        } else if (data.themes.every(function (theme) { return theme.total === 0; })) {
-            paintChips(data.themes);
+        } else if (data.themes.length === 0) {
             show('waiting');
         } else {
             // Visible d'abord : un élément masqué n'a pas de hauteur à mesurer.

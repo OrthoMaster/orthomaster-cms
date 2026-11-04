@@ -27,9 +27,7 @@ class DashboardCongressController extends Controller
     public function index()
     {
         $boards = DB::table('congress_boards as b')
-            ->leftJoin('past_events as pe', 'pe.id', '=', 'b.past_event_id')
-            ->leftJoin('events as e', 'e.id', '=', 'pe.id_event')
-            ->select('b.id', 'b.title', 'b.congress_name', 'b.code', 'b.status', 'b.created_at', 'e.name as event_name', 'pe.edition_year')
+            ->select('b.id', 'b.title', 'b.congress_name', 'b.code', 'b.status', 'b.created_at')
             ->selectSub(
                 DB::table('congress_questions as q')->whereColumn('q.board_id', 'b.id')->selectRaw('COUNT(*)'),
                 'questions_count'
@@ -46,9 +44,8 @@ class DashboardCongressController extends Controller
     public function create()
     {
         return view('dashboard.congres.form', [
-            'board'    => new CongressBoard(),
-            'themes'   => collect(),
-            'editions' => $this->editions(),
+            'board'  => new CongressBoard(),
+            'themes' => collect(),
         ]);
     }
 
@@ -60,8 +57,7 @@ class DashboardCongressController extends Controller
         $data = $this->validated($request);
 
         $board = CongressBoard::create([
-            'past_event_id' => $data['past_event_id'] ?? null,
-            'congress_name' => $data['congress_name'] ?: $this->editionLabel($data['past_event_id'] ?? null),
+            'congress_name' => $data['congress_name'] ?? null,
             'title'         => $data['title'],
             'code'          => $this->service->newCode(),
             'screen_token'  => $this->service->newScreenToken(),
@@ -78,9 +74,8 @@ class DashboardCongressController extends Controller
     public function edit(CongressBoard $board)
     {
         return view('dashboard.congres.form', [
-            'board'    => $board,
-            'themes'   => $board->themes()->get(),
-            'editions' => $this->editions(),
+            'board'  => $board,
+            'themes' => $board->themes()->get(),
         ]);
     }
 
@@ -101,8 +96,7 @@ class DashboardCongressController extends Controller
         }
 
         $board->update([
-            'past_event_id' => $data['past_event_id'] ?? null,
-            'congress_name' => $data['congress_name'] ?: $this->editionLabel($data['past_event_id'] ?? null),
+            'congress_name' => $data['congress_name'] ?? null,
             'title'         => $data['title'],
         ]);
 
@@ -137,40 +131,15 @@ class DashboardCongressController extends Controller
         ]);
 
         return $request->validate([
-            'past_event_id'  => ['nullable', 'integer', 'exists:past_events,id'],
-            'congress_name'  => ['nullable', 'string', 'max:150'],
-            'title'          => ['required', 'string', 'max:150'],
-            'themes'         => ['required', 'array', 'min:1', 'max:' . CongressBoardService::MAX_THEMES],
-            'themes.*.id'    => ['nullable', 'integer'],
-            'themes.*.name'  => ['required', 'string', 'max:60'],
+            'congress_name' => ['nullable', 'string', 'max:150'],
+            'title'         => ['required', 'string', 'max:150'],
+            'themes'        => ['required', 'array', 'min:1', 'max:' . CongressBoardService::MAX_THEMES],
+            'themes.*.id'   => ['nullable', 'integer'],
+            'themes.*.name' => ['required', 'string', 'max:60'],
         ], [
             'themes.required' => 'Ajoutez au moins un thème.',
             'themes.max'      => 'L\'écran affiche ' . CongressBoardService::MAX_THEMES . ' thèmes au maximum.',
         ]);
-    }
-
-    private function editions()
-    {
-        return DB::table('past_events as pe')
-            ->join('events as e', 'e.id', '=', 'pe.id_event')
-            ->select('pe.id')
-            ->selectRaw("CONCAT(e.name, ' ', pe.edition_year) as label")
-            ->orderByDesc('pe.edition_year')
-            ->orderBy('e.name')
-            ->get();
-    }
-
-    private function editionLabel(?int $pastEventId): ?string
-    {
-        if (!$pastEventId) {
-            return null;
-        }
-
-        return DB::table('past_events as pe')
-            ->join('events as e', 'e.id', '=', 'pe.id_event')
-            ->where('pe.id', $pastEventId)
-            ->selectRaw("CONCAT(e.name, ' ', pe.edition_year) as label")
-            ->value('label');
     }
 
     /* ===================== EN DIRECT ===================== */

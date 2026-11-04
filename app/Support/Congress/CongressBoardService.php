@@ -237,13 +237,12 @@ class CongressBoardService
     /* ===================== LECTURE ===================== */
 
     /**
-     * Thèmes avec leur file complète (CMS) ou seulement le début visible (écran).
+     * Thèmes avec leur file complète (CMS) ou seulement ce que montre l'écran.
+     * L'écran ne réserve pas de cadre aux thèmes sans question : la mise en page, donc le nombre
+     * de questions visibles par thème, dépend des thèmes qui en ont, pas de ceux configurés.
      */
     public function snapshot(CongressBoard $board, bool $visibleOnly): array
     {
-        $themes = $board->themes()->get();
-        $count = $themes->count();
-
         $questions = DB::table('congress_questions as q')
             ->join('congress_participants as p', 'p.id', '=', 'q.participant_id')
             ->where('q.board_id', $board->id)
@@ -253,11 +252,22 @@ class CongressBoardService
             ->get()
             ->groupBy('theme_id');
 
-        return $themes->values()->map(function ($theme, $index) use ($questions, $count, $visibleOnly) {
-            $layout = self::layout($count, $index);
-            $queue = ($questions->get($theme->id) ?? collect())->values();
+        $themes = $board->themes()->get();
+        $activeCount = $themes->filter(fn ($theme) => $questions->has($theme->id))->count();
+        $activeIndex = 0;
+        $rows = [];
 
-            return [
+        foreach ($themes as $theme) {
+            $queue = ($questions->get($theme->id) ?? collect())->values();
+            $layout = $queue->isEmpty()
+                ? ['span' => 0, 'cols' => 0, 'rows' => 0, 'capacity' => 0]
+                : self::layout($activeCount, $activeIndex++);
+
+            if ($visibleOnly && $queue->isEmpty()) {
+                continue;
+            }
+
+            $rows[] = [
                 'id'        => $theme->id,
                 'name'      => $theme->name,
                 'color'     => $theme->color,
@@ -268,6 +278,8 @@ class CongressBoardService
                     ->values()
                     ->all(),
             ];
-        })->all();
+        }
+
+        return $rows;
     }
 }

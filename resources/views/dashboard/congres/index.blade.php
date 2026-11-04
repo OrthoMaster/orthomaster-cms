@@ -37,7 +37,7 @@
                             @foreach ($boards as $board)
                                 <tr>
                                     <td>{{ $board->title }}</td>
-                                    <td>{{ $board->congress_name ?: trim($board->event_name . ' ' . $board->edition_year) }}</td>
+                                    <td>{{ $board->congress_name }}</td>
                                     <td><code>{{ $board->code }}</code></td>
                                     <td>
                                         @if ($board->status === 'live')

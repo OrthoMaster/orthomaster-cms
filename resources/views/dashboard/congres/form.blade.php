@@ -43,18 +43,9 @@
                             value="{{ old('title', $board->title) }}">
                     </div>
                     <div class="form-group">
-                        <label for="past_event_id">Édition (facultatif)</label>
-                        <select class="form-control select2" id="past_event_id" name="past_event_id">
-                            <option value="">Aucune</option>
-                            @foreach ($editions as $edition)
-                                <option value="{{ $edition->id }}" @selected((int) old('past_event_id', $board->past_event_id) === (int) $edition->id)>{{ $edition->label }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label for="congress_name">Nom du congrès affiché</label>
+                        <label for="congress_name">Nom du congrès</label>
                         <input type="text" class="form-control" id="congress_name" name="congress_name" maxlength="150"
-                            value="{{ old('congress_name', $board->congress_name) }}" placeholder="Vide : nom de l'édition choisie">
+                            value="{{ old('congress_name', $board->congress_name) }}">
                     </div>
                 </div>
             </div>
@@ -62,7 +53,7 @@
             <div class="panel panel-bordered">
                 <div class="panel-body">
                     <label>Thèmes (6 au maximum)</label>
-                    <p class="text-muted">La couleur de chaque thème est attribuée automatiquement. Moins il y a de thèmes, plus l'écran affiche de questions par thème.</p>
+                    <p class="text-muted">La couleur de chaque thème est attribuée automatiquement. L'écran n'affiche que les thèmes qui ont des questions : moins ils sont nombreux, plus chacun a de place.</p>
 
                     <div id="themes">
                         @foreach (old('themes', $themes->map(fn ($t) => ['id' => $t->id, 'name' => $t->name, 'color' => $t->color])->all()) as $i => $theme)
