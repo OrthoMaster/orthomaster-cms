@@ -44,10 +44,12 @@
 
         /* --- Boutons d'une carte --- */
         .cg-tools { position: absolute; top: 6px; right: 6px; display: flex; gap: 4px; }
-        .cg-icon { width: 24px; height: 24px; padding: 0; border: 0; border-radius: 4px; background: transparent; color: #6B7280; font-size: 16px; line-height: 24px; text-align: center; cursor: pointer; }
-        .cg-icon:hover, .cg-icon:focus-visible { background: #E3E6EC; color: #1B1F2A; }
-        .cg-delete:hover, .cg-delete:focus-visible { background: #FDECEA; color: #C62828; }
-        .cg-delete.confirm { width: auto; padding: 0 8px; background: #E53935; color: #fff; font-size: 12px; font-weight: 600; }
+        .cg-icon { width: 24px; height: 24px; padding: 0; border: 0; border-radius: 4px; font-size: 16px; font-weight: 600; line-height: 24px; text-align: center; cursor: pointer; }
+        .cg-top { background: #FFC800; color: #1B1F2A; }
+        .cg-top:hover, .cg-top:focus-visible { background: #E7A601; }
+        .cg-delete { background: #E53935; color: #fff; }
+        .cg-delete:hover, .cg-delete:focus-visible, .cg-delete.confirm { background: #B71C1C; }
+        .cg-delete.confirm { width: auto; padding: 0 8px; font-size: 12px; }
         .cg-separator { margin: 10px 0; padding-top: 6px; border-top: 2px dashed #CFD4DE; color: #6B7280; font-size: 12px; }
 
         /* --- Petits écrans --- */
