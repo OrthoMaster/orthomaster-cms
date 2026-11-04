@@ -63,11 +63,12 @@
         .scan { margin-top: 14px; font-size: 24px; line-height: 32px; font-weight: 500; }
         .host { color: #D5DDF0; font-size: 20px; }
         .code { font-size: 46px; line-height: 56px; font-weight: 700; letter-spacing: 4px; }
-        .brand { display: block; width: 72px; height: 72px; border-radius: 14px; object-fit: contain; color: #FFAF32; font-size: 22px; font-weight: 700; }
+        .brand { display: flex; align-items: center; justify-content: center; gap: 10px; color: #FFAF32; font-size: 26px; font-weight: 700; }
+        .brand img { width: 40px; height: 40px; border-radius: 8px; object-fit: contain; }
 
         /* --- Attente --- */
         #waiting-grid { position: absolute; inset: 72px 96px; display: grid; grid-template-columns: minmax(0, 1fr) 640px; gap: 96px; align-items: center; }
-        #view-waiting .brand { width: 96px; height: 96px; margin-bottom: 24px; border-radius: 18px; }
+        #view-waiting .brand { justify-content: flex-start; margin-bottom: 24px; }
         #view-waiting .congress { font-size: 34px; }
         #view-waiting h1 { margin: 18px 0 0; font-size: 84px; line-height: 98px; font-weight: 700; overflow-wrap: anywhere; }
         .invite { margin: 56px 0 0; font-size: 38px; line-height: 50px; font-weight: 500; }
@@ -105,7 +106,7 @@
                     <div class="host" data-host></div>
                     <div class="code">{{ $board->code }}</div>
                 </div>
-                <img class="brand" src="{{ \App\Support\Congress\CongressBoardService::LOGO_URL }}" alt="OrthoMaster">
+                @include('congres._brand')
             </aside>
         </div>
     </div>
@@ -113,7 +114,7 @@
     <div class="view" id="view-waiting">
         <div id="waiting-grid">
             <div>
-                <img class="brand" src="{{ \App\Support\Congress\CongressBoardService::LOGO_URL }}" alt="OrthoMaster">
+                @include('congres._brand')
                 @if ($board->congress_name)
                     <div class="congress">{{ $board->congress_name }}</div>
                 @endif
@@ -130,6 +131,7 @@
 
     <div class="view" id="view-draft">
         <div class="message">
+            @include('congres._brand')
             @if ($board->congress_name)
                 <div class="congress">{{ $board->congress_name }}</div>
             @endif
@@ -140,6 +142,7 @@
 
     <div class="view" id="view-closed">
         <div class="message">
+            @include('congres._brand')
             <div class="congress">{{ $board->title }}</div>
             <h1>Séance terminée</h1>
             <div class="sub">Merci de votre participation</div>
@@ -148,6 +151,7 @@
 
     <div class="view" id="view-disabled">
         <div class="message">
+            @include('congres._brand')
             <h1>Lien désactivé</h1>
         </div>
     </div>

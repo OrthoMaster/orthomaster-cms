@@ -642,6 +642,7 @@ Route::get('medias/shared/{code}/search-videos', [MediaController::class, 'share
     ->name('medias.shared.search-videos');
 
 // Questions du public aux tables rondes (auth.orthomaster.fr/congres)
+Route::get('/congres', [CongressPublicController::class, 'enter'])->name('congres.enter');
 Route::get('/congres/{code}', [CongressPublicController::class, 'reader'])->name('congres.reader');
 Route::get('/congres/{code}/ecran/{token}', [CongressPublicController::class, 'screen'])->name('congres.screen');
 
