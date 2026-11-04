@@ -18,15 +18,20 @@
 @section('css')
     <style>
         /* --- Liens --- */
+        .cg-details { margin-bottom: 12px; background: #fff; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+        .cg-details summary { padding: 8px 14px; font-weight: 600; cursor: pointer; }
+        .cg-links { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; padding: 4px 14px 14px; }
         .cg-links label { font-weight: 600; }
-        .cg-link { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
-        .cg-link .form-control { flex: 1 1 320px; min-width: 0; }
+        .cg-link { display: flex; flex-wrap: wrap; gap: 8px; }
+        .cg-link .form-control { flex: 1 1 100%; min-width: 0; }
+        .cg-link .btn { margin: 0; padding: 4px 10px; font-size: 13px; }
 
         /* --- Colonnes --- */
-        #columns { display: flex; gap: 16px; align-items: flex-start; overflow-x: auto; padding-bottom: 12px; }
-        .cg-col { flex: 1 1 280px; min-width: 280px; background: #fff; border-radius: 8px; padding: 12px; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+        /* Grille et non ligne : six colonnes ne tiennent pas en largeur. Chaque liste défile seule. */
+        #columns { display: grid; grid-template-columns: repeat(var(--cols, 3), minmax(0, 1fr)); gap: 16px; align-items: start; padding-bottom: 12px; }
+        .cg-col { min-width: 0; background: #fff; border-radius: 8px; padding: 12px; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
         .cg-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 6px 12px; margin-bottom: 10px; border-radius: 999px; color: #1B1F2A; font-weight: 600; }
-        .cg-list { min-height: 72px; }
+        .cg-list { min-height: 72px; max-height: var(--list-height, 70vh); overflow-y: auto; padding-right: 4px; }
         .cg-empty { color: #6B7280; padding: 8px; }
 
         /* --- Cartes --- */
@@ -37,30 +42,44 @@
         .cg-text { color: #1B1F2A; overflow-wrap: anywhere; }
         .cg-meta { display: flex; justify-content: space-between; gap: 8px; margin: 4px 0 8px; color: #6B7280; font-size: 12px; }
         .cg-tools { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
-        .cg-tools select { flex: 1 1 110px; min-width: 0; height: 30px; padding: 2px 4px; }
-        .cg-tools .btn { margin: 0; }
+        .cg-tools select { flex: 1 1 100px; min-width: 0; width: auto; height: 26px; padding: 0 4px; font-size: 12px; }
+        .cg-tools .btn { margin: 0; padding: 2px 8px; font-size: 12px; }
         .cg-separator { margin: 10px 0; padding-top: 6px; border-top: 2px dashed #CFD4DE; color: #6B7280; font-size: 12px; }
+
+        /* --- Petits écrans --- */
+        @media (max-width: 1100px) {
+            .cg-links, #columns { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        }
+        @media (max-width: 700px) {
+            .cg-links, #columns { grid-template-columns: minmax(0, 1fr); }
+        }
     </style>
 @stop
 
 @section('content')
     <div class="page-content container-fluid">
-        <div class="panel panel-bordered">
-            <div class="panel-body cg-links">
-                <label for="screen-url">Lien de projection</label>
-                <div class="cg-link">
-                    <input type="text" class="form-control" id="screen-url" readonly value="{{ $board->screenUrl() }}">
-                    <button type="button" class="btn btn-default" data-copy="screen-url">Copier</button>
-                    <a class="btn btn-default" id="screen-open" href="{{ $board->screenUrl() }}" target="_blank" rel="noopener">Ouvrir</a>
-                    <button type="button" class="btn btn-default" id="screen-reset">Générer un nouveau lien</button>
+        {{-- Replié en séance : six thèmes doivent tenir sur un écran sans défiler. --}}
+        <details class="cg-details" @if ($board->status === 'draft') open @endif>
+            <summary>Liens de projection et du public</summary>
+            <div class="cg-links">
+                <div>
+                    <label for="screen-url">Lien de projection</label>
+                    <div class="cg-link">
+                        <input type="text" class="form-control" id="screen-url" readonly value="{{ $board->screenUrl() }}">
+                        <button type="button" class="btn btn-default" data-copy="screen-url">Copier</button>
+                        <a class="btn btn-default" id="screen-open" href="{{ $board->screenUrl() }}" target="_blank" rel="noopener">Ouvrir</a>
+                        <button type="button" class="btn btn-default" id="screen-reset">Générer un nouveau lien</button>
+                    </div>
                 </div>
-                <label for="reader-url">Lien du public (QR affiché sur l'écran)</label>
-                <div class="cg-link">
-                    <input type="text" class="form-control" id="reader-url" readonly value="{{ $board->readerUrl() }}">
-                    <button type="button" class="btn btn-default" data-copy="reader-url">Copier</button>
+                <div>
+                    <label for="reader-url">Lien du public (QR affiché sur l'écran)</label>
+                    <div class="cg-link">
+                        <input type="text" class="form-control" id="reader-url" readonly value="{{ $board->readerUrl() }}">
+                        <button type="button" class="btn btn-default" data-copy="reader-url">Copier</button>
+                    </div>
                 </div>
             </div>
-        </div>
+        </details>
 
         <div id="columns"></div>
     </div>
@@ -155,7 +174,19 @@
             }
 
             function paintColumns() {
-                const columns = $('#columns').empty();
+                const columns = $('#columns');
+
+                // Le contenu est reconstruit : sans cela, chaque nouvelle question remonterait les listes en haut.
+                const scrolls = {};
+                columns.find('.cg-col').each(function () {
+                    scrolls[$(this).attr('data-theme')] = $(this).find('.cg-list').scrollTop();
+                });
+                columns.empty();
+
+                // Même disposition que l'écran : au-delà de quatre thèmes, deux rangées de trois.
+                const count = themes.length;
+                columns[0].style.setProperty('--cols', count >= 5 ? 3 : Math.max(count, 1));
+                columns[0].style.setProperty('--list-height', count >= 5 ? 'max(200px, calc(50vh - 190px))' : 'max(260px, calc(100vh - 280px))');
 
                 themes.forEach((theme) => {
                     const col = $('<div class="cg-col">').attr('data-theme', theme.id);
@@ -177,6 +208,7 @@
                     });
 
                     columns.append(col.append(list));
+                    list.scrollTop(scrolls[theme.id] || 0);
                 });
             }
 
