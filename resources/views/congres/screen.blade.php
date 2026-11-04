@@ -22,9 +22,8 @@
         #board-grid { position: absolute; inset: 36px; display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 24px; }
         #zones { min-width: 0; min-height: 0; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 24px; }
         .zone { min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: 12px; }
-        .zone-head { flex: none; height: 52px; display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+        .zone-head { flex: none; height: 52px; display: flex; align-items: center; }
         .zone-name { color: #1B1F2A; font-size: 26px; font-weight: 600; line-height: 36px; padding: 6px 20px; border-radius: 999px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .zone-count { font-size: 26px; font-weight: 600; white-space: nowrap; }
         .zone-notes { flex: 1; min-height: 0; display: grid; gap: 14px; }
 
         /* --- Note --- */
@@ -288,7 +287,7 @@
             zone = document.createElement('section');
             zone.className = 'zone';
             zone.dataset.theme = theme.id;
-            zone.innerHTML = '<div class="zone-head"><span class="zone-name"></span><span class="zone-count"></span></div><div class="zone-notes"></div>';
+            zone.innerHTML = '<div class="zone-head"><span class="zone-name"></span></div><div class="zone-notes"></div>';
         }
         return zone;
     }
@@ -367,7 +366,6 @@
             const name = zone.querySelector('.zone-name');
             name.textContent = theme.name;
             name.style.background = theme.color;
-            zone.querySelector('.zone-count').textContent = theme.total + (theme.total > 1 ? ' questions' : ' question');
 
             const notes = zone.querySelector('.zone-notes');
             notes.style.gridTemplateColumns = 'repeat(' + theme.layout.cols + ', minmax(0, 1fr))';
