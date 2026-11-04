@@ -18,6 +18,10 @@ return Application::configure(basePath: dirname(__DIR__))
             'cmsAdmin' => \App\Http\Middleware\CmsAdminMiddleware::class,
         ]);
 
+        // Sous-domaine des pages partenaires : uniquement ces pages (404 pour le reste).
+        $middleware->web(append: [\App\Http\Middleware\RestrictExpertDomain::class]);
+        $middleware->api(append: [\App\Http\Middleware\RestrictExpertDomain::class]);
+
         // Except csrf with Stripe webhook
         $middleware->validateCsrfTokens(except: [
             'api/webhooks/stripe',

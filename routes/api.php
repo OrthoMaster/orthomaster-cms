@@ -28,10 +28,12 @@ use App\Http\Controllers\SystemNotificationController;
 use App\Http\Controllers\Tracking\TrkAppOpenController;
 use App\Http\Controllers\VideoController;
 use App\Http\Controllers\API\BookingExpertController;
+use App\Http\Controllers\API\BookingSearchController;
 use App\Http\Controllers\API\ExpertBookingSetupController;
 use App\Http\Controllers\API\AiVideoSearchController;
 use App\Http\Controllers\API\BookingRequestController;
 use App\Http\Controllers\API\ExpertAgendaController;
+use App\Http\Controllers\API\BookingChatController;
 use App\Http\Controllers\API\ExpertBookingRequestController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -250,7 +252,6 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/conversations', [ChatbotController::class, 'conversations']);
     });
 
-
     /* ===================== RENDEZ-VOUS EXPERTS ===================== */
     Route::prefix('booking')->group(function () {
 
@@ -258,22 +259,47 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('experts', [BookingExpertController::class, 'index']);
         Route::get('experts/{expertId}', [BookingExpertController::class, 'show'])->whereNumber('expertId');
         Route::get('experts/{expertId}/availability', [BookingExpertController::class, 'availability'])->whereNumber('expertId');
+        Route::get('experts/{expertId}/consultation-slots', [BookingExpertController::class, 'consultationSlots'])->whereNumber('expertId');
+        Route::get('experts/{expertId}/medias', [BookingExpertController::class, 'medias'])->whereNumber('expertId');
+
+        /* --- Utilisateur : parcourir les thèmes, recherche intelligente (experts | thèmes) --- */
+        Route::get('themes', [BookingExpertController::class, 'themes']);
+        Route::get('search', [BookingSearchController::class, 'search'])->middleware('throttle:30,1');
 
         /* --- Expert : sa propre configuration --- */
         Route::controller(ExpertBookingSetupController::class)->prefix('me')->group(function () {
             Route::get('/', 'show');
             Route::get('preview', 'preview');
             Route::put('settings', 'updateSettings');
+            Route::put('consultation', 'updateConsultation');
 
             Route::post('offers', 'storeOffer');
             Route::put('offers/{offer}', 'updateOffer');
             Route::delete('offers/{offer}', 'destroyOffer');
 
+            // Illustrations d'un thème : ajout (version web de l'application), ordre, légende, suppression.
+            Route::post('offers/{offer}/images', 'storeOfferImages')->middleware('throttle:20,1');
+            Route::put('offers/{offer}/images/order', 'reorderOfferImages');
+            Route::put('offers/{offer}/images/{image}', 'updateOfferImage')->whereNumber('image');
+            Route::delete('offers/{offer}/images/{image}', 'destroyOfferImage')->whereNumber('image');
+
             Route::post('rules', 'storeRules');
             Route::delete('rules/{rule}', 'destroyRule');
+            Route::put('rules/{rule}/location', 'updateRuleLocation');
 
             Route::post('exceptions', 'storeExceptions');
             Route::delete('exceptions/{exception}', 'destroyException');
+
+            Route::get('grid-dates', 'gridDates');
+ 
+            Route::post('locations', 'storeLocation');
+            Route::put('locations/{location}', 'updateLocation');
+            Route::post('locations/{location}/archive', 'archiveLocation');
+            Route::post('locations/{location}/restore', 'restoreLocation');
+            Route::middleware('throttle:120,1')->group(function () {
+                Route::get('places/autocomplete', 'placesAutocomplete');
+                Route::get('places/{placeId}', 'placeDetails')->where('placeId', '[A-Za-z0-9_-]+');
+            });
         });
 
         /* --- Booking - Clients --- */
@@ -299,7 +325,19 @@ Route::middleware(['auth:sanctum'])->group(function () {
             Route::post('/requests/{booking}/no-show', [ExpertBookingRequestController::class, 'reportNoShow'])->whereNumber('booking');
 
             Route::put('/profile', [ExpertBookingSetupController::class, 'updateProfile']);
+            Route::post('/avatar', [ExpertBookingSetupController::class, 'updateAvatar'])->middleware('throttle:10,1');
             Route::post('/domains', [ExpertBookingSetupController::class, 'storeDomain']);
+        });
+
+        /* --- Messagerie expert ↔ demandeur (les deux rôles) --- */
+        Route::controller(BookingChatController::class)->prefix('conversations')->group(function () {
+            Route::get('/', 'index');
+            Route::get('unread', 'unread');
+            Route::post('start', 'start')->middleware('throttle:30,1');
+            Route::get('by-booking/{booking}', 'byBooking')->whereNumber('booking');
+            Route::get('{conversation}', 'show')->whereNumber('conversation');
+            Route::get('{conversation}/messages', 'messages')->whereNumber('conversation');
+            Route::post('{conversation}/messages', 'send')->whereNumber('conversation')->middleware('throttle:30,1');
         });
     });
 });

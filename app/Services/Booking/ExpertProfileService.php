@@ -5,7 +5,11 @@ namespace App\Services\Booking;
 use App\Models\Domain;
 use App\Models\Expert;
 use App\Support\Brochures\BrochureDraft;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
+use Intervention\Image\ImageManager;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -13,7 +17,8 @@ use Illuminate\Validation\ValidationException;
 /**
  * Profil public de l'expert, modifié depuis l'application : identité, présentation,
  * domaines et palette. Mêmes colonnes que la page vitrine : elle suit les changements.
- * La photo n'est pas modifiable ici (pas de sélecteur d'images dans l'application).
+ * La photo se change depuis la version web de l'application (sélecteur de fichier du
+ * navigateur) ; la version mobile n'a pas de sélecteur d'images.
  */
 class ExpertProfileService
 {
@@ -21,16 +26,77 @@ class ExpertProfileService
     public const HONORIFIC_MAX   = 40;
     public const NAME_MAX        = 255;
     public const CREDENTIALS_MAX = 200;
-    public const LEDE_MAX        = 5000;
+    // Même limite que la page partenaire (BrochureDraft).
+    public const LEDE_MAX        = 600;
     public const DOMAIN_MAX      = 120;
+
+    /**
+     * Titres proposés (liste fermée) : forme complète => abréviation.
+     * La colonne garde la forme complète (comme la page vitrine, « Docteur ») ;
+     * l'API renvoie aussi l'abréviation (honorific_short) pour les affichages courts.
+     */
+    public const HONORIFICS = [
+        'Madame'     => 'Mme',
+        'Monsieur'   => 'M.',
+        'Docteur'    => 'Dr',
+        'Professeur' => 'Pr',
+    ];
+
+    /** Saisies anciennes ou abrégées reconnues (sans casse, accents ni points). */
+    private const HONORIFIC_ALIASES = [
+        'madame' => 'Madame', 'mme' => 'Madame', 'mm' => 'Madame',
+        'monsieur' => 'Monsieur', 'm' => 'Monsieur', 'mr' => 'Monsieur',
+        'docteur' => 'Docteur', 'dr' => 'Docteur', 'doctor' => 'Docteur',
+        'professeur' => 'Professeur', 'pr' => 'Professeur', 'prof' => 'Professeur',
+    ];
+
+    /** Photo : même disque que Expert::avatarUrl ; carré de 600 px au plus, sans agrandir. */
+    public const AVATAR_DISK      = 's3';
+    public const AVATAR_MAX_EDGE  = 600;
+    public const AVATAR_MAX_KB    = 5120;
+    public const AVATAR_MIN_EDGE  = 200;
+    private const AVATAR_QUALITY  = 85;
+
+    /** Forme complète d'un titre (« Dr » => « Docteur ») ; null si vide ou inconnu. */
+    public static function honorificOf(?string $raw): ?string
+    {
+        $key = Str::lower(Str::ascii(str_replace('.', '', trim((string) $raw))));
+
+        return self::HONORIFIC_ALIASES[$key] ?? null;
+    }
+
+    /** Abréviation à afficher (« Docteur » => « Dr ») ; un titre ancien hors liste est rendu tel quel. */
+    public static function honorificShort(?string $honorific): ?string
+    {
+        $full = self::honorificOf($honorific);
+        if ($full !== null) {
+            return self::HONORIFICS[$full];
+        }
+
+        return ($honorific = trim((string) $honorific)) === '' ? null : $honorific;
+    }
+
+    /** Liste pour l'application : [{value: 'Docteur', short: 'Dr'}, …]. */
+    public static function honorificOptions(): array
+    {
+        return array_map(
+            fn ($full) => ['value' => $full, 'short' => self::HONORIFICS[$full]],
+            array_keys(self::HONORIFICS)
+        );
+    }
 
     /**
      * @param array{honorific?:?string, name?:string, credentials?:?string, lede?:?string, palette?:?string, domain_ids?:array<int>} $input
      */
     public function update(Expert $expert, array $input): Expert
     {
+        // Titre : liste fermée ; « Dr », « dr. »… sont ramenés à la forme complète.
+        if (array_key_exists('honorific', $input) && trim((string) $input['honorific']) !== '') {
+            $input['honorific'] = self::honorificOf($input['honorific']) ?? $input['honorific'];
+        }
+
         $data = Validator::make($input, [
-            'honorific'    => ['nullable', 'string', 'max:' . self::HONORIFIC_MAX],
+            'honorific'    => ['nullable', 'string', Rule::in(array_keys(self::HONORIFICS))],
             'name'         => ['required', 'string', 'max:' . self::NAME_MAX],
             'credentials'  => ['nullable', 'string', 'max:' . self::CREDENTIALS_MAX],
             'lede'         => ['nullable', 'string', 'max:' . self::LEDE_MAX],
@@ -41,6 +107,7 @@ class ExpertProfileService
         ], [
             'name.required' => 'Le nom est obligatoire.',
             'palette.in'    => 'Couleur inconnue.',
+            'honorific.in'  => 'Choisissez un titre dans la liste.',
         ], [
             'honorific'   => 'titre',
             'name'        => 'nom',
@@ -70,6 +137,48 @@ class ExpertProfileService
         });
 
         return $expert->fresh('domains');
+    }
+
+    /**
+     * Nouvelle photo : orientée selon l'EXIF, réduite à 600 px de côté au plus, enregistrée
+     * sur S3 ; l'ancienne est supprimée une fois la nouvelle en place.
+     */
+    public function updateAvatar(Expert $expert, ?UploadedFile $file): Expert
+    {
+        Validator::make(['avatar' => $file], [
+            'avatar' => [
+                'required', 'image', 'mimes:jpg,jpeg,png,webp', 'max:' . self::AVATAR_MAX_KB,
+                'dimensions:min_width=' . self::AVATAR_MIN_EDGE . ',min_height=' . self::AVATAR_MIN_EDGE,
+            ],
+        ], [
+            'avatar.required'   => 'Choisissez une image.',
+            'avatar.image'      => 'Le fichier doit être une image.',
+            'avatar.mimes'      => 'Formats acceptés : JPG, PNG ou WebP.',
+            'avatar.max'        => "L'image ne doit pas dépasser 5 Mo.",
+            'avatar.dimensions' => "L'image doit faire au moins 200 × 200 pixels.",
+        ])->validate();
+
+        // intervention/image v2 : version imposée par Voyager.
+        $image = (new ImageManager(['driver' => 'gd']))->make($file->getRealPath());
+        $image->orientate();
+        $image->resize(self::AVATAR_MAX_EDGE, self::AVATAR_MAX_EDGE, function ($constraint) {
+            $constraint->aspectRatio();
+            $constraint->upsize();
+        });
+        $encoded = $image->encode('jpg', self::AVATAR_QUALITY);
+
+        $disk = Storage::disk(self::AVATAR_DISK);
+        $path = "experts/{$expert->id}/" . Str::uuid() . '.jpg';
+        $disk->put($path, (string) $encoded, ['visibility' => 'public', 'ContentType' => 'image/jpeg']);
+
+        $old = $expert->avatar;
+        $expert->forceFill(['avatar' => $path])->save();
+
+        if ($old && $old !== $path && $disk->exists($old)) {
+            $disk->delete($old);
+        }
+
+        return $expert;
     }
 
     /**

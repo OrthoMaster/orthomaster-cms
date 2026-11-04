@@ -6,6 +6,7 @@ use App\Models\Booking;
 use App\Models\BookingEvent;
 use App\Models\BookingNoShowReport;
 use App\Models\BookingPolicy;
+use App\Models\ExpertOfferMode;
 use App\Models\Invoice;
 use App\Services\StripeService;
 use Illuminate\Support\Facades\DB;
@@ -50,11 +51,11 @@ class BookingAdminService
         return max(0, round((float) $booking->amount_ttc - (float) $booking->refunded_amount, 2));
     }
 
-    /** Politique en vigueur au moment de la réservation (repli : celle du jour). */
+    /** Politique en vigueur au moment de la réservation (repli : celle du jour, pour le même mode). */
     public static function policyOf(Booking $booking): ?BookingPolicy
     {
         return ($booking->booking_policy_id ? BookingPolicy::find($booking->booking_policy_id) : null)
-            ?? BookingPolicy::currentFor();
+            ?? BookingPolicy::currentFor(null, $booking->mode ?: ExpertOfferMode::ONLINE);
     }
 
     /**
@@ -203,9 +204,9 @@ class BookingAdminService
 
     /* ===================== RÉPONDRE AU NOM DE L'EXPERT ===================== */
 
-    public function accept(Booking $booking, int $adminId): Booking
+    public function accept(Booking $booking, int $adminId, ?int $locationId = null, ?string $windowStart = null): Booking
     {
-        return $this->decisions->accept($booking, BookingEvent::ACTOR_ADMIN, $adminId);
+        return $this->decisions->accept($booking, BookingEvent::ACTOR_ADMIN, $adminId, $locationId, $windowStart);
     }
 
     public function decline(Booking $booking, array $input, int $adminId): Booking

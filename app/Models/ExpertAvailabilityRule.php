@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class ExpertAvailabilityRule extends Model
 {
@@ -26,6 +27,7 @@ class ExpertAvailabilityRule extends Model
         'expert_id',
         'weekday',
         'period',
+        'location_id',
         'valid_from',
         'valid_until',
     ];
@@ -33,9 +35,16 @@ class ExpertAvailabilityRule extends Model
     protected $casts = [
         'expert_id'   => 'integer',
         'weekday'     => 'integer',
+        'location_id' => 'integer',
         'valid_from'  => 'date',
         'valid_until' => 'date',
     ];
+
+    /** Lieu de la demi-journée : sans lieu, elle ne sert qu'aux offres en ligne. */
+    public function location(): BelongsTo
+    {
+        return $this->belongsTo(ExpertLocation::class, 'location_id');
+    }
 
     public function getWeekdayLabelAttribute(): string
     {
@@ -45,5 +54,11 @@ class ExpertAvailabilityRule extends Model
     public function getPeriodLabelAttribute(): string
     {
         return self::PERIOD_LABELS[$this->period] ?? '';
+    }
+
+    /** « Lundi matin », « Mardi après-midi ». */
+    public static function slotLabel(int $weekday, string $period): string
+    {
+        return (self::WEEKDAY_LABELS[$weekday] ?? '?') . ' ' . mb_strtolower(self::PERIOD_LABELS[$period] ?? $period);
     }
 }

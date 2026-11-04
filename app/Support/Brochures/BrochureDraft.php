@@ -2,17 +2,21 @@
 
 namespace App\Support\Brochures;
 
+use App\Models\Expert;
+use App\Services\Booking\ExpertProfileService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Arr;
 
 /**
  * Contenu d'une page partenaire (brouillon et version publiée).
  *
- * Stockage (experts et expert_brochure_drafts) :
- *   - colonnes : honorific, credentials, lede, palette, model
- *   - JSON (experts.brochure / expert_brochure_drafts.data) :
- *       places, doctolib, linkedin, facebook, titles, formation, parcours
- *   - domaines : table domain_expert
+ * Stockage :
+ *   - profil de l'expert, partagé avec l'application (écran « Modifier le profil ») :
+ *       colonnes experts.honorific, credentials, lede, palette + domaines (domain_expert) + photo.
+ *       Enregistré directement sur l'expert, sans brouillon ni publication : une seule source.
+ *   - propre à la page (brouillon expert_brochure_drafts, puis experts à la publication) :
+ *       colonne model + JSON (data / brochure) : places, doctolib, linkedin, facebook, titles,
+ *       formation, parcours
  *
  * Forme complète manipulée par l'éditeur et les vues :
  * [
@@ -52,8 +56,15 @@ class BrochureDraft
 
     public const LINKS = ['doctolib', 'linkedin', 'facebook'];
 
-    /** Champs enregistrés dans des colonnes dédiées (le reste va dans le JSON). */
-    public const COLUMNS = ['honorific', 'credentials', 'lede', 'palette', 'model'];
+    /** Colonnes propres à la page (brouillon puis publication) ; le reste de la page va dans le JSON. */
+    public const COLUMNS = ['model'];
+
+    /** Profil de l'expert : lu et écrit directement sur experts (comme l'application). */
+    public const PROFILE_COLUMNS = ['honorific', 'credentials', 'lede', 'palette'];
+
+    /** Mêmes limites que l'application (ExpertProfileService). */
+    public const LEDE_MAX = ExpertProfileService::LEDE_MAX;
+    public const CREDENTIALS_MAX = ExpertProfileService::CREDENTIALS_MAX;
 
     private const MAX_PILLS = 12;
     private const MAX_PLACES = 4;
@@ -67,7 +78,7 @@ class BrochureDraft
         return [
             'palette'     => 'turquoise',
             'model'       => 'spine',
-            'honorific'   => 'Docteur',
+            'honorific'   => '',
             'credentials' => '',
             'lede'        => '',
             'expertise'   => [],
@@ -82,27 +93,57 @@ class BrochureDraft
     }
 
     /**
-     * Sépare des données normalisées en [colonnes, JSON] pour l'enregistrement.
+     * Sépare des données normalisées en [colonnes de la page, JSON de la page, profil de l'expert].
      * 'expertise' est exclu (enregistré dans domain_expert).
      */
     public static function split(array $data): array
     {
         return [
             Arr::only($data, self::COLUMNS),
-            Arr::except($data, [...self::COLUMNS, 'expertise']),
+            Arr::except($data, [...self::COLUMNS, ...self::PROFILE_COLUMNS, 'expertise']),
+            Arr::only($data, self::PROFILE_COLUMNS),
         ];
     }
 
-    /** Reconstitue les données complètes depuis un expert ou un brouillon (colonnes + JSON). */
-    public static function fromRecord(Model $record, string $jsonColumn): array
+    /**
+     * Reconstitue les données complètes : page depuis un brouillon ou la version publiée
+     * (colonnes + JSON), profil depuis l'expert.
+     */
+    public static function fromRecord(?Model $record, string $jsonColumn, Expert $expert): array
     {
-        $json = $record->{$jsonColumn};
+        $json = $record?->{$jsonColumn};
         $columns = [];
         foreach (self::COLUMNS as $column) {
-            $columns[$column] = $record->{$column} ?? '';
+            $columns[$column] = $record?->{$column} ?? '';
+        }
+        foreach (self::PROFILE_COLUMNS as $column) {
+            $columns[$column] = $expert->{$column} ?? '';
         }
 
-        return self::normalize(array_merge(is_array($json) ? $json : [], $columns));
+        // Page jamais enregistrée : valeurs initiales de l'éditeur, avec le profil de l'expert.
+        $base = $record ? (is_array($json) ? $json : []) : self::defaults();
+
+        return self::normalize(array_merge($base, array_filter($columns, fn ($v) => $v !== '') + ['honorific' => '']));
+    }
+
+    /**
+     * Valeurs du profil à écrire sur experts (null = vide).
+     * Couleur : la page affiche « turquoise » quand l'expert n'en a pas choisi ; ce choix par défaut
+     * n'est pas enregistré tant qu'il n'est pas modifié (l'application garde sa couleur par défaut).
+     */
+    public static function profileColumns(array $profile, Expert $expert): array
+    {
+        $palette = $profile['palette'] ?? null;
+        if ($expert->palette === null && $palette === 'turquoise') {
+            $palette = null;
+        }
+
+        return [
+            'honorific'   => ExpertProfileService::honorificOf($profile['honorific'] ?? null),
+            'credentials' => ($profile['credentials'] ?? '') !== '' ? $profile['credentials'] : null,
+            'lede'        => ($profile['lede'] ?? '') !== '' ? $profile['lede'] : null,
+            'palette'     => $palette,
+        ];
     }
 
     /** Valide et nettoie des données venant du navigateur ou de la base. */
@@ -114,10 +155,10 @@ class BrochureDraft
         $out = [
             'palette'     => array_key_exists($palette, self::PALETTES) ? $palette : 'turquoise',
             'model'       => array_key_exists($model, self::MODELS) ? $model : 'spine',
-            // vide autorisé (aucun titre affiché) ; absent = « Docteur »
-            'honorific'   => array_key_exists('honorific', $in) ? self::text($in['honorific'], 40) : 'Docteur',
-            'credentials' => self::text($in['credentials'] ?? '', 200),
-            'lede'        => self::text($in['lede'] ?? '', 600),
+            // Liste fermée (Madame, Monsieur, Docteur, Professeur) ou vide ; un ancien titre libre reste affiché.
+            'honorific'   => self::honorific($in['honorific'] ?? ''),
+            'credentials' => self::text($in['credentials'] ?? '', self::CREDENTIALS_MAX),
+            'lede'        => self::text($in['lede'] ?? '', self::LEDE_MAX),
             'expertise'   => [],
             'places'      => [],
             'titles'      => [],
@@ -183,6 +224,13 @@ class BrochureDraft
     }
 
     // ---------------------------------------------------------------- helpers
+
+    private static function honorific(mixed $v): string
+    {
+        $text = self::text($v, ExpertProfileService::HONORIFIC_MAX);
+
+        return ExpertProfileService::honorificOf($text) ?? $text;
+    }
 
     private static function text(mixed $v, int $max): string
     {

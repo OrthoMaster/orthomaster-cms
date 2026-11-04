@@ -3,6 +3,8 @@
 @php
     use App\Http\Controllers\Booking\AppointmentController as Appointments;
     use App\Models\BookingNoShowReport;
+    use App\Models\ExpertOfferMode;
+    use App\Services\Booking\BookingMeetService as MeetRooms;
     use Carbon\Carbon;
 
     $tz = config('app.display_timezone', 'Europe/Paris');
@@ -12,6 +14,39 @@
 
     [$statusLabel, $statusClass] = Appointments::STATUS[$displayStatus] ?? [$displayStatus, 'muted'];
     $blocksById = $booking->blocks->keyBy('id');
+
+    // Présentiel : pas de salle Meet, la colonne montre le lieu copié à la réservation.
+    $onsite    = $booking->mode === ExpertOfferMode::ONSITE;
+    $modeLabel = ExpertOfferMode::MODE_LABELS[$booking->mode] ?? $booking->mode;
+
+    // v3 : consultation sur mesure, demandes hors calendrier (lieu à choisir en présentiel).
+    $isConsultation = $booking->kind === \App\Models\Booking::KIND_CONSULTATION;
+    $needsLocation  = \App\Services\Booking\BookingDecisionService::needsLocation($booking);
+    $acceptLocations = $needsLocation
+        ? \App\Models\ExpertLocation::where('expert_id', $booking->expert_id)->active()->orderBy('label')->get()
+        : collect();
+
+    // Hors calendrier par créneaux : horaire à choisir en acceptant.
+    $windowService  = app(\App\Services\Booking\BookingWindowService::class);
+    $windows        = $booking->windows()->get();
+    $choosingWindow = $booking->status === 'pending' && $booking->awaitsWindowChoice();
+    $windowOptions  = $choosingWindow && !$isConsultation ? collect($windowService->themeOptions($booking)) : collect();
+    $windowLabel    = fn ($w) => $w->start_date->format('d/m/Y') . ' ' . ($w->start_time ?? ($periods[$w->start_period] ?? $w->start_period))
+        . ' → ' . $w->end_date->format('d/m/Y') . ' ' . ($w->end_time ?? ($periods[$w->end_period] ?? $w->end_period));
+
+    // Itinéraire Google Maps : coordonnées si connues, sinon l'adresse en texte.
+    $mapsUrl = function (array $l) {
+        $params = ['api' => 1];
+        if (!empty($l['lat']) && !empty($l['lng'])) {
+            $params['destination'] = $l['lat'] . ',' . $l['lng'];
+        } else {
+            $params['destination'] = trim(($l['address_line'] ?? '') . ', ' . ($l['postal_code'] ?? '') . ' ' . ($l['city'] ?? ''));
+        }
+        if (!empty($l['google_place_id'])) {
+            $params['destination_place_id'] = $l['google_place_id'];
+        }
+        return 'https://www.google.com/maps/dir/?' . http_build_query($params);
+    };
 
     // Journal : libellé lisible de chaque type d'événement.
     $eventLabels = [
@@ -27,6 +62,8 @@
         'refund_synced'    => 'Remboursement constaté sur Stripe',
         'meet_created'     => 'Lien Google Meet créé',
         'meet_cancelled'   => 'Lien Google Meet supprimé',
+        'meet_closed'      => 'Salle Google Meet fermée',
+        'meet_reopened'    => 'Salle Google Meet rouverte',
         'payment_captured_outside' => 'Débit fait hors application (à vérifier)',
     ];
     $actorLabels = [
@@ -43,6 +80,7 @@
     <h1 class="page-title">
         <i class="voyager-calendar"></i> Rendez-vous #{{ $booking->id }}
         <span class="booking-pill booking-pill--{{ $statusClass }}">{{ $statusLabel }}</span>
+        <span class="booking-pill booking-pill--{{ $booking->mode }}">{{ $modeLabel }}</span>
     </h1>
     <a href="{{ url()->previous() !== url()->current() ? url()->previous() : route('booking.appointments.index') }}" class="btn btn-default">
         <i class="voyager-angle-left"></i> Retour à la liste
@@ -51,16 +89,76 @@
 
 @section('css')
     <style>
-        /* --- Lien Meet --- */
+        /* --- Salle Meet --- */
+        .meet-row {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 4px;
+        }
+
         .meet-link {
             font-family: monospace;
             font-size: 13px;
             margin-right: 4px;
         }
 
-        .meet-copy {
+        .meet-link--closed {
+            color: #9aa0a6;
+            text-decoration: line-through;
+        }
+
+        .meet-form {
+            display: inline;
+            margin: 0;
+        }
+
+        .meet-btn {
             margin: 0;
             padding: 1px 6px;
+        }
+
+        .meet-state {
+            margin-top: 4px;
+            font-size: 12px;
+        }
+
+        .meet-presences > td {
+            background: #fafbfc;
+            border-top: 0 !important;
+            padding: 10px 16px !important;
+        }
+
+        .meet-presence-table {
+            width: 100%;
+        }
+
+        .meet-presence-table td {
+            padding: 4px 8px 4px 0;
+            vertical-align: top;
+            font-size: 13px;
+        }
+
+        .meet-person {
+            width: 40%;
+        }
+
+        .meet-session {
+            display: inline-block;
+            margin: 0 10px 2px 0;
+            font-family: monospace;
+        }
+
+        .meet-total {
+            width: 90px;
+            text-align: right;
+            white-space: nowrap;
+            font-weight: 600;
+        }
+
+        .meet-synced {
+            margin-top: 6px;
+            font-size: 12px;
         }
 
         /* --- Badges --- */
@@ -82,6 +180,16 @@
         .booking-pill--danger { border-color: #e74c3c; background: rgba(231, 76, 60, .08); color: #b03a2e; }
         .booking-pill--info { border-color: #5dade2; background: rgba(93, 173, 226, .1); color: #1f618d; }
         .booking-pill--muted { background: #f4f5f7; }
+        .booking-pill--online { border-color: #22a7f0; background: rgba(34, 167, 240, .1); color: #136b9c; }
+        .booking-pill--onsite { border-color: #9b59b6; background: rgba(155, 89, 182, .1); color: #6c3483; }
+
+        /* --- Lieu (présentiel) --- */
+        .booking-place-access {
+            margin-top: 4px;
+            font-size: 12px;
+            color: #6b7280;
+            white-space: pre-line;
+        }
 
         /* --- Structure --- */
         .booking-panel h3 {
@@ -280,6 +388,19 @@
                                     —
                                 @endif
                             </dd>
+                            <dt>Type</dt>
+                            <dd>
+                                <span class="booking-pill booking-pill--{{ $booking->mode }}">{{ $modeLabel }}</span>
+                                @if ($booking->off_calendar)
+                                    <span class="booking-pill">Hors calendrier</span>
+                                @endif
+                            </dd>
+                            @if ($isConsultation)
+                                <dt>Durée</dt>
+                                <dd>{{ $booking->duration_minutes }} min</dd>
+                                <dt>Sujet</dt>
+                                <dd style="white-space: pre-line;">{{ $booking->subject }}</dd>
+                            @endif
                             <dt>Demandeur</dt>
                             <dd>
                                 {{ $requester }}
@@ -320,6 +441,18 @@
                             @endif
                         </dl>
 
+                        @if ($windows->isNotEmpty())
+                            <h3 style="margin-top: 24px;">Créneaux proposés</h3>
+                            <ul style="padding-left: 18px;">
+                                @foreach ($windows as $w)
+                                    <li>{{ $windowLabel($w) }}</li>
+                                @endforeach
+                            </ul>
+                            @if ($choosingWindow)
+                                <p class="booking-muted">L'horaire sera choisi dans un de ces créneaux à l'acceptation.</p>
+                            @endif
+                        @endif
+
                         <h3 style="margin-top: 24px;">Demi-journées</h3>
                         <table class="table table-striped" style="margin: 0;">
                             <thead>
@@ -327,36 +460,101 @@
                                     <th>Date</th>
                                     <th>Période</th>
                                     <th>Horaires (expert)</th>
-                                    <th>Visio</th>
+                                    <th>{{ $onsite ? 'Lieu' : 'Visio' }}</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 @foreach ($booking->blocks as $block)
+                                    @php
+                                        $meetPresences = MeetRooms::summary($block);
+                                        $meetEnded     = $block->end_at && $block->end_at->isPast();
+                                        $meetPost      = fn ($name) => route('booking.appointments.meet' . ($name ? '.' . $name : ''), [$booking->id, $block->id]);
+                                    @endphp
                                     <tr>
                                         <td>{{ $block->date->format('d/m/Y') }}</td>
                                         <td>{{ $periods[$block->period] ?? $block->period }}</td>
                                         <td>{{ $block->start_local }} – {{ $block->end_local }}</td>
                                         <td>
-                                            @if ($block->meet_url)
-                                                <a href="{{ $block->meet_url }}" target="_blank" rel="noopener" class="meet-link">
-                                                    {{ \Illuminate\Support\Str::after($block->meet_url, 'https://') }}
-                                                </a>
-                                                <button type="button" class="btn btn-xs btn-default meet-copy" data-url="{{ $block->meet_url }}"
-                                                        title="Copier le lien" aria-label="Copier le lien">
-                                                    <i class="voyager-documentation"></i>
-                                                </button>
-                                                <form method="POST" style="display: inline; margin: 0;"
-                                                      action="{{ route('booking.appointments.meet.cancel', [$booking->id, $block->id]) }}"
-                                                      onsubmit="return confirm('Supprimer ce lien ? La salle sera fermée et le lien ne fonctionnera plus.');">
-                                                    @csrf
-                                                    <button type="submit" class="btn btn-xs btn-danger meet-copy"
-                                                            title="Supprimer le lien" aria-label="Supprimer le lien">
-                                                        <i class="voyager-trash"></i>
+                                            @if ($onsite)
+                                                @if ($block->location)
+                                                    <strong>{{ $block->location['label'] ?? '' }}</strong>
+                                                    <div>
+                                                        {{ $block->location['address_line'] ?? '' }},
+                                                        {{ trim(($block->location['postal_code'] ?? '') . ' ' . ($block->location['city'] ?? '')) }}
+                                                    </div>
+                                                    @if (!empty($block->location['access_details']))
+                                                        <div class="booking-place-access">{{ $block->location['access_details'] }}</div>
+                                                    @endif
+                                                    <a href="{{ $mapsUrl($block->location) }}" target="_blank" rel="noopener" class="booking-muted">
+                                                        <i class="voyager-location"></i> Itinéraire
+                                                    </a>
+                                                @else
+                                                    <span class="booking-muted">Lieu non enregistré</span>
+                                                @endif
+                                            @elseif ($block->meet_url)
+                                                <div class="meet-row">
+                                                    <a href="{{ $block->meet_url }}" target="_blank" rel="noopener"
+                                                       class="meet-link {{ $block->meet_closed_at ? 'meet-link--closed' : '' }}">
+                                                        {{ \Illuminate\Support\Str::after($block->meet_url, 'https://') }}
+                                                    </a>
+                                                    <button type="button" class="btn btn-xs btn-default meet-btn meet-copy" data-url="{{ $block->meet_url }}"
+                                                            title="Copier le lien" aria-label="Copier le lien">
+                                                        <i class="voyager-documentation"></i>
                                                     </button>
-                                                </form>
+                                                    <form method="POST" class="meet-form" action="{{ $meetPost('sync') }}">
+                                                        @csrf
+                                                        <button type="submit" class="btn btn-xs btn-default meet-btn"
+                                                                title="Rafraîchir les présences" aria-label="Rafraîchir les présences">
+                                                            <i class="voyager-refresh"></i>
+                                                        </button>
+                                                    </form>
+                                                    @if ($block->meet_closed_at)
+                                                        <form method="POST" class="meet-form" action="{{ $meetPost('reopen') }}"
+                                                              onsubmit="return confirm('Rouvrir la salle ? Le même lien fonctionnera de nouveau pendant {{ MeetRooms::REOPEN_HOURS }} h.');">
+                                                            @csrf
+                                                            <button type="submit" class="btn btn-xs btn-success meet-btn"
+                                                                    title="Rouvrir la salle" aria-label="Rouvrir la salle">
+                                                                <i class="voyager-key"></i>
+                                                            </button>
+                                                        </form>
+                                                    @else
+                                                        <form method="POST" class="meet-form" action="{{ $meetPost('close') }}"
+                                                              onsubmit="return confirm('Fermer la salle maintenant ? Les participants seront déconnectés et le lien ne fonctionnera plus.');">
+                                                            @csrf
+                                                            <button type="submit" class="btn btn-xs btn-warning meet-btn"
+                                                                    title="Fermer la salle" aria-label="Fermer la salle">
+                                                                <i class="voyager-lock"></i>
+                                                            </button>
+                                                        </form>
+                                                    @endif
+                                                    {{-- Après la fin : on ferme, on ne supprime plus (les présences restent). --}}
+                                                    @unless ($meetEnded)
+                                                        <form method="POST" class="meet-form" action="{{ $meetPost('cancel') }}"
+                                                              onsubmit="return confirm('Supprimer ce lien ? La salle sera fermée et le lien ne fonctionnera plus.');">
+                                                            @csrf
+                                                            <button type="submit" class="btn btn-xs btn-danger meet-btn"
+                                                                    title="Supprimer le lien" aria-label="Supprimer le lien">
+                                                                <i class="voyager-trash"></i>
+                                                            </button>
+                                                        </form>
+                                                    @endunless
+                                                </div>
+
+                                                <div class="meet-state booking-muted">
+                                                    @if ($block->meet_closed_at)
+                                                        Salle fermée le {{ $fmt($block->meet_closed_at) }}
+                                                        ({{ MeetRooms::REASON_LABELS[$block->meet_close_reason] ?? $block->meet_close_reason }})
+                                                    @elseif ($block->meet_reopened_until && $block->meet_reopened_until->isFuture())
+                                                        Rouverte jusqu'à {{ $fmt($block->meet_reopened_until, 'H:i') }}
+                                                    @else
+                                                        Salle ouverte
+                                                    @endif
+                                                    · <a href="#" class="meet-toggle" data-target="#meet-presences-{{ $block->id }}">
+                                                        Présences ({{ count($meetPresences) }})
+                                                    </a>
+                                                </div>
                                             @else
-                                                <form method="POST" style="display: inline; margin: 0;"
-                                                      action="{{ route('booking.appointments.meet', [$booking->id, $block->id]) }}">
+                                                <form method="POST" class="meet-form" action="{{ $meetPost(null) }}">
                                                     @csrf
                                                     <button type="submit" class="btn btn-xs btn-primary" style="margin: 0;"
                                                             onclick="this.disabled = true; this.form.submit();">
@@ -366,6 +564,45 @@
                                             @endif
                                         </td>
                                     </tr>
+
+                                    @if (!$onsite && $block->meet_url)
+                                        {{-- Présences relevées chez Google, repliées par défaut. --}}
+                                        <tr id="meet-presences-{{ $block->id }}" class="meet-presences" style="display: none;">
+                                            <td colspan="4">
+                                                @if (!$block->meet_synced_at)
+                                                    <span class="booking-muted">Pas encore relevé : cliquez sur <i class="voyager-refresh"></i> pour relever les présences.</span>
+                                                @elseif (!$meetPresences)
+                                                    <span class="booking-muted">Personne ne s'est connecté.</span>
+                                                @else
+                                                    <table class="meet-presence-table">
+                                                        @foreach ($meetPresences as $person)
+                                                            <tr>
+                                                                <td class="meet-person">
+                                                                    <strong>{{ $person['name'] }}</strong>
+                                                                    <span class="booking-pill">{{ ['google' => 'Compte Google', 'anonymous' => 'Anonyme', 'phone' => 'Téléphone'][$person['kind']] ?? $person['kind'] }}</span>
+                                                                </td>
+                                                                <td>
+                                                                    @foreach ($person['sessions'] as $session)
+                                                                        <span class="meet-session">
+                                                                            {{ $fmt($session->joined_at, 'H:i') }} → {{ $session->left_at ? $fmt($session->left_at, 'H:i') : 'en cours' }}
+                                                                        </span>
+                                                                    @endforeach
+                                                                </td>
+                                                                <td class="meet-total">
+                                                                    {{ intdiv($person['seconds'], 3600) ? intdiv($person['seconds'], 3600) . ' h ' : '' }}{{ str_pad(intdiv($person['seconds'] % 3600, 60), 2, '0', STR_PAD_LEFT) }} min
+                                                                </td>
+                                                            </tr>
+                                                        @endforeach
+                                                    </table>
+                                                @endif
+                                                @if ($block->meet_synced_at)
+                                                    <div class="booking-muted meet-synced">
+                                                        Relevé le {{ $fmt($block->meet_synced_at) }} · heures de Paris ({{ $tz }})
+                                                    </div>
+                                                @endif
+                                            </td>
+                                        </tr>
+                                    @endif
                                 @endforeach
                             </tbody>
                         </table>
@@ -477,7 +714,8 @@
                                                 $event->type === 'refund_synced' && isset($data['amount']) ? $money($data['amount']) . ' (total remboursé : ' . $money($data['total'] ?? 0) . ')' : null,
                                                 $event->type === 'payment_captured_outside' && isset($data['amount']) ? 'Débité : ' . $money($data['amount']) : null,
                                                 ($data['source'] ?? null) === 'webhook' ? 'via webhook Stripe' : null,
-                                                in_array($event->type, ['meet_created', 'meet_cancelled'], true) && isset($data['date']) ? \Carbon\Carbon::parse($data['date'])->format('d/m/Y') . ' · ' . ($periods[$data['period'] ?? ''] ?? '') : null,
+                                                $event->type === 'meet_reopened' && isset($data['until']) ? "Jusqu'à " . $fmt($data['until'], 'H:i') : null,
+                                                in_array($event->type, ['meet_created', 'meet_cancelled', 'meet_closed', 'meet_reopened'], true) && isset($data['date']) ? \Carbon\Carbon::parse($data['date'])->format('d/m/Y') . ' · ' . ($periods[$data['period'] ?? ''] ?? '') : null,
                                             ]);
                                         @endphp
                                         @if ($details)
@@ -494,6 +732,33 @@
             {{-- ===================== Colonne latérale ===================== --}}
             <div class="col-md-4">
 
+                {{-- --- Messagerie du couple (tous rendez-vous confondus) --- --}}
+                @php
+                    $conversation = \App\Models\BookingConversation::where('expert_id', $booking->expert_id)
+                        ->where('user_id', $booking->user_id)
+                        ->withCount(['messages as text_count' => fn ($q) => $q->where('kind', 'text')])
+                        ->first();
+                @endphp
+                @if ($conversation)
+                    <div class="panel panel-bordered booking-panel">
+                        <div class="panel-body">
+                            <h3>Messagerie</h3>
+                            <p class="booking-muted" style="margin-bottom: 10px;">
+                                {{ $conversation->text_count }} message{{ $conversation->text_count > 1 ? 's' : '' }}
+                                @if ($conversation->blocked_attempts > 0)
+                                    · <span class="booking-pill booking-pill--danger">{{ $conversation->blocked_attempts }} bloqué{{ $conversation->blocked_attempts > 1 ? 's' : '' }}</span>
+                                @endif
+                                @unless ($conversation->opened_at)
+                                    · ouverte au premier rendez-vous accepté
+                                @endunless
+                            </p>
+                            <a href="{{ route('booking.conversations.show', $conversation->id) }}" class="btn btn-default btn-block" target="_blank">
+                                <i class="voyager-chat"></i> Voir la conversation
+                            </a>
+                        </div>
+                    </div>
+                @endif
+
                 {{-- --- Actions --- --}}
                 @if ($booking->status === 'pending' || $canCancel)
                     <div class="panel panel-bordered booking-panel">
@@ -508,6 +773,29 @@
                                           onsubmit="return confirm('Accepter au nom de l\'expert ? Le montant réservé sera débité.');"
                                           style="margin-bottom: 10px;">
                                         @csrf
+                                        @if ($choosingWindow && $isConsultation)
+                                            <label class="booking-muted">Début (heure de l'expert, dans un créneau, par demi-heure)</label>
+                                            <input type="datetime-local" name="window_start_local" class="form-control" step="1800" required style="margin-bottom: 8px;">
+                                        @elseif ($choosingWindow)
+                                            <select name="window_start" class="form-control" required style="margin-bottom: 8px;">
+                                                <option value="">Première demi-journée…</option>
+                                                @foreach ($windowOptions as $o)
+                                                    <option value="{{ $o['value'] }}" @disabled(!$o['available'])>
+                                                        {{ \Carbon\Carbon::parse($o['date'])->format('d/m/Y') }} {{ $periods[$o['period']] ?? $o['period'] }}
+                                                        ({{ $o['start_local'] }} → {{ \Carbon\Carbon::parse($o['end_date'])->format('d/m') }} {{ $o['end_local'] }})
+                                                        {{ $o['available'] ? '' : '— indisponible' }}
+                                                    </option>
+                                                @endforeach
+                                            </select>
+                                        @endif
+                                        @if ($needsLocation)
+                                            <select name="location_id" class="form-control" required style="margin-bottom: 8px;">
+                                                <option value="">Lieu (demande hors calendrier)…</option>
+                                                @foreach ($acceptLocations as $location)
+                                                    <option value="{{ $location->id }}">{{ $location->label }} — {{ $location->city }}</option>
+                                                @endforeach
+                                            </select>
+                                        @endif
                                         <button type="submit" class="btn btn-success btn-block">Accepter la demande</button>
                                     </form>
                                     <form method="POST" action="{{ route('booking.appointments.decline', $booking->id) }}"
@@ -625,6 +913,12 @@
 @section('javascript')
     <script>
         $(document).ready(function () {
+            // Présences d'une demi-journée : ouvrir / replier.
+            $('.meet-toggle').on('click', function (e) {
+                e.preventDefault();
+                $($(this).data('target')).toggle();
+            });
+
             // Copie du lien Meet dans le presse-papiers.
             $('.meet-copy').on('click', function () {
                 var url = $(this).data('url');

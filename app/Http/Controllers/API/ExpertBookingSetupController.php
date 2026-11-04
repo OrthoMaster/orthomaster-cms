@@ -7,17 +7,25 @@ use App\Models\Expert;
 use App\Models\ExpertAvailabilityException;
 use App\Models\ExpertAvailabilityRule;
 use App\Models\ExpertBookingSetting;
+use App\Models\ExpertLocation;
 use App\Models\ExpertOffer;
+use App\Models\ExpertOfferDate;
+use App\Models\ExpertOfferMode;
+use App\Models\ExpertOfferSlot;
 use App\Support\Brochures\BrochureDraft;
 use App\Models\ExpertOfferImage;
 use App\Services\Booking\ExpertOfferImageService;
 use App\Services\Booking\ExpertProfileService;
 use App\Services\Booking\ExpertBookingSetupService;
 use App\Services\Booking\ExpertSlotService;
+use App\Services\Booking\ConsultationService;
+use App\Services\Google\GooglePlacesService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
+use RuntimeException;
 
 /**
  * API de l'application : l'expert configure ses propres rendez-vous.
@@ -28,11 +36,17 @@ use Illuminate\Support\Facades\DB;
  */
 class ExpertBookingSetupController extends Controller
 {
+    /** Jeton de session Places généré par l'application à chaque recherche. */
+    private const PLACES_SESSION_PATTERN = '/^[A-Za-z0-9-]{8,64}$/';
+    private const PLACE_ID_PATTERN       = '/^[A-Za-z0-9_-]{10,300}$/';
+
     public function __construct(
         private ExpertBookingSetupService $setup,
         private ExpertSlotService $slots,
         private ExpertOfferImageService $images,
         private ExpertProfileService $profile,
+        private GooglePlacesService $places,
+        private ConsultationService $consultations,
     ) {
     }
 
@@ -55,25 +69,70 @@ class ExpertBookingSetupController extends Controller
     }
 
     /**
-     * Aperçu de la grille telle que les utilisateurs la verront, même désactivée.
-     * GET /booking/me/preview?from=Y-m-d&to=Y-m-d
+     * Aperçu tel que les utilisateurs le verront, même désactivé :
+     * grille générale, ou calendrier d'une offre dans un mode.
+     * GET /booking/me/preview?offer_id=&mode=&from=Y-m-d&to=Y-m-d
      */
     public function preview(Request $request): JsonResponse
     {
         $expertId = $this->requireExpert($request);
 
         $request->validate([
-            'from' => ['nullable', 'date_format:Y-m-d'],
-            'to'   => ['nullable', 'date_format:Y-m-d', 'after_or_equal:from'],
+            'offer_id' => ['nullable', 'integer'],
+            'mode'     => ['required_with:offer_id', Rule::in(array_keys(ExpertOfferMode::MODE_LABELS))],
+            'from'     => ['nullable', 'date_format:Y-m-d'],
+            'to'       => ['nullable', 'date_format:Y-m-d', 'after_or_equal:from'],
         ]);
 
-        $blocks = $this->slots->availableBlocks($expertId, $request->input('from'), $request->input('to'), true);
+        $offerMode = null;
+        if ($request->filled('offer_id')) {
+            $offer     = ExpertOffer::where('expert_id', $expertId)->with('modes')->findOrFail($request->input('offer_id'));
+            $offerMode = $offer->modes->firstWhere('mode', $request->input('mode'));
+            abort_unless($offerMode, 404);
+        }
+
+        $blocks = $this->slots->availableBlocks($expertId, $request->input('from'), $request->input('to'), true, $offerMode);
         $bounds = $this->slots->bounds($expertId);
 
         return $this->success(BookingExpertController::calendarPayload($bounds, $blocks));
     }
 
+    /**
+     * Demi-journées proposables pour le calendrier « Dates précises » d'un mode :
+     * jusqu'à la limite de réservation, dates fermées exclues.
+     * GET /booking/me/grid-dates?mode=online|onsite
+     */
+    public function gridDates(Request $request): JsonResponse
+    {
+        $expertId = $this->requireExpert($request);
+        $request->validate(['mode' => ['required', Rule::in(array_keys(ExpertOfferMode::MODE_LABELS))]]);
+
+        $dates = collect($this->setup->gridDates($expertId, $request->input('mode')))
+            ->map(function (?string $label, string $key) {
+                [$date, $period] = explode('|', $key);
+
+                return ['date' => $date, 'period' => $period, 'location_label' => $label];
+            })
+            ->values();
+
+        return $this->success(['dates' => $dates]);
+    }
+
     /* ===================== RÉGLAGES ===================== */
+
+    /**
+     * Consultation sur mesure : activation, prix TTC de 30 minutes, durée maximale.
+     * Mise à jour partielle.
+     * PUT /booking/me/consultation
+     * Corps : enabled?, price?, max_minutes?, min_notice_days? (null = délai des Thèmes)
+     */
+    public function updateConsultation(Request $request): JsonResponse
+    {
+        $expertId = $this->requireExpert($request);
+        $this->consultations->save($expertId, $request->only(['enabled', 'price', 'max_minutes', 'min_notice_days']));
+
+        return $this->success($this->payload($expertId));
+    }
 
     /**
      * Mise à jour partielle : un champ absent garde sa valeur actuelle,
@@ -111,6 +170,138 @@ class ExpertBookingSetupController extends Controller
         ])));
 
         return $this->success($this->payload($expertId));
+    }
+
+    /* ===================== LIEUX ===================== */
+
+    /**
+     * Nouveau lieu à partir d'un résultat Google : le serveur relit l'adresse chez Google,
+     * l'application n'envoie jamais d'adresse saisie à la main.
+     * Le lieu créé accompagne l'état (result.location_id), pour le sélectionner aussitôt.
+     * POST /booking/me/locations
+     * Corps : place_id, session?, label, access_details?
+     */
+    public function storeLocation(Request $request): JsonResponse
+    {
+        $expertId = $this->requireExpert($request);
+
+        $placeId = (string) $request->input('place_id');
+        if (preg_match(self::PLACE_ID_PATTERN, $placeId) !== 1) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Choisissez une adresse dans la liste.',
+                'errors'  => ['place_id' => ['Choisissez une adresse dans la liste.']],
+            ], 422);
+        }
+
+        try {
+            $place = $this->places->details($placeId, $this->placesSession($request));
+        } catch (RuntimeException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 503);
+        }
+
+        $location = $this->setup->saveLocation($expertId, [
+            'label'           => $request->input('label'),
+            'access_details'  => $request->input('access_details'),
+            'address_line'    => $place['address_line'],
+            'postal_code'     => $place['postal_code'],
+            'city'            => $place['city'],
+            'country'         => $place['country'],
+            'lat'             => $place['lat'],
+            'lng'             => $place['lng'],
+            'google_place_id' => $place['google_place_id'],
+        ]);
+
+        return $this->success($this->payload($expertId) + ['result' => ['location_id' => $location->id]], 201);
+    }
+
+    /**
+     * Seuls le nom et les informations d'accès se modifient ; l'adresse reste celle de Google.
+     * PUT /booking/me/locations/{location}
+     * Corps : label, access_details?
+     */
+    public function updateLocation(Request $request, ExpertLocation $location): JsonResponse
+    {
+        $expertId = $this->requireExpert($request);
+        $this->assertOwned($location->expert_id, $expertId);
+
+        $this->setup->updateLocationDetails($location, $request->only(['label', 'access_details']));
+
+        return $this->success($this->payload($expertId));
+    }
+
+    /**
+     * Le nombre de demi-journées détachées accompagne l'état, pour le toast.
+     * POST /booking/me/locations/{location}/archive
+     */
+    public function archiveLocation(Request $request, ExpertLocation $location): JsonResponse
+    {
+        $expertId = $this->requireExpert($request);
+        $this->assertOwned($location->expert_id, $expertId);
+
+        $detached = $this->setup->archiveLocation($location);
+
+        return $this->success($this->payload($expertId) + ['result' => ['detached_rules' => $detached]]);
+    }
+
+    /**
+     * POST /booking/me/locations/{location}/restore
+     */
+    public function restoreLocation(Request $request, ExpertLocation $location): JsonResponse
+    {
+        $expertId = $this->requireExpert($request);
+        $this->assertOwned($location->expert_id, $expertId);
+
+        $this->setup->restoreLocation($location);
+
+        return $this->success($this->payload($expertId));
+    }
+
+    /* ===================== RECHERCHE D'ADRESSE ===================== */
+    // Relais Google Places : la clé reste sur le serveur, l'application envoie un jeton de session.
+
+    /**
+     * GET /booking/me/places/autocomplete?q=&session=
+     */
+    public function placesAutocomplete(Request $request): JsonResponse
+    {
+        $this->requireExpert($request);
+
+        try {
+            $suggestions = $this->places->autocomplete(
+                mb_substr((string) $request->input('q'), 0, 200),
+                $this->placesSession($request)
+            );
+        } catch (RuntimeException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 503);
+        }
+
+        return $this->success(['suggestions' => $suggestions]);
+    }
+
+    /**
+     * Adresse découpée comme un lieu ; clôt la session de recherche.
+     * GET /booking/me/places/{placeId}?session=
+     */
+    public function placeDetails(Request $request, string $placeId): JsonResponse
+    {
+        $this->requireExpert($request);
+        abort_unless(preg_match(self::PLACE_ID_PATTERN, $placeId) === 1, 404);
+
+        try {
+            $place = $this->places->details($placeId, $this->placesSession($request));
+        } catch (RuntimeException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 503);
+        }
+
+        return $this->success(['place' => $place]);
+    }
+
+    private function placesSession(Request $request): ?string
+    {
+        $token = (string) $request->input('session');
+
+        return preg_match(self::PLACES_SESSION_PATTERN, $token) === 1 ? $token : null;
     }
 
     /* ===================== OFFRES ===================== */
@@ -172,6 +363,19 @@ class ExpertBookingSetupController extends Controller
     }
 
     /**
+     * Nouvelle photo de profil (version web de l'application : sélecteur de fichier du navigateur).
+     * POST /booking/me/avatar  (multipart, champ « avatar »)
+     */
+    public function updateAvatar(Request $request): JsonResponse
+    {
+        $expertId = $this->requireExpert($request);
+
+        $this->profile->updateAvatar(Expert::findOrFail($expertId), $request->file('avatar'));
+
+        return $this->success($this->payload($expertId));
+    }
+
+    /**
      * Ajoute un domaine à la liste commune ; renvoie l'existant si le libellé est déjà pris.
      * POST /booking/me/domains
      * Corps : label
@@ -185,7 +389,22 @@ class ExpertBookingSetupController extends Controller
     }
 
     /* ===================== IMAGES D'UN THÈME ===================== */
-    // L'ajout se fait depuis le CMS ; l'expert légende, réordonne et supprime.
+    // Ajout depuis le CMS ou la version web de l'application ; l'expert légende, réordonne et supprime.
+
+    /**
+     * POST /booking/me/offers/{offer}/images (multipart)
+     * Corps : images[] (JPG, PNG, WebP, 5 Mo max chacune ; 6 images max par thème), caption (une seule image)
+     * Même traitement que le CMS : redimensionnées à 1600 px, enregistrées sur S3.
+     */
+    public function storeOfferImages(Request $request, ExpertOffer $offer): JsonResponse
+    {
+        $expertId = $this->requireExpert($request);
+        $this->assertOwned($offer->expert_id, $expertId);
+
+        $this->images->add($offer, (array) $request->file('images', []), $request->input('caption'));
+
+        return $this->success($this->payload($expertId), 201);
+    }
 
     /**
      * PUT /booking/me/offers/{offer}/images/order
@@ -230,11 +449,29 @@ class ExpertBookingSetupController extends Controller
         return $this->success($this->payload($expertId));
     }
 
+    /**
+     * Corps : title, description, blocks_count, order_dsp, active_flg,
+     * modes { online|onsite: { enabled, price, schedule_type, book_ahead_days, slots[], dates[] } }
+     * (même forme que modes_config renvoyé dans l'état), et pour le présentiel
+     * modes.onsite.locations { « jour|période »: location_id } : lieu des demi-journées
+     * de la grille qui n'en ont pas encore, fixé dans la grille à l'enregistrement.
+     */
     private function offerInput(Request $request): array
     {
+        $modes = [];
+        foreach (array_keys(ExpertOfferMode::MODE_LABELS) as $mode) {
+            $raw = (array) $request->input("modes.$mode", []);
+            $raw['enabled'] = filter_var($raw['enabled'] ?? false, FILTER_VALIDATE_BOOLEAN);
+            if (isset($raw['price']) && is_string($raw['price'])) {
+                $raw['price'] = str_replace([' ', ','], ['', '.'], $raw['price']);
+            }
+            $modes[$mode] = $raw;
+        }
+
         // L'application envoie toujours active_flg ; true par défaut pour une création sans le champ.
-        return $request->only(['title', 'description', 'blocks_count', 'price', 'order_dsp']) + [
+        return $request->only(['title', 'description', 'blocks_count', 'order_dsp']) + [
             'active_flg' => $request->has('active_flg') ? $request->boolean('active_flg') : true,
+            'modes'      => $modes,
         ];
     }
 
@@ -243,14 +480,33 @@ class ExpertBookingSetupController extends Controller
     /**
      * Le résultat (créés / ignorés) accompagne l'état, pour le toast de l'application.
      * POST /booking/me/rules
+     * Corps : weekdays[], periods[], location_id?, valid_from?, valid_until?
      */
     public function storeRules(Request $request): JsonResponse
     {
         $expertId = $this->requireExpert($request);
 
-        $result = $this->setup->addRules($expertId, $request->only(['weekdays', 'periods', 'valid_from', 'valid_until']));
+        $result = $this->setup->addRules(
+            $expertId,
+            $request->only(['weekdays', 'periods', 'location_id', 'valid_from', 'valid_until'])
+        );
 
         return $this->success($this->payload($expertId) + ['result' => $result], 201);
+    }
+
+    /**
+     * Lieu d'une demi-journée de la grille ; location_id null = en ligne seulement.
+     * Refusé (422) si une offre en présentiel en dépend.
+     * PUT /booking/me/rules/{rule}/location
+     */
+    public function updateRuleLocation(Request $request, ExpertAvailabilityRule $rule): JsonResponse
+    {
+        $expertId = $this->requireExpert($request);
+        $this->assertOwned($rule->expert_id, $expertId);
+
+        $this->setup->setRuleLocation($rule, $request->filled('location_id') ? (int) $request->input('location_id') : null);
+
+        return $this->success($this->payload($expertId));
     }
 
     /**
@@ -332,29 +588,79 @@ class ExpertBookingSetupController extends Controller
         $today    = Carbon::now($resolved['timezone'])->toDateString();
         $time     = fn (?string $value) => $value ? substr($value, 0, 5) : null;
 
-        $offers = ExpertOffer::where('expert_id', $expertId)
-            ->with('images')
+        // « Fermer les réservations » reprend par défaut le délai minimum de l'expert.
+        $defaultAhead = max(ExpertBookingSetupService::MIN_BOOK_AHEAD_DAYS, (int) $resolved['min_notice_days']);
+
+        $offerModels = ExpertOffer::where('expert_id', $expertId)
+            ->with(['images', 'modes'])
             ->orderBy('order_dsp')
             ->orderBy('id')
-            ->get()
+            ->get();
+
+        // Calendriers de toutes les offres en deux requêtes, indexés « offre|mode ».
+        $offerIds   = $offerModels->pluck('id');
+        $offerSlots = ExpertOfferSlot::whereIn('offer_id', $offerIds)->get()
+            ->groupBy(fn ($s) => $s->offer_id . '|' . $s->mode)
+            ->map(fn ($group) => $group->pluck('key_string')->values()->all());
+        $offerDates = ExpertOfferDate::whereIn('offer_id', $offerIds)->where('date', '>=', $today)
+            ->orderBy('date')->orderByRaw("FIELD(period, 'morning', 'afternoon')")->get()
+            ->groupBy(fn ($d) => $d->offer_id . '|' . $d->mode)
+            ->map(fn ($group) => $group->pluck('key_string')->values()->all());
+
+        $offers = $offerModels
             ->map(fn (ExpertOffer $offer) => BookingExpertController::offerPayload($offer) + [
-                'active_flg' => $offer->active_flg,
-                'order_dsp'  => $offer->order_dsp,
+                'active_flg'   => $offer->active_flg,
+                'order_dsp'    => $offer->order_dsp,
+                // Configuration complète des deux modes, actifs ou non : pré-remplit le formulaire
+                // et se renvoie telle quelle dans « modes » à l'enregistrement.
+                'modes_config' => collect(ExpertOfferMode::MODE_LABELS)->map(function ($label, $mode) use ($offer, $offerSlots, $offerDates, $defaultAhead) {
+                    $m = $offer->modes->firstWhere('mode', $mode);
+
+                    return [
+                        'enabled'         => (bool) $m?->active_flg,
+                        'price'           => $m ? (float) $m->price : null,
+                        'schedule_type'   => $m->schedule_type ?? ExpertOfferMode::SCHEDULE_ALL,
+                        'book_ahead_days' => $m?->book_ahead_days ?? $defaultAhead,
+                        'slots'           => $offerSlots->get($offer->id . '|' . $mode, []),
+                        'dates'           => $offerDates->get($offer->id . '|' . $mode, []),
+                    ];
+                }),
+            ])
+            ->values();
+
+        $locationModels = ExpertLocation::where('expert_id', $expertId)
+            ->withCount('rules')
+            ->orderByRaw('archived_at IS NOT NULL')
+            ->orderBy('label')
+            ->get();
+        $locked = $this->setup->lockedLocationIds($locationModels->pluck('id')->all());
+
+        $locations = $locationModels
+            ->map(fn (ExpertLocation $l) => $l->publicPayload() + [
+                'google_place_id' => $l->google_place_id,
+                'access_details'  => $l->access_details,
+                'archived'        => $l->archived_at !== null,
+                'rules_count'     => $l->rules_count,
+                // Adresse figée : des rendez-vous en attente ou à venir s'y tiennent.
+                'address_locked'  => in_array($l->id, $locked, true),
             ])
             ->values();
 
         $rules = ExpertAvailabilityRule::where('expert_id', $expertId)
+            ->with('location')
             ->orderBy('weekday')
             ->orderByRaw("FIELD(period, 'morning', 'afternoon')")
             ->orderBy('valid_from')
             ->get()
             ->map(fn (ExpertAvailabilityRule $rule) => [
-                'id'          => $rule->id,
-                'weekday'     => $rule->weekday,
-                'period'      => $rule->period,
-                'valid_from'  => $rule->valid_from?->toDateString(),
-                'valid_until' => $rule->valid_until?->toDateString(),
-                'expired'     => $rule->valid_until !== null && $rule->valid_until->toDateString() < $today,
+                'id'             => $rule->id,
+                'weekday'        => $rule->weekday,
+                'period'         => $rule->period,
+                'location_id'    => $rule->location_id,
+                'location_label' => $rule->location?->label,
+                'valid_from'     => $rule->valid_from?->toDateString(),
+                'valid_until'    => $rule->valid_until?->toDateString(),
+                'expired'        => $rule->valid_until !== null && $rule->valid_until->toDateString() < $today,
             ])
             ->values();
 
@@ -372,6 +678,14 @@ class ExpertBookingSetupController extends Controller
                 'type'   => $exception->type,
             ])
             ->values();
+
+        // Demi-journées de la grille utilisables par mode (« jour|période » => nom du lieu).
+        $grid = collect($this->setup->gridSlots($expertId))
+            ->map(fn (array $slots) => collect($slots)->map(function (?string $label, string $key) {
+                [$weekday, $period] = explode('|', $key);
+
+                return ['weekday' => (int) $weekday, 'period' => $period, 'location_label' => $label];
+            })->values());
 
         return [
             'is_expert' => true,
@@ -394,6 +708,9 @@ class ExpertBookingSetupController extends Controller
             'palettes' => collect(BrochureDraft::PALETTES)
                 ->map(fn ($p, $key) => ['key' => $key, 'name' => $p[0], 'color' => $p[1]])
                 ->values(),
+            // Libellés des modes et des calendriers, pour ne pas les dupliquer dans l'application.
+            'modes'          => collect(ExpertOfferMode::MODE_LABELS)->map(fn ($label, $key) => ['key' => $key, 'label' => $label])->values(),
+            'schedule_types' => collect(ExpertOfferMode::SCHEDULE_LABELS)->map(fn ($label, $key) => ['key' => $key, 'label' => $label])->values(),
             // Bornes de saisie, pour que l'application valide avant l'envoi avec les mêmes règles.
             'limits' => [
                 'block_min_minutes'    => ExpertBookingSetupService::BLOCK_MIN_MINUTES,
@@ -402,17 +719,40 @@ class ExpertBookingSetupController extends Controller
                 'max_advance_months'   => ExpertBookingSetupService::MAX_ADVANCE_MONTHS,
                 'max_blocks_per_offer' => ExpertBookingSetupService::MAX_BLOCKS_PER_OFFER,
                 'max_offer_images'     => ExpertOfferImageService::MAX_IMAGES,
+                'offer_image_max_kb'   => ExpertOfferImageService::MAX_KB,
                 'image_caption_max'    => ExpertOfferImageService::CAPTION_MAX,
                 'profile'              => [
                     'honorific_max'   => ExpertProfileService::HONORIFIC_MAX,
+                    'honorifics'      => ExpertProfileService::honorificOptions(),
                     'name_max'        => ExpertProfileService::NAME_MAX,
                     'credentials_max' => ExpertProfileService::CREDENTIALS_MAX,
                     'lede_max'        => ExpertProfileService::LEDE_MAX,
                     'domain_max'      => ExpertProfileService::DOMAIN_MAX,
+                    'avatar_max_kb'   => ExpertProfileService::AVATAR_MAX_KB,
+                    'avatar_min_edge' => ExpertProfileService::AVATAR_MIN_EDGE,
                 ],
                 'max_exception_days'   => ExpertBookingSetupService::MAX_EXCEPTION_RANGE_DAYS,
+                'book_ahead'           => [
+                    'min'     => ExpertBookingSetupService::MIN_BOOK_AHEAD_DAYS,
+                    'max'     => ExpertBookingSetupService::MAX_BOOK_AHEAD_DAYS,
+                    'default' => $defaultAhead,
+                ],
+                'max_offer_dates'      => ExpertBookingSetupService::MAX_OFFER_DATES,
+                'location'             => ['label_max' => 60, 'access_max' => 1000],
+                'places'               => [
+                    'enabled'   => GooglePlacesService::enabled(),
+                    'min_input' => GooglePlacesService::MIN_INPUT_LENGTH,
+                ],
+            ],
+            // Consultation sur mesure (toujours en ligne) : réglages de l'expert et bornes de saisie.
+            'consultation' => $this->consultations->settings($expertId) + [
+                'step_minutes'      => ConsultationService::STEP_MINUTES,
+                'max_minutes_limit' => ConsultationService::MAX_MINUTES_LIMIT,
+                'price_max'         => ConsultationService::PRICE_MAX,
             ],
             'offers'     => $offers,
+            'locations'  => $locations,
+            'grid'       => $grid,
             'rules'      => $rules,
             'exceptions' => $exceptions,
         ];

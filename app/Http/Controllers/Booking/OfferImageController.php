@@ -11,8 +11,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 /**
- * CMS : illustrations d'un thème. L'ajout se fait uniquement ici pour l'instant
- * (l'application n'a pas de sélecteur d'images) ; l'expert gère ensuite légendes,
+ * CMS : illustrations d'un thème. L'ajout se fait ici
+ * (ainsi que depuis la version web de l'application) ; l'expert gère ensuite légendes,
  * ordre et suppression dans l'application.
  */
 class OfferImageController extends Controller

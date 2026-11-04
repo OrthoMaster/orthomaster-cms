@@ -5,11 +5,14 @@ namespace App\Http\Controllers\API;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\InvoiceController;
 use App\Models\Booking;
+use App\Models\BookingPolicy;
 use App\Models\Cart;
 use App\Models\ExpertOffer;
+use App\Models\ExpertOfferMode;
 use App\Models\Invoice;
 use App\Models\SystemNotification;
 use App\Services\Booking\BookingCheckoutService;
+use App\Services\Booking\ConsultationService;
 use App\Services\StripeService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -278,21 +281,31 @@ class PaymentController extends Controller
     /* ===================== RENDEZ-VOUS EXPERT ===================== */
 
     /**
-     * Récapitulatif avant paiement : identité de l'utilisateur et montants calculés par le
-     * serveur (l'application ne calcule pas la TVA elle-même).
-     * GET /payments/bookings/checkout?offer_id=
+     * Récapitulatif avant paiement : identité de l'utilisateur, montants calculés par le
+     * serveur à partir du prix TTC du mode choisi (l'application ne calcule pas la TVA),
+     * et conditions d'annulation de ce mode.
+     * GET /payments/bookings/checkout?offer_id=&mode=online|onsite
+     * Consultation : GET /payments/bookings/checkout?kind=consultation&expert_id=&duration_minutes=
      */
     public function bookingCheckout(Request $request): JsonResponse
     {
-        $offer = ExpertOffer::active()->find($request->query('offer_id'));
-        if (!$offer) {
+        if ($request->query('kind') === Booking::KIND_CONSULTATION) {
+            return $this->consultationCheckout($request);
+        }
+
+        $offer = ExpertOffer::active()->with('modes')->find($request->query('offer_id'));
+        // Sans mode (ancienne version de l'application) : en ligne, le seul mode d'avant.
+        $offerMode = $offer?->activeMode((string) $request->query('mode', ExpertOfferMode::ONLINE));
+
+        if (!$offerMode) {
             return response()->json([
                 'success' => false,
-                'message' => "Ce thème n'est plus proposé.",
+                'message' => "Ce thème n'est plus proposé sous cette forme.",
             ], 404);
         }
 
-        $user = $request->user();
+        $user   = $request->user();
+        $policy = BookingPolicy::currentFor(null, $offerMode->mode);
 
         return response()->json([
             'success' => true,
@@ -301,10 +314,59 @@ class PaymentController extends Controller
                     'name' => BookingCheckoutService::displayName($user),
                     'email' => $user->email,
                 ],
-                'pricing' => BookingCheckoutService::pricing($offer),
-                'payment_enabled' => BookingCheckoutService::paymentEnabled(),
+                'mode' => $offerMode->mode,
+                'pricing' => BookingCheckoutService::pricing($offerMode, $offer->currency),
+                'policy' => $policy ? [
+                    'free_cancel_hours'       => $policy->free_cancel_hours,
+                    'late_cancel_penalty_pct' => $policy->late_cancel_penalty_pct,
+                    'user_noshow_refund_pct'  => $policy->user_noshow_refund_pct,
+                ] : null,
+                // Faux aussi pour une offre à 0 € : l'application affiche « offert ».
+                'payment_enabled' => BookingCheckoutService::paymentRequired((float) $offerMode->price),
                 'terms_url' => BookingCheckoutService::TERMS_URL,
                 'message_max' => BookingCheckoutService::MESSAGE_MAX,
+            ],
+        ]);
+    }
+
+    /** Récapitulatif d'une consultation : prix de 30 minutes × tranches, toujours en ligne. */
+    private function consultationCheckout(Request $request): JsonResponse
+    {
+        $consultations = app(ConsultationService::class);
+        $expertId      = (int) $request->query('expert_id');
+        $minutes       = (int) $request->query('duration_minutes');
+
+        if (!$expertId || !$consultations->isOpen($expertId) || !in_array($minutes, $consultations->durations($expertId), true)) {
+            return response()->json([
+                'success' => false,
+                'message' => "Cet expert ne propose pas de consultation de cette durée.",
+            ], 404);
+        }
+
+        $user    = $request->user();
+        $policy  = BookingPolicy::currentFor(null, ExpertOfferMode::ONLINE);
+        $pricing = $consultations->pricing($expertId, $minutes);
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'user' => [
+                    'name' => BookingCheckoutService::displayName($user),
+                    'email' => $user->email,
+                ],
+                'kind' => Booking::KIND_CONSULTATION,
+                'mode' => ExpertOfferMode::ONLINE,
+                'duration_minutes' => $minutes,
+                'pricing' => $pricing,
+                'policy' => $policy ? [
+                    'free_cancel_hours'       => $policy->free_cancel_hours,
+                    'late_cancel_penalty_pct' => $policy->late_cancel_penalty_pct,
+                    'user_noshow_refund_pct'  => $policy->user_noshow_refund_pct,
+                ] : null,
+                'payment_enabled' => BookingCheckoutService::paymentRequired($pricing['amount_ttc']),
+                'terms_url' => BookingCheckoutService::TERMS_URL,
+                'message_max' => BookingCheckoutService::MESSAGE_MAX,
+                'subject_max' => ConsultationService::SUBJECT_MAX,
             ],
         ]);
     }
@@ -313,14 +375,18 @@ class PaymentController extends Controller
      * Crée la demande (en attente de paiement), sa facture et l'intention de paiement à
      * capture manuelle. Paiement désactivé : la demande part directement chez l'expert.
      * POST /payments/bookings/create-intent
-     * Corps : offer_id, blocks[{date, period}], address, message?
+     * Corps : offer_id, mode (online|onsite), blocks[{date, period}] | windows[…], off_calendar?, address, message?
+     * Consultation : kind=consultation, expert_id, date + start_time | windows[…], duration_minutes, subject, address, message?
+     * windows : hors calendrier par créneaux (voir BookingWindowService).
      */
     public function createBookingPaymentIntent(Request $request): JsonResponse
     {
         // Erreurs de saisie : réponse 422 standard { message, errors } de Laravel.
+        // Sans mode (ancienne version de l'application) : en ligne, le seul mode d'avant.
         $booking = $this->bookingCheckout->prepare($request->user(), $request->only([
-            'offer_id', 'blocks', 'address', 'message',
-        ]));
+            'kind', 'offer_id', 'blocks', 'off_calendar', 'address', 'message',
+            'expert_id', 'date', 'start_time', 'duration_minutes', 'subject', 'windows',
+        ]) + ['mode' => $request->input('mode', ExpertOfferMode::ONLINE)]);
 
         if (!$booking->payment_required) {
             if (!$this->bookingCheckout->submit($booking)) {

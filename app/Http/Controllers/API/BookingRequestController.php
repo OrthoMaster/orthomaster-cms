@@ -6,8 +6,11 @@ use App\Http\Controllers\Controller;
 use App\Models\Booking;
 use App\Models\Invoice;
 use App\Models\BookingBlock;
+use App\Models\ExpertOfferMode;
+use App\Models\ExpertLocation;
 use App\Services\Booking\BookingCheckoutService;
 use App\Services\Booking\BookingNoShowService;
+use App\Services\Booking\BookingWindowService;
 use App\Models\BookingNoShowReport;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
@@ -150,7 +153,7 @@ class BookingRequestController extends Controller
         return Booking::query()
             ->submitted()
             ->where('user_id', $userId)
-            ->with(['blocks', 'expert', 'declineReason', 'noShowReports', 'invoice']);
+            ->with(['blocks', 'windows', 'expert', 'declineReason', 'noShowReports', 'invoice']);
     }
 
     /** Une demi-journée de la demande se termine après maintenant. */
@@ -190,19 +193,20 @@ class BookingRequestController extends Controller
             'id'               => $booking->id,
             'status'           => self::displayStatus($booking),
             'offer_title'      => $booking->offer_title,
+            'kind'             => $booking->kind ?? Booking::KIND_OFFER,
+            'off_calendar'     => (bool) $booking->off_calendar,
+            'duration_minutes' => $booking->duration_minutes,
+            // Consultation : sujet du demandeur (2 lignes sur les cartes, en entier sur la fiche).
+            'subject'          => $booking->subject,
+            'mode'             => $booking->mode,
             'blocks_count'     => $booking->blocks_count,
             'expert'           => $booking->expert ? BookingExpertController::expertPayload($booking->expert, false) : null,
-            'blocks'           => $booking->blocks->map(fn (BookingBlock $b) => [
-                'id'          => $b->id,
-                'date'        => $b->date->toDateString(),
-                'period'      => $b->period,
-                'start_local' => $b->start_local,
-                'end_local'   => $b->end_local,
-                'start_at'    => $b->start_at?->toIso8601String(),
-                'end_at'      => $b->end_at?->toIso8601String(),
-                // Lien Meet de la demi-journée : renseigné quand l'intégration Google Meet sera en place.
-                'meet_url'    => null,
-            ])->values(),
+            // Informations d'accès seulement une fois la demande acceptée (3c).
+            'blocks'           => $booking->blocks
+                ->map(fn (BookingBlock $b) => self::blockPayload($b, $booking->status === Booking::STATUS_ACCEPTED, self::meetVisible($booking)))
+                ->values(),
+            // Créneaux proposés hors calendrier (vide sinon) : l'expert y choisit l'horaire.
+            'windows'          => app(BookingWindowService::class)->payload($booking),
             'amount_ttc'       => (float) $booking->amount_ttc,
             'currency'         => $booking->currency,
             'payment_required' => $booking->payment_required,
@@ -230,6 +234,66 @@ class BookingRequestController extends Controller
         }
 
         return $data;
+    }
+
+    /**
+     * Forme commune d'une demi-journée réservée, partagée avec l'API de l'expert.
+     * $showAccess : montrer les informations d'accès du lieu (digicode, étage…).
+     * $showMeet   : rendez-vous en ligne accepté — le lien Meet peut être donné (voir meetVisible).
+     */
+    public static function blockPayload(BookingBlock $b, bool $showAccess, bool $showMeet = false): array
+    {
+        return [
+            'id'          => $b->id,
+            'date'        => $b->date->toDateString(),
+            'period'      => $b->period,
+            'start_local' => $b->start_local,
+            'end_local'   => $b->end_local,
+            'off_calendar' => (bool) $b->off_calendar,
+            'start_at'    => $b->start_at?->toIso8601String(),
+            'end_at'      => $b->end_at?->toIso8601String(),
+            'meet_url'    => $showMeet ? self::blockMeetUrl($b) : null,
+            'location'    => self::blockLocation($b, $showAccess),
+        ];
+    }
+
+    /** Lien Meet seulement pour un rendez-vous en ligne accepté. */
+    public static function meetVisible(Booking $booking): bool
+    {
+        return $booking->status === Booking::STATUS_ACCEPTED && $booking->mode !== ExpertOfferMode::ONSITE;
+    }
+
+    /**
+     * Lien Meet de la demi-journée, créé dans le CMS (création automatique : plus tard).
+     * null tant qu'il n'existe pas ou une fois la salle fermée : le lien ne fonctionnerait plus.
+     */
+    public static function blockMeetUrl(BookingBlock $b): ?string
+    {
+        return $b->meet_url && $b->meetIsOpen() ? $b->meet_url : null;
+    }
+
+    /**
+     * Lieu copié au moment de la réservation (présentiel), ou null en ligne.
+     * Modifier ou archiver le lieu ensuite ne change pas ce qui est renvoyé ici.
+     */
+    public static function blockLocation(BookingBlock $b, bool $showAccess): ?array
+    {
+        $l = $b->location;
+        if (!$l) {
+            return null;
+        }
+
+        return [
+            'label'          => $l['label'] ?? null,
+            'address_line'   => $l['address_line'] ?? null,
+            'postal_code'    => $l['postal_code'] ?? null,
+            'city'           => $l['city'] ?? null,
+            'country'        => $l['country'] ?? null,
+            'lat'            => $l['lat'] ?? null,
+            'lng'            => $l['lng'] ?? null,
+            'maps_url'       => ExpertLocation::mapsUrl($l),
+            'access_details' => $showAccess ? ($l['access_details'] ?? null) : null,
+        ];
     }
 
     private function success(mixed $data, int $status = 200): JsonResponse

@@ -6,6 +6,9 @@
     <h1 class="page-title">
         <i class="voyager-calendar"></i> Rendez-vous experts
     </h1>
+    <a href="{{ route('booking.conversations.index') }}" class="btn btn-default">
+        <i class="voyager-chat"></i> Messagerie
+    </a>
     <a href="{{ route('booking.config.index') }}" class="btn btn-default">
         <i class="voyager-settings"></i> Configuration générale
     </a>
@@ -75,8 +78,9 @@
                            placeholder="Rechercher un expert">
                     <select name="status" class="form-control">
                         <option value="">Tous les statuts</option>
-                        <option value="enabled" @selected(request('status') === 'enabled')>Réservation activée</option>
-                        <option value="disabled" @selected(request('status') === 'disabled')>Réservation désactivée</option>
+                        <option value="enabled" @selected(request('status') === 'enabled')>Thèmes : demandes acceptées</option>
+                        <option value="disabled" @selected(request('status') === 'disabled')>Thèmes : demandes refusées</option>
+                        <option value="consultation" @selected(request('status') === 'consultation')>Consultation proposée</option>
                     </select>
                     <button type="submit" class="btn btn-primary">Filtrer</button>
                     @if (request()->filled('q') || request()->filled('status'))
@@ -88,8 +92,9 @@
                     <thead>
                         <tr>
                             <th>Expert</th>
-                            <th>Réservation</th>
-                            <th class="text-center">Offres actives</th>
+                            <th>Thèmes</th>
+                            <th>Consultation</th>
+                            <th class="text-center">Thèmes actifs</th>
                             <th class="text-center">Créneaux récurrents</th>
                         </tr>
                     </thead>
@@ -105,9 +110,19 @@
                                         {{-- Activé sans offre ni créneau : l'expert est invisible côté utilisateurs. --}}
                                         @if (!$expert->offers_count || !$expert->rules_count)
                                             <span class="booking-pill booking-pill--warn"
-                                                  title="Il faut au moins une offre active et un créneau pour recevoir des demandes.">
+                                                  title="Il faut au moins un thème actif et un créneau pour recevoir des demandes sur les thèmes.">
                                                 Incomplet
                                             </span>
+                                        @endif
+                                    @else
+                                        <span class="booking-pill">Désactivée</span>
+                                    @endif
+                                </td>
+                                <td>
+                                    @if ($expert->consultation_enabled)
+                                        <span class="booking-pill booking-pill--on">Activée</span>
+                                        @if ($expert->consultation_price === null)
+                                            <span class="booking-pill booking-pill--warn" title="Sans prix pour 30 minutes, la consultation n'est pas proposée.">Sans prix</span>
                                         @endif
                                     @else
                                         <span class="booking-pill">Désactivée</span>
@@ -118,7 +133,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="4" class="booking-empty">Aucun expert ne correspond à ces filtres.</td>
+                                <td colspan="5" class="booking-empty">Aucun expert ne correspond à ces filtres.</td>
                             </tr>
                         @endforelse
                     </tbody>

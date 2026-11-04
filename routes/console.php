@@ -68,3 +68,7 @@ Schedule::command('video-ads:snapshot')
 // AI Search
 Schedule::command('ai-search:index')->dailyAt('02:30')->withoutOverlapping();
 Schedule::command('queue:work --queue=ai-search --stop-when-empty')->everyMinute()->withoutOverlapping();
+
+// Booking
+Schedule::command('booking:expire-requests')->everyFiveMinutes()->withoutOverlapping();
+Schedule::command('booking:meet-sweep')->everyTenMinutes()->withoutOverlapping();

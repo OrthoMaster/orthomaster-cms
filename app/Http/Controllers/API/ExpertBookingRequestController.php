@@ -6,10 +6,13 @@ use App\Http\Controllers\Controller;
 use App\Models\Booking;
 use App\Models\BookingBlock;
 use App\Models\BookingDeclineReason;
+use App\Models\BookingNoShowReport;
 use App\Services\Booking\BookingCheckoutService;
 use App\Services\Booking\BookingDecisionService;
 use App\Services\Booking\BookingNoShowService;
-use App\Models\BookingNoShowReport;
+use App\Services\Booking\BookingWindowService;
+use App\Services\Booking\ConsultationService;
+use App\Services\Booking\ExpertBookingSetupService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -29,7 +32,10 @@ class ExpertBookingRequestController extends Controller
 
     public function __construct(
         private BookingDecisionService $decisions,
-        private BookingNoShowService $noShows
+        private BookingNoShowService $noShows,
+        private ConsultationService $consultations,
+        private ExpertBookingSetupService $setup,
+        private BookingWindowService $windows
     ) {
     }
 
@@ -95,10 +101,21 @@ class ExpertBookingRequestController extends Controller
 
     /**
      * POST /booking/me/requests/{booking}/accept
+     * Corps : location_id? (présentiel hors calendrier : lieu choisi par l'expert),
+     *         window_start? (demande par créneaux : horaire choisi, voir BookingWindowService)
      */
     public function accept(Request $request, int $bookingId): JsonResponse
     {
-        $booking = $this->decisions->accept($this->find($request, $bookingId));
+        $request->validate([
+            'location_id'  => ['nullable', 'integer'],
+            'window_start' => ['nullable', 'string', 'max:20'],
+        ]);
+
+        $booking = $this->decisions->accept(
+            $this->find($request, $bookingId),
+            locationId: $request->filled('location_id') ? (int) $request->input('location_id') : null,
+            windowStart: $request->input('window_start')
+        );
 
         return $this->success($this->detail($booking->load(['user', 'declineReason', 'noShowReports'])));
     }
@@ -115,7 +132,7 @@ class ExpertBookingRequestController extends Controller
     }
 
     /**
-     * Signale l'absence du confrère.
+     * Signale l'absence du demandeur.
      * POST /booking/me/requests/{booking}/no-show
      * Corps : block_ids[], note?
      */
@@ -129,11 +146,30 @@ class ExpertBookingRequestController extends Controller
 
     /* ===================== OUTILS ===================== */
 
-    /** Fiche complète, avec l'état du signalement d'absence côté expert. */
+    /**
+     * Fiche complète, avec l'état du signalement d'absence côté expert,
+     * les rendez-vous acceptés qui chevauchent (simple avertissement) et,
+     * en présentiel hors calendrier, les lieux parmi lesquels choisir à l'acceptation.
+     */
     private function detail(Booking $booking): array
     {
+        $needsLocation = BookingDecisionService::needsLocation($booking);
+
+        $choosing = $booking->status === Booking::STATUS_PENDING && $booking->awaitsWindowChoice();
+
         return self::payload($booking, true) + [
-            'noshow' => $this->noShows->payload($booking, BookingNoShowReport::REPORTER_EXPERT),
+            // Créneaux : l'expert choisit l'horaire en acceptant (thème : demi-journées possibles ;
+            // consultation : l'application calcule les heures à partir des créneaux et de la durée).
+            'needs_window_choice' => $choosing,
+            'window_options'      => $choosing ? $this->windows->themeOptions($booking) : [],
+            'noshow'         => $this->noShows->payload($booking, BookingNoShowReport::REPORTER_EXPERT),
+            'conflicts'      => $this->consultations->conflicts($booking),
+            'needs_location' => $needsLocation && $booking->status === Booking::STATUS_PENDING,
+            'locations'      => $needsLocation
+                ? $this->setup->activeLocations($booking->expert_id)
+                    ->map(fn ($l) => ['id' => $l->id, 'label' => $l->label, 'city' => $l->city, 'address_line' => $l->address_line, 'postal_code' => $l->postal_code])
+                    ->values()
+                : [],
         ];
     }
 
@@ -145,12 +181,13 @@ class ExpertBookingRequestController extends Controller
         return (int) $id;
     }
 
+    /** Public : l'agenda réutilise la même requête (demandes de l'expert connecté). */
     public function query(Request $request): Builder
     {
         return Booking::query()
             ->submitted()
             ->where('expert_id', $this->expertId($request))
-            ->with(['blocks', 'user', 'declineReason', 'noShowReports']);
+            ->with(['blocks', 'windows', 'user', 'declineReason', 'noShowReports']);
     }
 
     private function find(Request $request, int $bookingId): Booking
@@ -175,22 +212,23 @@ class ExpertBookingRequestController extends Controller
             'id'               => $booking->id,
             'status'           => self::displayStatus($booking),
             'offer_title'      => $booking->offer_title,
+            'kind'             => $booking->kind ?? Booking::KIND_OFFER,
+            'off_calendar'     => (bool) $booking->off_calendar,
+            'duration_minutes' => $booking->duration_minutes,
+            // Consultation : sujet du demandeur (2 lignes sur les cartes, en entier sur la fiche).
+            'subject'          => $booking->subject,
+            'mode'             => $booking->mode,
             'blocks_count'     => $booking->blocks_count,
             // Le demandeur : nom affiché seulement ; l'e-mail reste côté plateforme.
             'requester'        => [
                 'name' => $booking->user ? BookingCheckoutService::displayName($booking->user) : 'Confrère',
             ],
-            'blocks'           => $booking->blocks->map(fn (BookingBlock $b) => [
-                'id'          => $b->id,
-                'date'        => $b->date->toDateString(),
-                'period'      => $b->period,
-                'start_local' => $b->start_local,
-                'end_local'   => $b->end_local,
-                'start_at'    => $b->start_at?->toIso8601String(),
-                'end_at'      => $b->end_at?->toIso8601String(),
-                // Lien Meet de la demi-journée : renseigné quand l'intégration Google Meet sera en place.
-                'meet_url'    => null,
-            ])->values(),
+            // L'expert voit toujours ses propres informations d'accès.
+            'blocks'           => $booking->blocks
+                ->map(fn (BookingBlock $b) => BookingRequestController::blockPayload($b, true, BookingRequestController::meetVisible($booking)))
+                ->values(),
+            // Créneaux proposés hors calendrier (vide sinon) ; restent visibles après le choix.
+            'windows'          => app(BookingWindowService::class)->payload($booking),
             'respond_by'       => $booking->respond_by?->toIso8601String(),
             'requested_at'     => $booking->requested_at?->toIso8601String(),
             'responded_at'     => $booking->responded_at?->toIso8601String(),

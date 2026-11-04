@@ -21,6 +21,10 @@ class ExpertBookingSetting extends Model
         'morning_end',
         'afternoon_start',
         'afternoon_end',
+        'consultation_enabled',
+        'consultation_price',
+        'consultation_max_minutes',
+        'consultation_min_notice_days',
     ];
 
     protected $casts = [
@@ -28,5 +32,9 @@ class ExpertBookingSetting extends Model
         'enabled_flg'        => 'boolean',
         'min_notice_days'    => 'integer',
         'max_advance_months' => 'integer',
+        'consultation_enabled'     => 'boolean',
+        'consultation_price'       => 'decimal:2',
+        'consultation_max_minutes' => 'integer',
+        'consultation_min_notice_days' => 'integer',
     ];
 }
