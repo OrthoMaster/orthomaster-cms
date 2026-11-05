@@ -23,7 +23,8 @@ class BookingSearchController extends Controller
     /**
      * GET /booking/search?type=experts|themes&q=
      * Experts : consultation=1 (liste Consultation : domaines, références et présentation
-     * seulement, sans les thèmes) ; name= restreint les candidats avant l'IA.
+     * seulement, sans les thèmes). Experts et thèmes : name= (nom de l'expert) et city=
+     * (ville d'un lieu de présentiel) restreignent les candidats avant l'IA.
      */
     public function search(Request $request): JsonResponse
     {
@@ -32,6 +33,7 @@ class BookingSearchController extends Controller
             'q'            => ['required', 'string', 'min:2', 'max:200'],
             'consultation' => ['nullable', 'boolean'],
             'name'         => ['nullable', 'string', 'max:100'],
+            'city'         => ['nullable', 'string', 'max:120'],
         ]);
 
         $userId = $request->user()->id;
@@ -39,9 +41,15 @@ class BookingSearchController extends Controller
 
         // Ce que l'utilisateur peut voir : thèmes réservables, ou tous les experts avec un compte sauf lui.
         $consultation = !$themes && $request->boolean('consultation');
-        $eligible = $themes
-            ? $this->catalog->themeQuery($userId)->pluck('o.id')->map(fn ($id) => (int) $id)->all()
-            : $this->catalog->searchableExpertIds($userId, $consultation, (string) ($data['name'] ?? ''));
+        $name = (string) ($data['name'] ?? '');
+        $city = (string) ($data['city'] ?? '');
+        if ($themes) {
+            $themeQuery = $this->catalog->themeQuery($userId);
+            BookingExpertController::applyThemeFilters($themeQuery, $name, $city);
+            $eligible = $themeQuery->pluck('o.id')->map(fn ($id) => (int) $id)->all();
+        } else {
+            $eligible = $this->catalog->searchableExpertIds($userId, $consultation, $name, $city);
+        }
 
         $searchType = $consultation ? BookingSearchService::TYPE_CONSULTANTS : $data['type'];
         $found   = $this->search->search($searchType, $data['q'], $eligible, $userId);

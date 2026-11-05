@@ -265,6 +265,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
         /* --- Utilisateur : parcourir les thèmes, recherche intelligente (experts | thèmes) --- */
         Route::get('themes', [BookingExpertController::class, 'themes']);
+        Route::get('cities', [BookingExpertController::class, 'cities']);
         Route::get('search', [BookingSearchController::class, 'search'])->middleware('throttle:30,1');
 
         /* --- Expert : sa propre configuration --- */
