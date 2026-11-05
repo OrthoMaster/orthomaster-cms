@@ -15,7 +15,7 @@
         [hidden] { display: none !important; }
 
         /* --- En-tête --- */
-        .brand { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; color: #D97A00; font-size: 20px; font-weight: 700; }
+        .brand { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; color: #EB7B0F; font-size: 20px; font-weight: 400; }
         .brand img { width: 32px; height: 32px; border-radius: 7px; object-fit: contain; }
         .congress { color: #A85F00; font-size: 14px; font-weight: 600; }
         h1 { margin: 4px 0 20px; font-size: 24px; line-height: 32px; font-weight: 600; overflow-wrap: anywhere; }

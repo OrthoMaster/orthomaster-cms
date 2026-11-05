@@ -63,7 +63,7 @@
         .scan { margin-top: 14px; font-size: 24px; line-height: 32px; font-weight: 500; }
         .host { color: #D5DDF0; font-size: 20px; }
         .code { font-size: 46px; line-height: 56px; font-weight: 700; letter-spacing: 4px; }
-        .brand { display: flex; align-items: center; justify-content: center; gap: 10px; color: #FFAF32; font-size: 26px; font-weight: 700; }
+        .brand { display: flex; align-items: center; justify-content: center; gap: 10px; color: #EB7B0F; font-size: 26px; font-weight: 400; }
         .brand img { width: 40px; height: 40px; border-radius: 8px; object-fit: contain; }
 
         /* --- Attente --- */
