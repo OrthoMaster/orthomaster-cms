@@ -14,7 +14,7 @@
         main { max-width: 480px; margin: 0 auto; padding: 24px 16px 40px; }
 
         /* --- En-tête --- */
-        .brand { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; color: #D97A00; font-size: 20px; font-weight: 700; }
+        .brand { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; color: #EB7B0F; font-size: 20px; font-weight: 400; }
         .brand img { width: 32px; height: 32px; border-radius: 7px; object-fit: contain; }
         h1 { margin: 0 0 20px; font-size: 24px; line-height: 32px; font-weight: 600; }
 
