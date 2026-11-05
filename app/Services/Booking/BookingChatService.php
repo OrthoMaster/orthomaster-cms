@@ -258,6 +258,9 @@ class BookingChatService
 
     /* ===================== ÉVÉNEMENTS ===================== */
 
+    /** Recopie des événements dans le fil (messages gris) : désactivée le 05/11/2026. */
+    private const EVENT_MESSAGES = false;
+
     /**
      * Recopie un événement du journal dans le fil. Appelé après validation de la
      * transaction (observer) et par la reprise : l'unicité de booking_event_id
@@ -266,6 +269,24 @@ class BookingChatService
     public function recordEvent(BookingEvent $event): ?BookingMessage
     {
         if (!in_array($event->type, self::EVENT_TYPES, true)) {
+            return null;
+        }
+
+        // 05/11/2026 : plus de messages automatiques (gris) dans le fil pour les demandes,
+        // acceptations, refus, annulations… Les anciens restent affichés. Seul effet gardé :
+        // une demande acceptée ouvre la conversation (les deux parties peuvent s'écrire).
+        if (!self::EVENT_MESSAGES) {
+            if ($event->type === 'accepted') {
+                $booking = Booking::find($event->booking_id);
+                if ($booking) {
+                    $conversation = $this->conversationFor($booking->expert_id, $booking->user_id);
+                    DB::table('booking_conversations')
+                        ->where('id', $conversation->id)
+                        ->whereNull('opened_at')
+                        ->update(['opened_at' => $event->created_at ?? now()]);
+                }
+            }
+
             return null;
         }
 
