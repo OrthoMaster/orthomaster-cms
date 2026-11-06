@@ -99,15 +99,14 @@
                     </label>
                 @endforeach
             </div>
-            <div class="error" id="theme-error" role="alert" hidden>Choisissez un thème.</div>
         </fieldset>
 
         <label for="text">Votre question</label>
         <textarea id="text" maxlength="{{ $maxLength }}" required></textarea>
         <div class="counter"><span id="count">0</span> / {{ $maxLength }}</div>
 
-        <button type="submit" class="primary" id="send">Envoyer</button>
         <div class="error" id="ask-error" role="alert" hidden></div>
+        <button type="submit" class="primary" id="send">Envoyer</button>
     </form>
 </main>
 
@@ -233,7 +232,7 @@
     });
 
     function clearThemeError() {
-        el('theme-error').hidden = true;
+        el('ask-error').hidden = true;
         document.querySelector('.themes').classList.remove('invalid');
     }
 
@@ -257,9 +256,8 @@
         const text = el('text').value.trim();
 
         if (!theme) {
-            el('theme-error').hidden = false;
+            show('ask-error', 'Choisissez un thème.');
             document.querySelector('.themes').classList.add('invalid');
-            document.querySelector('fieldset').scrollIntoView({ block: 'start', behavior: 'smooth' });
             return;
         }
         if (text.length < 3) {
