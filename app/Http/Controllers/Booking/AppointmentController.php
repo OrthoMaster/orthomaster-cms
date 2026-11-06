@@ -324,7 +324,9 @@ class AppointmentController extends Controller
             $this->find($bookingId),
             $request->user()->id,
             $request->filled('location_id') ? (int) $request->input('location_id') : null,
-            $windowStart
+            $windowStart,
+            // Thème par créneaux : un lieu par demi-journée cochée (block_locations[clé]).
+            array_filter((array) $request->input('block_locations', []))
         );
 
         return $this->back($bookingId, "Demande acceptée au nom de l'expert : le montant a été débité.");

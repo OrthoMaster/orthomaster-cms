@@ -40,6 +40,7 @@ class BookingDecisionService
     /**
      * $actor / $adminId : l'administration peut répondre au nom de l'expert depuis le CMS.
      * $locationId : en présentiel, lieu des demi-journées demandées hors calendrier (choisi par l'expert).
+     * $blockLocations : idem, un lieu par demi-journée (« Y-m-d|période » => location_id) ; à défaut, $locationId.
      * $windowStart : demande par créneaux, horaire choisi par l'expert (« Y-m-d H:i » pour une
      *   consultation ; liste de « Y-m-d|période » pour un thème, autant que de demi-journées, choisies
      *   librement dans les créneaux) ; les demi-journées sont créées à ce moment.
@@ -49,10 +50,11 @@ class BookingDecisionService
         string $actor = BookingEvent::ACTOR_EXPERT,
         ?int $adminId = null,
         ?int $locationId = null,
-        string|array|null $windowStart = null
+        string|array|null $windowStart = null,
+        ?array $blockLocations = null
     ): Booking {
         try {
-            return $this->acceptChecked($booking, $actor, $adminId, $locationId, $windowStart);
+            return $this->acceptChecked($booking, $actor, $adminId, $locationId, $windowStart, $blockLocations ?? []);
         } catch (QueryException $e) {
             // 23000 : index unique hold_key, une demi-journée choisie vient d'être retenue ailleurs.
             if ($e->getCode() !== '23000') {
@@ -65,24 +67,26 @@ class BookingDecisionService
         }
     }
 
-    private function acceptChecked(Booking $booking, string $actor, ?int $adminId, ?int $locationId, string|array|null $windowStart): Booking
+    private function acceptChecked(Booking $booking, string $actor, ?int $adminId, ?int $locationId, string|array|null $windowStart, array $blockLocations): Booking
     {
         $expired = false;
 
-        // Hors calendrier en présentiel : le lieu doit être choisi avant tout débit.
-        $location = null;
+        // Hors calendrier en présentiel : le lieu doit être choisi avant tout débit,
+        // pour toutes les demi-journées ou une par une (« Y-m-d|période » => id).
+        $places = null;
         if (self::needsLocation($booking)) {
-            $location = $locationId
-                ? ExpertLocation::where('expert_id', $booking->expert_id)->active()->find($locationId)
-                : null;
-            if (!$location) {
+            $ids = collect($blockLocations)->map(fn ($id) => (int) $id)->push((int) $locationId)->filter()->unique();
+            $places = $ids->isEmpty()
+                ? collect()
+                : ExpertLocation::where('expert_id', $booking->expert_id)->active()->whereIn('id', $ids)->get()->keyBy('id');
+            if ($places->count() !== $ids->count() || ($places->isEmpty())) {
                 throw ValidationException::withMessages([
                     'location_id' => 'Choisissez le lieu du rendez-vous demandé hors calendrier.',
                 ]);
             }
         }
 
-        $booking = $this->withPending($booking, function (Booking $booking) use ($actor, $adminId, &$expired, $location, $windowStart) {
+        $booking = $this->withPending($booking, function (Booking $booking) use ($actor, $adminId, &$expired, $places, $locationId, $blockLocations, $windowStart) {
             // Délai dépassé mais job pas encore passé : on applique l'expiration tout de suite.
             if ($booking->respond_by && $booking->respond_by->isPast()) {
                 $this->expireLocked($booking);
@@ -115,6 +119,21 @@ class BookingDecisionService
                 $booking->unsetRelation('blocks');
             }
 
+            // Lieux, avant le débit : une demi-journée sans lieu annule tout.
+            if ($places !== null) {
+                foreach ($booking->blocks()->where('off_calendar', true)->whereNull('location_id')->get() as $block) {
+                    $key   = $block->date->toDateString() . '|' . $block->period;
+                    $place = $places->get((int) ($blockLocations[$key] ?? $locationId));
+                    if (!$place) {
+                        throw ValidationException::withMessages([
+                            'location_id' => 'Choisissez le lieu de chaque demi-journée.',
+                        ]);
+                    }
+                    $block->update(['location_id' => $place->id, 'location' => $place->snapshot()]);
+                }
+                $booking->unsetRelation('blocks');
+            }
+
             $invoice = $booking->invoice_id ? Invoice::find($booking->invoice_id) : null;
 
             if ($booking->payment_required) {
@@ -130,13 +149,6 @@ class BookingDecisionService
                 }
 
                 $invoice->markAsPaid();
-            }
-
-            if ($location) {
-                $booking->blocks()
-                    ->where('off_calendar', true)
-                    ->whereNull('location_id')
-                    ->update(['location_id' => $location->id, 'location' => json_encode($location->snapshot())]);
             }
 
             $booking->update([

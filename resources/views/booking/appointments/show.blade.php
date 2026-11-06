@@ -787,13 +787,22 @@
                                                             ({{ $o['start_local'] }} – {{ $o['end_local'] }})
                                                             {{ $o['available'] ? '' : '— indisponible' }}
                                                         </label>
+                                                        @if ($needsLocation && $o['available'])
+                                                            {{-- Lieu propre à cette demi-journée ; vide = lieu commun ci-dessous. --}}
+                                                            <select name="block_locations[{{ $o['value'] }}]" class="form-control input-sm" style="display: inline-block; width: auto; margin-left: 8px;">
+                                                                <option value="">Lieu commun</option>
+                                                                @foreach ($acceptLocations as $location)
+                                                                    <option value="{{ $location->id }}">{{ $location->label }}</option>
+                                                                @endforeach
+                                                            </select>
+                                                        @endif
                                                     </div>
                                                 @endforeach
                                             </div>
                                         @endif
                                         @if ($needsLocation)
-                                            <select name="location_id" class="form-control" required style="margin-bottom: 8px;">
-                                                <option value="">Lieu (demande hors calendrier)…</option>
+                                            <select name="location_id" class="form-control" @if (!($choosingWindow && !$isConsultation)) required @endif style="margin-bottom: 8px;">
+                                                <option value="">{{ $choosingWindow && !$isConsultation ? 'Lieu commun (demi-journées sans lieu propre)…' : 'Lieu (demande hors calendrier)…' }}</option>
                                                 @foreach ($acceptLocations as $location)
                                                     <option value="{{ $location->id }}">{{ $location->label }} — {{ $location->city }}</option>
                                                 @endforeach
