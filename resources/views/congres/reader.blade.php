@@ -208,7 +208,7 @@
 
         const name = el('name').value.trim();
         if (name.length < 2) {
-            show('join-error', 'Indiquez votre nom.');
+            show('join-error', 'Veuillez indiquer votre nom.');
             return;
         }
 
@@ -218,7 +218,7 @@
                 save({ token: data.token, name: data.name });
                 render();
             })
-            .catch(() => show('join-error', 'Connexion impossible. Réessayez.'));
+            .catch(() => show('join-error', 'La connexion n\'a pas pu être établie. Veuillez réessayer.'));
     });
 
     el('rename').addEventListener('click', function () {
@@ -256,12 +256,12 @@
         const text = el('text').value.trim();
 
         if (!theme) {
-            show('ask-error', 'Choisissez un thème.');
+            show('ask-error', 'Veuillez sélectionner un thème avant d\'envoyer votre question.');
             document.querySelector('.themes').classList.add('invalid');
             return;
         }
         if (text.length < 3) {
-            show('ask-error', 'Écrivez votre question.');
+            show('ask-error', 'Veuillez saisir votre question.');
             return;
         }
 
@@ -279,12 +279,12 @@
                 } else if (response.status === 409) {
                     refreshStatus();
                 } else if (response.status === 429) {
-                    show('ask-error', 'Trop de questions d\'affilée. Patientez une minute.');
+                    show('ask-error', 'Vous avez envoyé plusieurs questions en peu de temps. Merci de patienter une minute.');
                 } else {
-                    show('ask-error', 'Envoi impossible. Réessayez.');
+                    show('ask-error', 'Votre question n\'a pas pu être envoyée. Veuillez réessayer.');
                 }
             })
-            .catch(() => show('ask-error', 'Pas de réseau. Votre question est conservée, réessayez.'))
+            .catch(() => show('ask-error', 'La connexion au réseau semble interrompue. Votre question a été conservée, veuillez réessayer.'))
             .finally(() => { el('send').disabled = false; });
     });
 

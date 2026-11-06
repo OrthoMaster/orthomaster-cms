@@ -69,12 +69,12 @@
                 if (response.ok) {
                     window.location.href = '/congres/' + encodeURIComponent(code);
                 } else if (response.status === 404) {
-                    fail('Code introuvable. Vérifiez le code affiché à l\'écran.');
+                    fail('Ce code ne correspond à aucune séance. Veuillez vérifier le code affiché à l\'écran.');
                 } else {
-                    fail('Connexion impossible. Réessayez.');
+                    fail('La connexion n\'a pas pu être établie. Veuillez réessayer.');
                 }
             })
-            .catch(function () { fail('Pas de réseau. Réessayez.'); });
+            .catch(function () { fail('La connexion au réseau semble interrompue. Veuillez réessayer.'); });
     });
 })();
 </script>
