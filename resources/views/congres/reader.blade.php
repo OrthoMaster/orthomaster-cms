@@ -12,6 +12,8 @@
         * { box-sizing: border-box; }
         body { margin: 0; min-height: 100vh; background: #FFF3E0; color: #1B1F2A; font-family: Poppins, Arial, sans-serif; font-size: 16px; line-height: 24px; }
         main { max-width: 480px; margin: 0 auto; padding: 24px 16px 40px; }
+        /* Place pour remonter le champ au-dessus du clavier, même quand la page est courte. */
+        body.typing main { padding-bottom: 70vh; }
         [hidden] { display: none !important; }
 
         /* --- En-tête --- */
@@ -101,7 +103,7 @@
             </div>
         </fieldset>
 
-        <label for="text">Votre question</label>
+        <label for="text" id="text-label">Votre question</label>
         <textarea id="text" maxlength="{{ $maxLength }}" required></textarea>
         <div class="counter"><span id="count">0</span> / {{ $maxLength }}</div>
 
@@ -226,6 +228,35 @@
         save(null);
         render();
     });
+
+    // Le clavier du téléphone couvre le bas de l'écran : on remonte la question et le bouton Envoyer
+    // en haut de la partie visible, une fois le clavier ouvert.
+    const KEYBOARD_DELAY_MS = 350;
+    let typingTimer = null;
+
+    function revealQuestion() {
+        const top = el('text-label').getBoundingClientRect().top + window.scrollY - 12;
+        window.scrollTo({ top: top, behavior: 'smooth' });
+    }
+
+    el('text').addEventListener('focus', function () {
+        clearTimeout(typingTimer);
+        document.body.classList.add('typing');
+        setTimeout(revealQuestion, KEYBOARD_DELAY_MS);
+    });
+
+    // Retrait différé : sur iOS, le champ perd le focus avant que le tap sur Envoyer ne soit pris en compte.
+    el('text').addEventListener('blur', function () {
+        typingTimer = setTimeout(function () { document.body.classList.remove('typing'); }, 400);
+    });
+
+    if (window.visualViewport) {
+        window.visualViewport.addEventListener('resize', function () {
+            if (document.activeElement === el('text')) {
+                revealQuestion();
+            }
+        });
+    }
 
     el('text').addEventListener('input', function () {
         el('count').textContent = this.value.length;
