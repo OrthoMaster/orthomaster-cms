@@ -38,6 +38,7 @@
         .theme input { position: absolute; opacity: 0; inset: 0; margin: 0; width: 100%; height: 100%; }
         .theme span { display: block; min-height: 44px; padding: 10px 16px; border-radius: 999px; border: 2px solid transparent; font-size: 15px; font-weight: 500; }
         .theme input:checked + span { border-color: #1B1F2A; font-weight: 600; }
+        .themes.invalid .theme span { box-shadow: 0 0 0 2px #C62828; }
         .theme input:focus-visible + span { outline: 2px solid #1D3470; outline-offset: 2px; }
 
         /* --- Actions --- */
@@ -93,11 +94,12 @@
             <div class="themes">
                 @foreach ($board->themes as $theme)
                     <label class="theme">
-                        <input type="radio" name="theme" value="{{ $theme->id }}" @checked($board->themes->count() === 1)>
+                        <input type="radio" name="theme" value="{{ $theme->id }}">
                         <span style="background: {{ $theme->color }}">{{ $theme->name }}</span>
                     </label>
                 @endforeach
             </div>
+            <div class="error" id="theme-error" role="alert" hidden>Choisissez un thème.</div>
         </fieldset>
 
         <label for="text">Votre question</label>
@@ -230,9 +232,21 @@
         el('count').textContent = this.value.length;
     });
 
+    function clearThemeError() {
+        el('theme-error').hidden = true;
+        document.querySelector('.themes').classList.remove('invalid');
+    }
+
+    document.querySelectorAll('input[name=theme]').forEach(function (input) {
+        input.addEventListener('change', clearThemeError);
+    });
+
+    // Le thème est choisi à chaque question : une seconde question porte rarement sur le même sujet.
     el('sent-close').addEventListener('click', function () {
         el('sent').close();
-        el('text').focus();
+        document.querySelectorAll('input[name=theme]').forEach(function (input) { input.checked = false; });
+        clearThemeError();
+        document.querySelector('fieldset').scrollIntoView({ block: 'start', behavior: 'smooth' });
     });
 
     el('ask').addEventListener('submit', function (event) {
@@ -243,7 +257,9 @@
         const text = el('text').value.trim();
 
         if (!theme) {
-            show('ask-error', 'Choisissez un thème.');
+            el('theme-error').hidden = false;
+            document.querySelector('.themes').classList.add('invalid');
+            document.querySelector('fieldset').scrollIntoView({ block: 'start', behavior: 'smooth' });
             return;
         }
         if (text.length < 3) {
