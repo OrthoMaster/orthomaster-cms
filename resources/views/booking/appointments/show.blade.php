@@ -777,16 +777,19 @@
                                             <label class="booking-muted">Début (heure de l'expert, dans un créneau, par demi-heure)</label>
                                             <input type="datetime-local" name="window_start_local" class="form-control" step="1800" required style="margin-bottom: 8px;">
                                         @elseif ($choosingWindow)
-                                            <select name="window_start" class="form-control" required style="margin-bottom: 8px;">
-                                                <option value="">Première demi-journée…</option>
+                                            <label class="booking-muted">Choisir {{ max(1, (int) $booking->blocks_count) }} demi-journée(s), librement dans les créneaux</label>
+                                            <div style="max-height: 220px; overflow-y: auto; margin-bottom: 8px; border: 1px solid #ddd; border-radius: 4px; padding: 6px 10px;">
                                                 @foreach ($windowOptions as $o)
-                                                    <option value="{{ $o['value'] }}" @disabled(!$o['available'])>
-                                                        {{ \Carbon\Carbon::parse($o['date'])->format('d/m/Y') }} {{ $periods[$o['period']] ?? $o['period'] }}
-                                                        ({{ $o['start_local'] }} → {{ \Carbon\Carbon::parse($o['end_date'])->format('d/m') }} {{ $o['end_local'] }})
-                                                        {{ $o['available'] ? '' : '— indisponible' }}
-                                                    </option>
+                                                    <div class="checkbox" style="margin: 4px 0;">
+                                                        <label @if (!$o['available']) style="color: #aaa;" @endif>
+                                                            <input type="checkbox" name="window_blocks[]" value="{{ $o['value'] }}" @disabled(!$o['available'])>
+                                                            Créneau {{ $o['window'] }} · {{ \Carbon\Carbon::parse($o['date'])->format('d/m/Y') }} {{ $periods[$o['period']] ?? $o['period'] }}
+                                                            ({{ $o['start_local'] }} – {{ $o['end_local'] }})
+                                                            {{ $o['available'] ? '' : '— indisponible' }}
+                                                        </label>
+                                                    </div>
                                                 @endforeach
-                                            </select>
+                                            </div>
                                         @endif
                                         @if ($needsLocation)
                                             <select name="location_id" class="form-control" required style="margin-bottom: 8px;">

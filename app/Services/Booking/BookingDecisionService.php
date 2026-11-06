@@ -41,14 +41,15 @@ class BookingDecisionService
      * $actor / $adminId : l'administration peut répondre au nom de l'expert depuis le CMS.
      * $locationId : en présentiel, lieu des demi-journées demandées hors calendrier (choisi par l'expert).
      * $windowStart : demande par créneaux, horaire choisi par l'expert (« Y-m-d H:i » pour une
-     *   consultation, « Y-m-d|période » pour un thème) ; les demi-journées sont créées à ce moment.
+     *   consultation ; liste de « Y-m-d|période » pour un thème, autant que de demi-journées, choisies
+     *   librement dans les créneaux) ; les demi-journées sont créées à ce moment.
      */
     public function accept(
         Booking $booking,
         string $actor = BookingEvent::ACTOR_EXPERT,
         ?int $adminId = null,
         ?int $locationId = null,
-        ?string $windowStart = null
+        string|array|null $windowStart = null
     ): Booking {
         try {
             return $this->acceptChecked($booking, $actor, $adminId, $locationId, $windowStart);
@@ -64,7 +65,7 @@ class BookingDecisionService
         }
     }
 
-    private function acceptChecked(Booking $booking, string $actor, ?int $adminId, ?int $locationId, ?string $windowStart): Booking
+    private function acceptChecked(Booking $booking, string $actor, ?int $adminId, ?int $locationId, string|array|null $windowStart): Booking
     {
         $expired = false;
 

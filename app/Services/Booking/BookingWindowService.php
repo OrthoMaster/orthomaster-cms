@@ -132,9 +132,6 @@ class BookingWindowService
             if ($halfDays->isEmpty()) {
                 $this->fail("Créneau {$n} : la fin doit suivre le début.");
             }
-            if ($halfDays->count() < $blocksCount) {
-                $this->fail("Créneau {$n} : il doit couvrir au moins {$blocksCount} demi-journée(s).");
-            }
             if ($halfDays->first()['start_at']->lt($bounds['earliest_at']) || $w['end_date'] > $bounds['last_date']) {
                 $this->fail("Créneau {$n} : ces dates ne sont pas réservables chez cet expert.");
             }
@@ -161,16 +158,24 @@ class BookingWindowService
             }
         }
 
+        // L'expert choisit librement ses demi-journées dans l'ensemble des créneaux :
+        // il en faut au moins autant que le thème, tous créneaux confondus.
+        $total = array_sum(array_map('count', $keys));
+        if ($total < $blocksCount) {
+            $this->fail("Les créneaux doivent couvrir au moins {$blocksCount} demi-journée(s) au total.");
+        }
+
         return $rows;
     }
 
     /* ===================== CHOIX DE L'EXPERT ===================== */
 
     /**
-     * Horaires que l'expert peut choisir. Thème seulement (la consultation se calcule à partir
-     * du créneau et de la durée : voir isValidConsultationStart).
+     * Demi-journées que l'expert peut choisir (thème seulement ; la consultation se calcule à partir
+     * du créneau et de la durée). Une option par demi-journée : l'expert en retient librement autant
+     * que le thème en compte, dans un ou plusieurs créneaux, consécutives ou non.
      *
-     * @return array<int, array{window:int, value:string, date:string, period:string, start_local:string, end_local:string, start_at:string, end_at:string, available:bool}>
+     * @return array<int, array{window:int, value:string, date:string, period:string, start_local:string, end_local:string, end_date:string, start_at:string, end_at:string, available:bool}>
      */
     public function themeOptions(Booking $booking): array
     {
@@ -179,8 +184,7 @@ class BookingWindowService
             return [];
         }
 
-        $count = max(1, (int) $booking->blocks_count);
-        $held  = $this->slots->heldKeys(
+        $held = $this->slots->heldKeys(
             $booking->expert_id,
             $windows->min(fn ($w) => $w->start_date->toDateString()),
             $windows->max(fn ($w) => $w->end_date->toDateString())
@@ -189,23 +193,20 @@ class BookingWindowService
         $options = [];
 
         foreach ($windows as $w) {
-            $halfDays = $this->halfDays($booking->expert_id, $w->start_date->toDateString(), $w->start_period, $w->end_date->toDateString(), $w->end_period)->values();
-            for ($i = 0; $i + $count <= $halfDays->count(); $i++) {
-                $run   = $halfDays->slice($i, $count)->values();
-                $first = $run->first();
-                $last  = $run->last();
+            $halfDays = $this->halfDays($booking->expert_id, $w->start_date->toDateString(), $w->start_period, $w->end_date->toDateString(), $w->end_period);
+            foreach ($halfDays as $h) {
+                $key = $h['date'] . '|' . $h['period'];
                 $options[] = [
                     'window'      => $w->position,
-                    'value'       => $first['date'] . '|' . $first['period'],
-                    'date'        => $first['date'],
-                    'period'      => $first['period'],
-                    'start_local' => $first['start_local'],
-                    'end_local'   => $last['end_local'],
-                    'end_date'    => $last['date'],
-                    'start_at'    => $first['start_at']->toIso8601String(),
-                    'end_at'      => $last['end_at']->toIso8601String(),
-                    'available'   => $first['start_at']->gt($now)
-                        && !$run->contains(fn ($h) => isset($held[$h['date'] . '|' . $h['period']])),
+                    'value'       => $key,
+                    'date'        => $h['date'],
+                    'period'      => $h['period'],
+                    'start_local' => $h['start_local'],
+                    'end_local'   => $h['end_local'],
+                    'end_date'    => $h['date'],
+                    'start_at'    => $h['start_at']->toIso8601String(),
+                    'end_at'      => $h['end_at']->toIso8601String(),
+                    'available'   => $h['start_at']->gt($now) && !isset($held[$key]),
                 ];
             }
         }
@@ -215,36 +216,63 @@ class BookingWindowService
 
     /**
      * Demi-journées à créer pour l'horaire choisi par l'expert.
-     * Consultation : $value = « Y-m-d H:i ». Thème : $value = « Y-m-d|période ».
+     * Consultation : $value = « Y-m-d H:i ».
+     * Thème : $value = liste de « Y-m-d|période » (exactement blocks_count, distinctes, libres).
      *
+     * @param  string|array<int, string>|null  $value
      * @return array<int, array>
      */
-    public function blocksFor(Booking $booking, ?string $value): array
+    public function blocksFor(Booking $booking, string|array|null $value): array
     {
         if (!$value) {
             $this->fail('Choisissez l\'horaire du rendez-vous dans un des créneaux proposés.', 'window_start');
         }
 
         if ($booking->isConsultation()) {
+            if (!is_string($value)) {
+                $this->fail('Horaire invalide.', 'window_start');
+            }
+
             return [$this->consultationBlock($booking, $value)];
         }
 
-        $option = collect($this->themeOptions($booking))->firstWhere('value', $value);
-        if (!$option || !$option['available']) {
-            $this->fail("Cet horaire n'est plus possible : choisissez-en un autre.", 'window_start');
+        $count  = max(1, (int) $booking->blocks_count);
+        $values = array_values(array_unique(array_filter(
+            is_array($value) ? $value : explode(',', $value),
+            'is_string'
+        )));
+        if (count($values) !== $count) {
+            $this->fail("Choisissez {$count} demi-journée(s) parmi les créneaux proposés.", 'window_start');
         }
 
-        $window = $this->windowsOf($booking)->firstWhere('position', $option['window']);
-        $halfDays = $this->halfDays($booking->expert_id, $window->start_date->toDateString(), $window->start_period, $window->end_date->toDateString(), $window->end_period)->values();
-        $index = $halfDays->search(fn ($h) => $h['date'] . '|' . $h['period'] === $value);
+        $options = collect($this->themeOptions($booking))->keyBy('value');
+        $wanted  = [];
+        foreach ($values as $v) {
+            $option = $options->get($v);
+            if (!$option || !$option['available']) {
+                $this->fail("Une des demi-journées choisies n'est plus possible : choisissez-en une autre.", 'window_start');
+            }
+            $wanted[$v] = true;
+        }
 
-        return $halfDays->slice($index, max(1, (int) $booking->blocks_count))
-            ->map(fn ($h) => $h + ['location_id' => null, 'location' => null, 'off_calendar' => true])
-            ->values()
-            ->all();
+        $blocks = [];
+        foreach ($this->windowsOf($booking) as $w) {
+            $halfDays = $this->halfDays($booking->expert_id, $w->start_date->toDateString(), $w->start_period, $w->end_date->toDateString(), $w->end_period);
+            foreach ($halfDays as $h) {
+                if (isset($wanted[$h['date'] . '|' . $h['period']])) {
+                    $blocks[] = $h + ['location_id' => null, 'location' => null, 'off_calendar' => true];
+                }
+            }
+        }
+
+        return collect($blocks)->sortBy(fn ($b) => $b['start_at']->getTimestamp())->values()->all();
     }
 
-    /** Dernier début possible parmi les créneaux : borne le délai de réponse. */
+    /**
+     * Dernier début possible parmi les créneaux : borne le délai de réponse.
+     * Thème : il faut encore pouvoir retenir toutes les demi-journées, donc le début de la
+     * N-ième demi-journée en partant de la fin.
+     */
     public function latestStart(Booking $booking): ?Carbon
     {
         $windows = $this->windowsOf($booking);
@@ -258,9 +286,11 @@ class BookingWindowService
             return $windows->map(fn (BookingWindow $w) => $w->end_at->copy()->subMinutes($minutes))->max();
         }
 
-        $last = collect($this->themeOptions($booking))->max('start_at');
+        $starts = collect($this->themeOptions($booking))->pluck('start_at')->sort()->values();
+        $count  = max(1, (int) $booking->blocks_count);
+        $start  = $starts->get(max(0, $starts->count() - $count));
 
-        return $last ? Carbon::parse($last) : null;
+        return $start ? Carbon::parse($start) : null;
     }
 
     /** Créneaux pour l'application ; « past » : plus aucun horaire possible dans ce créneau. */

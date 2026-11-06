@@ -315,7 +315,9 @@ class AppointmentController extends Controller
     {
         // Présentiel hors calendrier : lieu choisi dans le formulaire.
         // Créneaux : horaire choisi (consultation : champ date-heure « Y-m-dTH:i »).
-        $windowStart = $request->input('window_start')
+        // Thème : cases à cocher window_blocks[] (demi-journées choisies).
+        $windowStart = $request->input('window_blocks')
+            ?: $request->input('window_start')
             ?: ($request->filled('window_start_local') ? str_replace('T', ' ', substr($request->input('window_start_local'), 0, 16)) : null);
 
         $this->admin->accept(
