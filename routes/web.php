@@ -47,6 +47,7 @@ use App\Http\Controllers\Booking\ExpertSetupController;
 use App\Http\Controllers\Booking\ExpertShowcaseController;
 use App\Http\Controllers\Booking\OfferImageController;
 use App\Http\Controllers\Booking\PlacesController;
+use App\Http\Controllers\Booking\RevenueController;
 use Illuminate\Support\Facades\Route;
 use TCG\Voyager\Facades\Voyager;
 
@@ -587,6 +588,9 @@ Route::group(['prefix' => 'admin', 'middleware' => ['cmsAdmin']], function () {
                         Route::post('blocks/{blockId}/meet/sync', 'syncMeet')->whereNumber('blockId')->name('meet.sync');
                     });
                 });
+
+            /* --- Revenus (tableau de bord) --- */
+            Route::get('revenue', [RevenueController::class, 'index'])->name('revenue.index');
 
             /* --- Messagerie expert ↔ demandeur (lecture seule) --- */
             Route::controller(ConversationController::class)

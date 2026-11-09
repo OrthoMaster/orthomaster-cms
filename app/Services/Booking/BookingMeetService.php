@@ -36,6 +36,10 @@ class BookingMeetService
     public const ALONE_AFTER_MINUTES = 30;
     public const MAX_HOURS_AFTER_END = 3;
     public const REOPEN_HOURS        = 2;
+    /** Création automatique du lien : 1 h avant le début (rendez-vous en ligne acceptés). */
+    public const AUTO_CREATE_MINUTES = 60;
+    /** Relevé des présences pendant la séance (salle ouverte), au plus toutes les 5 min. */
+    public const LIVE_SYNC_MINUTES   = 5;
     public const BATCH               = 50;
 
     public const REASON_EMPTY          = 'empty';
@@ -58,9 +62,13 @@ class BookingMeetService
 
     /* ===================== CRÉER / SUPPRIMER ===================== */
 
-    public function create(int $blockId, int $adminId): BookingBlock
+    /**
+     * Crée la salle d'une demi-journée : par l'administration (bouton du CMS) ou par le job,
+     * AUTO_CREATE_MINUTES avant le début ($adminId null, auteur « system »).
+     */
+    public function create(int $blockId, ?int $adminId, string $actor = BookingEvent::ACTOR_ADMIN): BookingBlock
     {
-        return DB::transaction(function () use ($blockId, $adminId) {
+        return DB::transaction(function () use ($blockId, $adminId, $actor) {
             $block = $this->lock($blockId);
             if ($block->meet_url) {
                 return $block; // double clic : déjà créé
@@ -86,7 +94,7 @@ class BookingMeetService
                 'meet_synced_at'      => null,
             ]);
 
-            $this->log($block, 'meet_created', BookingEvent::ACTOR_ADMIN, ['url' => $space['url']], $adminId);
+            $this->log($block, 'meet_created', $actor, ['url' => $space['url']], $adminId);
 
             return $block;
         });
@@ -273,8 +281,30 @@ class BookingMeetService
      */
     public function sweep(): array
     {
-        $stats = ['closed' => 0, 'synced' => 0, 'errors' => 0];
+        $stats = ['created' => 0, 'closed' => 0, 'synced' => 0, 'errors' => 0];
         $now   = now();
+
+        // 0. Liens à créer : rendez-vous en ligne acceptés qui commencent dans l'heure.
+        BookingBlock::query()
+            ->whereNull('meet_url')
+            ->whereNull('meet_space')
+            ->where('start_at', '<=', $now->copy()->addMinutes(self::AUTO_CREATE_MINUTES))
+            ->where('end_at', '>', $now)
+            ->whereHas('booking', fn ($b) => $b
+                ->where('status', Booking::STATUS_ACCEPTED)
+                ->where(fn ($m) => $m->whereNull('mode')->orWhere('mode', '!=', ExpertOfferMode::ONSITE)))
+            ->orderBy('start_at')
+            ->limit(self::BATCH)
+            ->pluck('id')
+            ->each(function ($blockId) use (&$stats) {
+                try {
+                    $this->create((int) $blockId, null, BookingEvent::ACTOR_SYSTEM);
+                    $stats['created']++;
+                } catch (\Throwable $e) {
+                    $stats['errors']++;
+                    Log::error("Meet sweep: block #{$blockId} create failed: " . $e->getMessage());
+                }
+            });
 
         // 1. Salles ouvertes à fermer.
         $open = BookingBlock::with('booking:id,status')
@@ -315,6 +345,24 @@ class BookingMeetService
                 } catch (\Throwable $e) {
                     $stats['errors']++;
                     Log::error("Meet sweep: block #{$block->id} sync failed: " . $e->getMessage());
+                }
+            });
+
+        // 3. Séances en cours : relevé régulier, pour que l'application montre qui est dans la salle.
+        BookingBlock::whereNotNull('meet_space')
+            ->whereNull('meet_closed_at')
+            ->where('start_at', '<=', $now->copy()->addMinutes(15))
+            ->where(fn ($q) => $q->whereNull('meet_synced_at')->orWhere('meet_synced_at', '<=', $now->copy()->subMinutes(self::LIVE_SYNC_MINUTES)))
+            ->orderBy('start_at')
+            ->limit(self::BATCH)
+            ->pluck('id')
+            ->each(function ($blockId) use (&$stats) {
+                try {
+                    $this->sync((int) $blockId);
+                    $stats['synced']++;
+                } catch (\Throwable $e) {
+                    $stats['errors']++;
+                    Log::error("Meet sweep: block #{$blockId} live sync failed: " . $e->getMessage());
                 }
             });
 

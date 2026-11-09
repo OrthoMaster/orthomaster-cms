@@ -194,7 +194,7 @@ class ExpertBookingRequestController extends Controller
         return Booking::query()
             ->submitted()
             ->where('expert_id', $this->expertId($request))
-            ->with(['blocks', 'windows', 'user', 'declineReason', 'noShowReports']);
+            ->with(['blocks', 'blocks.presences', 'windows', 'user', 'declineReason', 'noShowReports']);
     }
 
     private function find(Request $request, int $bookingId): Booking

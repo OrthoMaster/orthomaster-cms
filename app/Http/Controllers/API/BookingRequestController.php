@@ -153,7 +153,7 @@ class BookingRequestController extends Controller
         return Booking::query()
             ->submitted()
             ->where('user_id', $userId)
-            ->with(['blocks', 'windows', 'expert', 'declineReason', 'noShowReports', 'invoice']);
+            ->with(['blocks', 'blocks.presences', 'windows', 'expert', 'declineReason', 'noShowReports', 'invoice']);
     }
 
     /** Une demi-journée de la demande se termine après maintenant. */
@@ -253,7 +253,36 @@ class BookingRequestController extends Controller
             'start_at'    => $b->start_at?->toIso8601String(),
             'end_at'      => $b->end_at?->toIso8601String(),
             'meet_url'    => $showMeet ? self::blockMeetUrl($b) : null,
+            'meet'        => $showMeet ? self::blockMeet($b) : null,
             'location'    => self::blockLocation($b, $showAccess),
+        ];
+    }
+
+    /**
+     * Salle Meet de la demi-journée, pour les deux parties : état et passages relevés chez Google.
+     *  status : pending (lien pas encore créé, il l'est 1 h avant), open, closed.
+     *  presences : une ligne par participant (nom affiché dans Meet), ses passages et leur durée.
+     */
+    public static function blockMeet(BookingBlock $b): array
+    {
+        $status = $b->meet_space === null ? 'pending' : ($b->meet_closed_at ? 'closed' : 'open');
+
+        return [
+            'status'     => $status,
+            'created_at' => $b->meet_created_at?->toIso8601String(),
+            'closed_at'  => $b->meet_closed_at?->toIso8601String(),
+            'synced_at'  => $b->meet_synced_at?->toIso8601String(),
+            'presences'  => $b->meet_space === null ? [] : collect(\App\Services\Booking\BookingMeetService::summary($b))
+                ->map(fn (array $p) => [
+                    'name'     => $p['name'],
+                    'kind'     => $p['kind'],
+                    'seconds'  => (int) $p['seconds'],
+                    'active'   => (bool) $p['active'],
+                    'sessions' => collect($p['sessions'])->map(fn ($s) => [
+                        'joined_at' => $s->joined_at?->toIso8601String(),
+                        'left_at'   => $s->left_at?->toIso8601String(),
+                    ])->values()->all(),
+                ])->values()->all(),
         ];
     }
 

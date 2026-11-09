@@ -24,6 +24,9 @@
     <h1 class="page-title">
         <i class="voyager-calendar"></i> Rendez-vous
     </h1>
+    <a href="{{ route('booking.revenue.index') }}" class="btn btn-default">
+        <i class="voyager-dollar"></i> Revenus
+    </a>
     <a href="{{ route('booking.experts.index') }}" class="btn btn-default">
         <i class="voyager-people"></i> Experts
     </a>
