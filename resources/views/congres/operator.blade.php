@@ -18,7 +18,7 @@
         }
 
         /* --- Tableau --- */
-        #zones { position: absolute; inset: 28px; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 24px; }
+        #zones { position: absolute; inset: 28px 28px 72px; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 24px; }
         .zone { min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: 12px; }
         .zone-head { flex: none; height: 56px; display: flex; align-items: center; }
         .zone-name {
@@ -106,6 +106,13 @@
         .brand { display: flex; align-items: center; gap: 10px; color: #EB7B0F; font-size: 26px; font-weight: 400; }
         .brand img { width: 40px; height: 40px; border-radius: 8px; object-fit: contain; }
 
+        #help { position: absolute; left: 0; right: 0; bottom: 22px; color: #AEB8D4; font-size: 20px; line-height: 28px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 48px; }
+        #help strong { color: #fff; font-weight: 600; }
+        #empty.on ~ #help { display: none; }
+        /* Tablette en portrait : trop étroit pour une ligne, l'aide passe sur deux. */
+        .portrait #zones { bottom: 100px; }
+        .portrait #help span:not(.sep) { display: block; }
+        .portrait #help .sep { display: none; }
         #status { position: absolute; right: 28px; bottom: 20px; z-index: 40; display: none; padding: 6px 20px; border-radius: 999px; background: #FFC800; color: #1B1F2A; font-size: 22px; font-weight: 600; }
         #status.on { display: block; }
         #offline { position: absolute; left: 16px; bottom: 12px; z-index: 40; width: 14px; height: 14px; border-radius: 50%; background: #FF4B4B; display: none; }
@@ -128,6 +135,12 @@
             Appui long sur une question : la supprimer, ou la glisser sur une autre pour les échanger.<br>
             Touchez le nom d'un thème pour voir toutes ses questions.
         </div>
+    </div>
+
+    <div id="help">
+        <span><strong>Appui long</strong> sur une question : supprimer, ou glisser sur une autre pour les échanger</span>
+        <span class="sep">&nbsp;·&nbsp;</span>
+        <span><strong>Touchez un thème</strong> pour voir toutes ses questions</span>
     </div>
 
     <div id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-name">
@@ -189,6 +202,7 @@
         const landscape = window.innerWidth >= window.innerHeight;
         const width = landscape ? 1920 : 1200;
         scale = window.innerWidth / width;
+        stage.classList.toggle('portrait', !landscape);
         stage.style.width = width + 'px';
         stage.style.height = Math.round(window.innerHeight / scale) + 'px';
         stage.style.transform = 'scale(' + scale + ')';
