@@ -59,6 +59,9 @@
         .slot.editing { z-index: 5; }
         .slot.editing .note { transform: scale(1.03); box-shadow: 0 0 0 5px #fff, 0 16px 34px rgba(0,0,0,.5); }
         .slot.dragging { z-index: 20; pointer-events: none; }
+        /* Seule la note suit le doigt : la pile « +N » et les feuilles dessous restent en place. */
+        .slot.dragging .note { transition: none; }
+        .slot.dragging .remove { display: none; }
         .slot.target .note { box-shadow: 0 0 0 6px #FFC800, 0 8px 18px rgba(0,0,0,.35); }
         .remove {
             position: absolute; top: -22px; right: -22px; z-index: 6; display: none; width: 72px; height: 72px; padding: 0;
@@ -742,6 +745,18 @@
         return slot;
     }
 
+    // La note lâchée glisse de là où le doigt l'a laissée jusqu'à sa place.
+    function settle(note, from) {
+        const to = note.getBoundingClientRect();
+        const dx = (from.left + from.width / 2 - to.left - to.width / 2) / scale;
+        const dy = (from.top + from.height / 2 - to.top - to.height / 2) / scale;
+        const tilt = note.style.getPropertyValue('--tilt');
+        note.animate(
+            [{ transform: 'translate(' + dx + 'px, ' + dy + 'px) scale(1.03)' }, { transform: 'rotate(' + tilt + ')' }],
+            { duration: MOVE_MS, easing: 'cubic-bezier(.4, 0, .2, 1)' }
+        );
+    }
+
     pressable(zonesEl, '.slot', {
         grab: function (slot) {
             clearEditing(slot);
@@ -749,7 +764,7 @@
         },
         drag: function (slot, point) {
             slot.classList.add('dragging');
-            slot.style.transform = 'translate(' + point.dx + 'px, ' + point.dy + 'px)';
+            slot.querySelector('.note').style.transform = 'translate(' + point.dx + 'px, ' + point.dy + 'px) scale(1.03)';
             zonesEl.querySelectorAll('.slot.target').forEach(function (el) { el.classList.remove('target'); });
             const target = slotUnder(point, slot);
             if (target) {
@@ -759,9 +774,12 @@
         drop: function (slot, point, moved) {
             const target = slotUnder(point, slot);
             zonesEl.querySelectorAll('.slot.target').forEach(function (el) { el.classList.remove('target'); });
+            const note = slot.querySelector('.note');
+            const released = note.getBoundingClientRect();
             const rects = positions(zonesEl, '.slot');
+            rects.delete(slot);
             slot.classList.remove('dragging');
-            slot.style.transform = '';
+            note.style.transform = '';
 
             if (!moved) {
                 // Appui long sans glisser : la croix reste affichée.
@@ -769,7 +787,7 @@
             }
             slot.classList.remove('editing');
             if (!target) {
-                glideFrom(rects);
+                settle(note, released);
                 return;
             }
 
@@ -789,6 +807,7 @@
             marker.remove();
             markStack(parent, theme, parent.children.length);
             glideFrom(rects);
+            settle(note, released);
 
             arrange(theme, ids);
         },
