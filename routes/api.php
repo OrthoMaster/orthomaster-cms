@@ -368,6 +368,12 @@ Route::post('/internal/heartbeat', [IntEmpTrackerController::class, 'receiveHear
 // Pas de limite sur l'écran (écriture en cache à chaque appel, toutes les 2 secondes) ; il ne fait que lire.
 Route::prefix('congres')->controller(CongressController::class)->group(function () {
     Route::get('/ecran/{token}', 'screen');
+    // Avant /{code}/… ; limite par IP : seuls les intervenants appellent ces routes, et elle freine qui devinerait un code.
+    Route::middleware('throttle:congres-operator')->group(function () {
+        Route::get('/operator/{code}', 'operator');
+        Route::post('/operator/{code}/arrange', 'operatorArrange');
+        Route::delete('/operator/{code}/questions/{question}', 'operatorDelete')->whereNumber('question');
+    });
     Route::get('/{code}/status', 'status');
     Route::post('/{code}/join', 'join')->middleware('throttle:congres-join');
     Route::post('/{code}/questions', 'ask')->middleware('throttle:congres-question');

@@ -181,6 +181,7 @@ Route::group(['prefix' => 'admin', 'middleware' => ['cmsAdmin']], function () {
             Route::post('/{board}/start', 'start')->name('.start');
             Route::post('/{board}/stop', 'stop')->name('.stop');
             Route::post('/{board}/screen-link', 'regenerateScreenLink')->name('.screen-link');
+            Route::post('/{board}/operator-code', 'regenerateOperatorCode')->name('.operator-code');
             Route::post('/{board}/arrange', 'arrange')->name('.arrange');
             Route::delete('/{board}/questions/{question}', 'deleteQuestion')->name('.questions.destroy');
         });
@@ -643,6 +644,9 @@ Route::get('medias/shared/{code}/search-videos', [MediaController::class, 'share
 
 // Questions du public aux tables rondes (auth.orthomaster.fr/congres)
 Route::get('/congres', [CongressPublicController::class, 'enter'])->name('congres.enter');
+// Avant /congres/{code} : sinon « operator » serait lu comme un code de séance.
+Route::get('/congres/operator', [CongressPublicController::class, 'operatorEnter'])->name('congres.operator.enter');
+Route::get('/congres/operator/{code}', [CongressPublicController::class, 'operator'])->name('congres.operator');
 Route::get('/congres/{code}', [CongressPublicController::class, 'reader'])->name('congres.reader');
 Route::get('/congres/{code}/ecran/{token}', [CongressPublicController::class, 'screen'])->name('congres.screen');
 

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\API;
 use App\Http\Controllers\Controller;
 use App\Models\CongressBoard;
 use App\Models\CongressBoardTheme;
+use App\Models\CongressQuestion;
 use App\Support\Congress\CongressBoardService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -88,10 +89,78 @@ class CongressController extends Controller
             return response()->noContent();
         }
 
+        // L'écran de la salle ne montre plus les questions : l'état de la séance suffit.
         return response()->json([
             'revision' => $board->revision,
             'status'   => $board->status,
-            'themes'   => $this->service->snapshot($board, true),
         ]);
+    }
+
+    /* ===================== INTERVENANTS ===================== */
+
+    /**
+     * Files complètes de chaque thème. Sans changement depuis `rev`, réponse vide.
+     * GET /api/congres/operator/{code}?rev=
+     */
+    public function operator(Request $request, string $code): JsonResponse|Response
+    {
+        $board = $this->operatorBoard($code);
+
+        if ((string) $board->revision === (string) $request->query('rev')) {
+            return response()->noContent();
+        }
+
+        return response()->json([
+            'revision' => $board->revision,
+            'status'   => $board->status,
+            'themes'   => $this->service->snapshot($board, false),
+        ]);
+    }
+
+    /**
+     * Ordre d'un thème. L'intervenant ne change pas une question de thème : ce qui n'appartient
+     * pas au thème est ignoré.
+     * POST /api/congres/operator/{code}/arrange
+     */
+    public function operatorArrange(Request $request, string $code): JsonResponse
+    {
+        $board = $this->operatorBoard($code);
+
+        $data = $request->validate([
+            'theme_id' => ['required', 'integer'],
+            'ids'      => ['present', 'array'],
+            'ids.*'    => ['integer'],
+        ]);
+
+        $ids = array_map('intval', $data['ids']);
+        $own = CongressQuestion::where('board_id', $board->id)
+            ->where('theme_id', $data['theme_id'])
+            ->whereIn('id', $ids ?: [0])
+            ->pluck('id')
+            ->all();
+
+        $this->service->arrange($board, (int) $data['theme_id'], array_values(array_intersect($ids, $own)));
+
+        return response()->json(['revision' => $board->fresh()->revision]);
+    }
+
+    /**
+     * DELETE /api/congres/operator/{code}/questions/{question}
+     */
+    public function operatorDelete(string $code, int $question): JsonResponse
+    {
+        $board = $this->operatorBoard($code);
+        $item = CongressQuestion::where('board_id', $board->id)->whereKey($question)->first();
+
+        if ($item) {
+            $this->service->deleteQuestion($board, $item);
+        }
+
+        return response()->json(['revision' => $board->fresh()->revision]);
+    }
+
+    private function operatorBoard(string $code): CongressBoard
+    {
+        return CongressBoard::where('operator_code', strtoupper($code))->firstOrFail();
     }
 }

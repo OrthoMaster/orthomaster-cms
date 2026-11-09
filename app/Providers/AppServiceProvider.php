@@ -36,6 +36,7 @@ class AppServiceProvider extends ServiceProvider
 
         // Congrès : toute la salle peut partager une même IP WiFi, la limite ne se compte donc pas par IP.
         RateLimiter::for('congres-join', fn (Request $request) => Limit::perMinute(600)->by('congres-join|' . $request->route('code')));
+        RateLimiter::for('congres-operator', fn (Request $request) => Limit::perMinute(240)->by('congres-operator|' . $request->ip()));
         RateLimiter::for('congres-question', fn (Request $request) => Limit::perMinute(10)->by(
             'congres-question|' . sha1((string) ($request->header('X-Participant-Token') ?: $request->ip()))
         ));

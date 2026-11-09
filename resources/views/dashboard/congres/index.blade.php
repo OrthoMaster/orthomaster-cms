@@ -27,7 +27,8 @@
                             <tr>
                                 <th>Table ronde</th>
                                 <th>Congrès</th>
-                                <th>Code</th>
+                                <th>Code public</th>
+                                <th>Code intervenants</th>
                                 <th>État</th>
                                 <th>Questions</th>
                                 <th></th>
@@ -38,7 +39,8 @@
                                 <tr>
                                     <td>{{ $board->title }}</td>
                                     <td>{{ $board->congress_name }}</td>
-                                    <td><code>{{ $board->code }}</code></td>
+                                    <td><code style="color: #A85F00; background: #FFF3E0">{{ $board->code }}</code></td>
+                                    <td><code style="color: #1D3470; background: #E8EEFB">{{ $board->operator_code }}</code></td>
                                     <td>
                                         @if ($board->status === 'live')
                                             <span class="label label-success">En cours</span>

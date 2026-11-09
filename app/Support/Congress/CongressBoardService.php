@@ -49,6 +49,9 @@ class CongressBoardService
 
     /* ===================== TABLEAUX ===================== */
 
+    /**
+     * Unique sur les deux codes : un code du public ne doit jamais ouvrir l'écran des intervenants.
+     */
     public function newCode(): string
     {
         do {
@@ -56,7 +59,7 @@ class CongressBoardService
             for ($i = 0; $i < self::CODE_LENGTH; $i++) {
                 $code .= self::CODE_ALPHABET[random_int(0, strlen(self::CODE_ALPHABET) - 1)];
             }
-        } while (CongressBoard::where('code', $code)->exists());
+        } while (CongressBoard::where('code', $code)->orWhere('operator_code', $code)->exists());
 
         return $code;
     }

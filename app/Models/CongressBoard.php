@@ -46,6 +46,17 @@ class CongressBoard extends Model
         return rtrim(config('app.auth_url'), '/') . '/congres/' . $this->code;
     }
 
+    /** Page où l'intervenant saisit son code. */
+    public function operatorEntryUrl(): string
+    {
+        return rtrim(config('app.auth_url'), '/') . '/congres/operator';
+    }
+
+    public function operatorUrl(): string
+    {
+        return $this->operatorEntryUrl() . '/' . $this->operator_code;
+    }
+
     public function screenUrl(): string
     {
         return $this->readerUrl() . '/ecran/' . $this->screen_token;
