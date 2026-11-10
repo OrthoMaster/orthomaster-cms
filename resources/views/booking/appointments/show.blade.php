@@ -683,6 +683,33 @@
                     </div>
                 @endif
 
+                {{-- --- Messagerie du couple (tous rendez-vous confondus) --- --}}
+                @php
+                    $conversation = \App\Models\BookingConversation::where('expert_id', $booking->expert_id)
+                        ->where('user_id', $booking->user_id)
+                        ->withCount(['messages as text_count' => fn ($q) => $q->where('kind', 'text')])
+                        ->first();
+                @endphp
+                @if ($conversation)
+                    <div class="panel panel-bordered booking-panel">
+                        <div class="panel-body">
+                            <h3>Messagerie</h3>
+                            <p class="booking-muted" style="margin-bottom: 10px;">
+                                {{ $conversation->text_count }} message{{ $conversation->text_count > 1 ? 's' : '' }}
+                                @if ($conversation->blocked_attempts > 0)
+                                    · <span class="booking-pill booking-pill--danger">{{ $conversation->blocked_attempts }} bloqué{{ $conversation->blocked_attempts > 1 ? 's' : '' }}</span>
+                                @endif
+                                @unless ($conversation->opened_at)
+                                    · ouverte au premier rendez-vous accepté
+                                @endunless
+                            </p>
+                            <a href="{{ route('booking.conversations.show', $conversation->id) }}" class="btn btn-default btn-block" target="_blank">
+                                <i class="voyager-chat"></i> Voir la conversation
+                            </a>
+                        </div>
+                    </div>
+                @endif
+
                 {{-- --- Journal --- --}}
                 <div class="panel panel-bordered booking-panel">
                     <div class="panel-body">
@@ -733,42 +760,53 @@
             {{-- ===================== Colonne latérale ===================== --}}
             <div class="col-md-4">
 
-                {{-- --- Messagerie du couple (tous rendez-vous confondus) --- --}}
-                @php
-                    $conversation = \App\Models\BookingConversation::where('expert_id', $booking->expert_id)
-                        ->where('user_id', $booking->user_id)
-                        ->withCount(['messages as text_count' => fn ($q) => $q->where('kind', 'text')])
-                        ->first();
-                @endphp
-                @if ($conversation)
-                    <div class="panel panel-bordered booking-panel">
-                        <div class="panel-body">
-                            <h3>Messagerie</h3>
-                            <p class="booking-muted" style="margin-bottom: 10px;">
-                                {{ $conversation->text_count }} message{{ $conversation->text_count > 1 ? 's' : '' }}
-                                @if ($conversation->blocked_attempts > 0)
-                                    · <span class="booking-pill booking-pill--danger">{{ $conversation->blocked_attempts }} bloqué{{ $conversation->blocked_attempts > 1 ? 's' : '' }}</span>
+                {{-- --- Paiement --- --}}
+                <div class="panel panel-bordered booking-panel">
+                    <div class="panel-body">
+                        <h3>Paiement</h3>
+                        @if ($booking->payment_required)
+                            <table class="table booking-amounts" style="margin: 0;">
+                                <tr><td>Prix HT</td><td class="text-right">{{ $money($booking->amount_ht) }}</td></tr>
+                                <tr><td>TVA ({{ rtrim(rtrim(number_format($booking->tva_rate, 2, ',', ''), '0'), ',') }} %)</td><td class="text-right">{{ $money($booking->tva_amount) }}</td></tr>
+                                <tr class="is-total"><td>Total TTC</td><td class="text-right">{{ $money($booking->amount_ttc) }}</td></tr>
+                                @if ((float) $booking->refunded_amount > 0)
+                                    <tr><td>Remboursé</td><td class="text-right">− {{ $money($booking->refunded_amount) }}</td></tr>
+                                    <tr class="is-total"><td>Conservé</td><td class="text-right">{{ $money($kept) }}</td></tr>
                                 @endif
-                                @unless ($conversation->opened_at)
-                                    · ouverte au premier rendez-vous accepté
-                                @endunless
+                                <tr>
+                                    <td>Reversement expert estimé (HT)</td>
+                                    <td class="text-right">{{ $money($payoutHt) }}</td>
+                                </tr>
+                            </table>
+                            <p class="booking-muted" style="margin: 8px 0 0; font-size: 12px;">
+                                Commission {{ rtrim(rtrim(number_format($booking->commission_rate, 2, ',', ''), '0'), ',') }} %.
+                                @if ($booking->status === 'pending')
+                                    Montant réservé sur la carte, pas encore débité.
+                                @elseif (in_array($booking->status, ['declined', 'expired'], true) || ($booking->status === 'cancelled' && !$booking->responded_at))
+                                    Empreinte libérée : rien n'a été débité.
+                                @endif
                             </p>
-                            <a href="{{ route('booking.conversations.show', $conversation->id) }}" class="btn btn-default btn-block" target="_blank">
-                                <i class="voyager-chat"></i> Voir la conversation
-                            </a>
-                        </div>
+                            @if ($booking->invoice)
+                                <p class="booking-muted" style="margin: 8px 0 0; font-size: 12px;">
+                                    Paiement : {{ $booking->invoice->status }}
+                                    @if ($booking->invoice->stripe_payment_intent_id)
+                                        · {{ $booking->invoice->stripe_payment_intent_id }}
+                                    @endif
+                                </p>
+                            @endif
+                        @else
+                            <p class="booking-muted" style="margin: 0;">Rendez-vous offert : aucun paiement.</p>
+                        @endif
                     </div>
-                @endif
+                </div>
 
-                {{-- --- Actions --- --}}
-                @if ($booking->status === 'pending' || $canCancel)
+                {{-- --- Répondre au nom de l'expert (demande en attente) --- --}}
+                @if ($booking->status === 'pending')
                     <div class="panel panel-bordered booking-panel">
                         <div class="panel-body">
-                            <h3>Actions</h3>
+                            <h3>Répondre au nom de l'expert</h3>
 
-                            @if ($booking->status === 'pending')
                                 <div class="booking-action">
-                                    <h4>Répondre au nom de l'expert</h4>
                                     <p class="booking-muted">À la demande de l'expert, par exemple s'il n'a pas accès à l'application.</p>
                                     <form method="POST" action="{{ route('booking.appointments.accept', $booking->id) }}"
                                           onsubmit="return confirm('Accepter au nom de l\'expert ? Le montant réservé sera débité.');"
@@ -825,11 +863,17 @@
                                         <button type="submit" class="btn btn-danger btn-block" style="margin-top: 8px;">Refuser la demande</button>
                                     </form>
                                 </div>
-                            @endif
+                        </div>
+                    </div>
+                @endif
 
-                            @if ($canCancel)
+                {{-- --- Annuler --- --}}
+                @if ($canCancel)
+                    <div class="panel panel-bordered booking-panel">
+                        <div class="panel-body">
+                            <h3>Annuler</h3>
+
                                 <div class="booking-action">
-                                    <h4>Annuler le rendez-vous</h4>
                                     <p class="booking-muted">
                                         @if ($booking->status === 'pending')
                                             Rien n'a encore été débité : l'empreinte bancaire est libérée.
@@ -866,50 +910,9 @@
                                         <button type="submit" class="btn btn-danger btn-block" style="margin-top: 8px;">Annuler le rendez-vous</button>
                                     </form>
                                 </div>
-                            @endif
                         </div>
                     </div>
                 @endif
-
-                {{-- --- Paiement --- --}}
-                <div class="panel panel-bordered booking-panel">
-                    <div class="panel-body">
-                        <h3>Paiement</h3>
-                        @if ($booking->payment_required)
-                            <table class="table booking-amounts" style="margin: 0;">
-                                <tr><td>Prix HT</td><td class="text-right">{{ $money($booking->amount_ht) }}</td></tr>
-                                <tr><td>TVA ({{ rtrim(rtrim(number_format($booking->tva_rate, 2, ',', ''), '0'), ',') }} %)</td><td class="text-right">{{ $money($booking->tva_amount) }}</td></tr>
-                                <tr class="is-total"><td>Total TTC</td><td class="text-right">{{ $money($booking->amount_ttc) }}</td></tr>
-                                @if ((float) $booking->refunded_amount > 0)
-                                    <tr><td>Remboursé</td><td class="text-right">− {{ $money($booking->refunded_amount) }}</td></tr>
-                                    <tr class="is-total"><td>Conservé</td><td class="text-right">{{ $money($kept) }}</td></tr>
-                                @endif
-                                <tr>
-                                    <td>Reversement expert estimé (HT)</td>
-                                    <td class="text-right">{{ $money($payoutHt) }}</td>
-                                </tr>
-                            </table>
-                            <p class="booking-muted" style="margin: 8px 0 0; font-size: 12px;">
-                                Commission {{ rtrim(rtrim(number_format($booking->commission_rate, 2, ',', ''), '0'), ',') }} %.
-                                @if ($booking->status === 'pending')
-                                    Montant réservé sur la carte, pas encore débité.
-                                @elseif (in_array($booking->status, ['declined', 'expired'], true) || ($booking->status === 'cancelled' && !$booking->responded_at))
-                                    Empreinte libérée : rien n'a été débité.
-                                @endif
-                            </p>
-                            @if ($booking->invoice)
-                                <p class="booking-muted" style="margin: 8px 0 0; font-size: 12px;">
-                                    Paiement : {{ $booking->invoice->status }}
-                                    @if ($booking->invoice->stripe_payment_intent_id)
-                                        · {{ $booking->invoice->stripe_payment_intent_id }}
-                                    @endif
-                                </p>
-                            @endif
-                        @else
-                            <p class="booking-muted" style="margin: 0;">Rendez-vous offert : aucun paiement.</p>
-                        @endif
-                    </div>
-                </div>
 
                 {{-- --- Facturation : adresse, factures (VE) et avoirs (RVE), remboursement --- --}}
                 <div class="panel panel-bordered booking-panel">
@@ -965,6 +968,7 @@
 
                             @if ($refundable > 0)
                                 <h4 style="margin-top: 16px;">Rembourser</h4>
+                                <p class="booking-muted" style="margin: 0 0 10px; font-size: 12px;">Sans annuler le rendez-vous (geste commercial, complément après annulation, virement déjà fait). Pour annuler, voir la carte « Annuler ».</p>
                                 <form method="POST" action="{{ route('booking.appointments.refund', $booking->id) }}" id="refund-form">
                                     @csrf
                                     <div class="form-group">
