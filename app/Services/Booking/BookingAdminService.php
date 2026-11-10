@@ -32,6 +32,9 @@ class BookingAdminService
 
     public const REASON_MAX = 500;
 
+    /** Précision d'un remboursement (avoir, e-mail). */
+    public const COMMENT_MAX = 280;
+
     public function __construct(
         private StripeService $stripe,
         private BookingCheckoutService $checkout,
@@ -221,10 +224,12 @@ class BookingAdminService
      * de l'expert déjà enregistrée, etc.). Donne un avoir (RVE) via le journal « refunded ».
      *  - stripe : remboursement sur la carte ;
      *  - manual : remboursement fait hors Stripe (virement…), seulement enregistré ici.
+     * $comment : précision facultative, imprimée sur l'avoir et reprise dans l'e-mail sous le motif.
      */
-    public function refundOnly(Booking $booking, ?float $amount, string $motif, string $method, ?string $reference, int $adminId): Booking
+    public function refundOnly(Booking $booking, ?float $amount, string $motif, string $method, ?string $reference, int $adminId, ?string $comment = null): Booking
     {
-        $motif = mb_substr(trim($motif), 0, self::REASON_MAX);
+        $motif = mb_substr(trim($motif), 0, 200);
+        $comment = mb_substr(trim((string) $comment), 0, self::COMMENT_MAX);
         if ($motif === '') {
             throw ValidationException::withMessages(['motif' => "Indiquez le motif : il figure sur l'avoir."]);
         }
@@ -236,7 +241,9 @@ class BookingAdminService
             throw ValidationException::withMessages(['reference' => 'Indiquez la référence du virement (ou du remboursement fait hors Stripe).']);
         }
 
-        DB::transaction(function () use ($booking, $amount, $motif, $method, $reference, $adminId) {
+        $extra = array_filter(['motif' => $motif, 'comment' => $comment]);
+
+        DB::transaction(function () use ($booking, $amount, $extra, $method, $reference, $adminId) {
             $locked = $this->lock($booking);
             $value = $this->checkedRefund($locked, $amount);
             if ($value <= 0) {
@@ -244,7 +251,7 @@ class BookingAdminService
             }
 
             if ($method === 'stripe') {
-                $this->refund($locked, $value, ['reason' => 'refund', 'motif' => $motif], $adminId);
+                $this->refund($locked, $value, ['reason' => 'refund'] + $extra, $adminId);
 
                 return;
             }
@@ -258,8 +265,7 @@ class BookingAdminService
                 'method'    => 'manual',
                 'reference' => mb_substr($reference, 0, 191),
                 'reason'    => 'refund',
-                'motif'     => $motif,
-            ], null, $adminId);
+            ] + $extra, null, $adminId);
         });
 
         return $booking->fresh(['blocks']);

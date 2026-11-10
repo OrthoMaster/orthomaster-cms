@@ -736,6 +736,7 @@
                                             $details = array_filter([
                                                 isset($data['reason']) && $event->type !== 'refunded' ? 'Motif : ' . $data['reason'] : null,
                                                 isset($data['note']) ? '« ' . $data['note'] . ' »' : null,
+                                                isset($data['comment']) ? '« ' . $data['comment'] . ' »' : null,
                                                 !empty($data['refund']) ? 'Remboursement : ' . $money($data['refund']) : null,
                                                 $event->type === 'refunded' && isset($data['amount']) ? $money($data['amount']) . (($data['method'] ?? null) === 'manual' ? ' (à la main · ' . ($data['reference'] ?? '') . ')' : ' (Stripe ' . ($data['refund_id'] ?? '') . ')') . (!empty($data['motif']) ? ' · ' . $data['motif'] : '') : null,
                                                 $event->type === 'accepted' && !empty($data['captured']) ? 'Débité : ' . $money($data['captured']) : null,
@@ -987,6 +988,12 @@
                                         </select>
                                         <input type="text" name="motif_other" id="refund-motif-other" class="form-control" maxlength="200"
                                                placeholder="Motif" value="{{ old('motif_other') }}" style="margin-top: 6px; display: none;">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="refund-comment">Précision (facultatif)</label>
+                                        <textarea name="comment" id="refund-comment" rows="2" class="form-control" maxlength="{{ \App\Services\Booking\BookingAdminService::COMMENT_MAX }}"
+                                                  placeholder="Ex. : remboursement des frais de déplacement non engagés">{{ old('comment') }}</textarea>
+                                        <div class="booking-rule">Figure sur l'avoir, sous le motif, et dans l'e-mail au demandeur.</div>
                                     </div>
                                     <div class="form-group">
                                         <label>Remboursement</label>

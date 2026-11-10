@@ -369,7 +369,7 @@
                     <div class="learners-box">
                         @if ($avoir)
                             <div class="section-title">Motif</div>
-                            <div class="learner-item">{{ $motif }}</div>
+                            <div class="learner-item">{!! nl2br(e($motif)) !!}</div>
                         @else
                             <div class="section-title">Rendez-vous expert</div>
                             <div class="learner-item"><strong>Expert :</strong> {{ $expertName }}</div>

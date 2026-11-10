@@ -262,13 +262,14 @@ class BookingInvoiceService
             name: $invoice->client_name ?: 'Madame, Monsieur',
             lines: $avoir
                 ? ['Vous trouverez ci-joint l\'avoir <strong>' . e($invoice->no) . '</strong> correspondant au remboursement de '
-                    . e($this->money($invoice->amount)) . ' sur la facture ' . e($parent?->no ?? '') . '.']
+                    . e($this->money($invoice->amount)) . ' sur la facture ' . e($parent?->no ?? '') . '.',
+                    ...array_map(fn ($l) => nl2br(e($l)), array_filter([$this->comment($invoice)]))]
                 : ['Vous trouverez ci-joint la facture acquittée <strong>' . e($invoice->no) . '</strong> de votre rendez-vous avec <strong>'
                     . e($expert) . '</strong>.'],
             details: [
                 ($avoir ? 'Avoir' : 'Facture') => $invoice->no,
                 'Montant TTC'                  => $this->money($invoice->amount),
-            ],
+            ] + ($avoir && $invoice->refund_reason ? ['Motif' => strtok($invoice->refund_reason, "\n")] : []),
             action: ['text' => 'Télécharger le PDF', 'url' => $invoice->document],
             note: 'Vos factures et avoirs sont aussi dans l\'application : Profil → Devis & Factures.',
             attachmentPath: $path,
@@ -360,15 +361,26 @@ class BookingInvoiceService
         return $n . ' demi-journée' . ($n > 1 ? 's' : '');
     }
 
-    /** Motif de l'avoir, d'après le remboursement. */
+    /** Précision de l'avoir : ce qui suit la première ligne du motif. */
+    private function comment(Invoice $invoice): ?string
+    {
+        $parts = explode("\n", (string) $invoice->refund_reason, 2);
+
+        return isset($parts[1]) && trim($parts[1]) !== '' ? trim($parts[1]) : null;
+    }
+
+    /** Motif de l'avoir, d'après le remboursement (+ précision éventuelle, ligne suivante). */
     private function motif(Booking $booking, BookingEvent $event): string
     {
         $d = $event->data ?? [];
         $date = $this->fr($event->created_at);
 
         // Remboursement depuis l'écran « Rembourser » : motif choisi par l'administration.
+        // Précision éventuelle sur une seconde ligne.
         if (!empty($d['motif'])) {
-            return rtrim((string) $d['motif'], '. ') . ", le {$date}.";
+            $comment = trim((string) ($d['comment'] ?? ''));
+
+            return rtrim((string) $d['motif'], '. ') . ", le {$date}." . ($comment !== '' ? "\n" . $comment : '');
         }
 
         return match ($d['reason'] ?? null) {

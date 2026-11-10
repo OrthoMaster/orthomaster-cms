@@ -261,7 +261,8 @@ class AppointmentController extends Controller
             $motif,
             (string) $request->input('method', 'stripe'),
             $request->input('reference'),
-            $request->user()->id
+            $request->user()->id,
+            $request->input('comment')
         );
 
         return $this->back($bookingId, "Remboursement enregistré : l'avoir est en cours d'émission (Odoo).");
