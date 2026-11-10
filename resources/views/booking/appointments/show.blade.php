@@ -64,6 +64,7 @@
         'meet_cancelled'   => 'Lien Google Meet supprimé',
         'meet_closed'      => 'Salle Google Meet fermée',
         'meet_reopened'    => 'Salle Google Meet rouverte',
+        'reminder_sent'    => 'Rappel 24 h envoyé (e-mail)',
         'payment_captured_outside' => 'Débit fait hors application (à vérifier)',
     ];
     $actorLabels = [

@@ -72,3 +72,5 @@ Schedule::command('queue:work --queue=ai-search --stop-when-empty')->everyMinute
 // Booking
 Schedule::command('booking:expire-requests')->everyFiveMinutes()->withoutOverlapping();
 Schedule::command('booking:meet-sweep')->everyTenMinutes()->withoutOverlapping();
+// Rappels 24 h avant les rendez-vous acceptés (e-mail aux deux parties).
+Schedule::command('booking:send-reminders')->everyTenMinutes()->withoutOverlapping();

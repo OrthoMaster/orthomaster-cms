@@ -21,7 +21,8 @@ use Illuminate\Support\Facades\DB;
  *  - declined      → demandeur: demande refusée, montant libéré ;
  *  - expired       → demandeur: sans réponse dans le délai, montant libéré ;
  *  - cancelled     → l'autre partie (les deux si l'administration ou le système annule) ;
- *  - meet_created  → les deux : le lien de la visio est prêt (créé 1 h avant, ou à la main).
+ *  - meet_created  → les deux : le lien de la visio est prêt (créé 1 h avant, ou à la main) ;
+ *  - reminder_sent → les deux : rappel 24 h avant (booking:send-reminders).
  *
  * Liens vers l'application : go.orthomaster.fr/open/tutorat/… (ouvre l'application,
  * ou la version web sur ordinateur).
@@ -44,6 +45,7 @@ class BookingMailService
             'expired'      => $this->expired($booking),
             'cancelled'    => $this->cancelled($booking, $event),
             'meet_created' => $this->meetCreated($booking, $event),
+            'reminder_sent' => $this->reminder($booking, $event),
             default        => null,
         };
     }
@@ -233,6 +235,47 @@ class BookingMailService
                 details: $details,
                 action: ['text' => 'Rejoindre la visio', 'url' => $block->meet_url],
                 note: 'Vous retrouvez aussi ce lien dans l\'application : ' . $this->link($kind, $booking),
+            ));
+        }
+    }
+
+    /** Rappel 24 h avant : les demi-journées du jour concerné, aux deux parties. */
+    private function reminder(Booking $booking, BookingEvent $event): void
+    {
+        if ($booking->status !== Booking::STATUS_ACCEPTED) {
+            return;
+        }
+        $ids = array_map('intval', $event->data['block_ids'] ?? []);
+        $blocks = $booking->blocks->filter(fn (BookingBlock $b) => in_array((int) $b->id, $ids, true))->sortBy('start_at');
+        if ($blocks->isEmpty()) {
+            return;
+        }
+
+        $online = $booking->mode !== ExpertOfferMode::ONSITE;
+        $first = $blocks->first();
+        $when = $first->start_at->copy()->setTimezone('Europe/Paris')->isTomorrow() ? 'demain' : 'le ' . $this->day($first->date);
+        $schedule = $blocks->map(function (BookingBlock $b) use ($booking) {
+            $place = $b->location_text;
+
+            return $place ? $this->blockText($booking, $b) . "\n" . $place : $this->blockText($booking, $b);
+        })->implode("\n");
+        $details = $this->subject($booking) + ['Format' => $this->modeText($booking), 'Horaire' => $schedule];
+        $note = $online
+            ? "Le lien de la visio sera disponible 1 heure avant le début, dans l'application et par e-mail."
+            : 'Pensez à prévoir votre trajet : l\'adresse et l\'itinéraire sont dans l\'application.';
+
+        foreach ([['demande', $this->expertRecipient($booking), $this->clientName($booking)], ['rendez-vous', $this->clientRecipient($booking), $this->expertName($booking)]] as [$kind, [$email, $name], $other]) {
+            if (!$email) {
+                continue;
+            }
+            $this->send($email, new BookingNotificationMail(
+                subjectLine: 'Rappel : votre rendez-vous avec ' . $other . ' ' . $when,
+                heading: 'Rappel de rendez-vous',
+                name: $name,
+                lines: ['Petit rappel : vous avez rendez-vous ' . e($when) . ' avec <strong>' . e($other) . '</strong>.'],
+                details: $details,
+                action: ['text' => 'Voir le rendez-vous', 'url' => $this->link($kind, $booking)],
+                note: $note,
             ));
         }
     }
