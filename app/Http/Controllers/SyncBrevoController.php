@@ -18,7 +18,7 @@ class SyncBrevoController extends Controller
      */
     public function syncUsers(): JsonResponse
     {
-        $date = '2026-08-19';
+        $date = '2026-10-20';
         $from = Carbon::parse($date)->startOfDay();
 
         $query = User::query()
