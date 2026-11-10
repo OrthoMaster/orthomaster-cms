@@ -13,7 +13,11 @@ class DocumentController extends Controller
     public function getAll(Request $request)
     {
         try {
-            $invoices = Invoice::getInvoiceByUser($request->user()->id);
+            // Seulement les pièces numérotées : une facture de rendez-vous attend son numéro
+            // Odoo quelques instants après le débit ; sans numéro, rien à télécharger.
+            $invoices = Invoice::getInvoiceByUser($request->user()->id)
+                ->filter(fn ($invoice) => !empty($invoice->no))
+                ->values();
             $contracts = Contract::getByUser($request->user()->id);
 
             return response()->json([

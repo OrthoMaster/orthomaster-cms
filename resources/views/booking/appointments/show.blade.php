@@ -710,7 +710,7 @@
                                                 isset($data['reason']) && $event->type !== 'refunded' ? 'Motif : ' . $data['reason'] : null,
                                                 isset($data['note']) ? '« ' . $data['note'] . ' »' : null,
                                                 !empty($data['refund']) ? 'Remboursement : ' . $money($data['refund']) : null,
-                                                $event->type === 'refunded' && isset($data['amount']) ? $money($data['amount']) . ' (Stripe ' . ($data['refund_id'] ?? '') . ')' : null,
+                                                $event->type === 'refunded' && isset($data['amount']) ? $money($data['amount']) . (($data['method'] ?? null) === 'manual' ? ' (à la main · ' . ($data['reference'] ?? '') . ')' : ' (Stripe ' . ($data['refund_id'] ?? '') . ')') . (!empty($data['motif']) ? ' · ' . $data['motif'] : '') : null,
                                                 $event->type === 'accepted' && !empty($data['captured']) ? 'Débité : ' . $money($data['captured']) : null,
                                                 $event->type === 'refund_synced' && isset($data['amount']) ? $money($data['amount']) . ' (total remboursé : ' . $money($data['total'] ?? 0) . ')' : null,
                                                 $event->type === 'payment_captured_outside' && isset($data['amount']) ? 'Débité : ' . $money($data['amount']) : null,
@@ -899,7 +899,7 @@
                             </p>
                             @if ($booking->invoice)
                                 <p class="booking-muted" style="margin: 8px 0 0; font-size: 12px;">
-                                    Facture #{{ $booking->invoice->id }} · {{ $booking->invoice->status }}
+                                    Paiement : {{ $booking->invoice->status }}
                                     @if ($booking->invoice->stripe_payment_intent_id)
                                         · {{ $booking->invoice->stripe_payment_intent_id }}
                                     @endif
@@ -911,11 +911,98 @@
                     </div>
                 </div>
 
-                {{-- --- Facturation --- --}}
+                {{-- --- Facturation : adresse, factures (VE) et avoirs (RVE), remboursement --- --}}
                 <div class="panel panel-bordered booking-panel">
                     <div class="panel-body">
                         <h3>Facturation</h3>
                         <div class="booking-message">{{ $booking->client_address }}</div>
+
+                        @if ($booking->payment_required)
+                            <h4 style="margin-top: 16px;">Factures et avoirs</h4>
+                            @php $issuable = $pieces->first(fn ($p) => $p->status === 'paid'); @endphp
+                            @if (!$issuable)
+                                <p class="booking-muted" style="margin: 0;">Pas de facture : rien n'a été débité (facture émise à l'acceptation de l'expert).</p>
+                            @else
+                                <table class="table" style="margin: 0;">
+                                    @foreach ($pieces->where('status', 'paid') as $piece)
+                                        @php $avoir = $piece->kind === 'credit_note'; @endphp
+                                        <tr>
+                                            <td style="padding-left: 0;">
+                                                <span class="label {{ $avoir ? 'label-danger' : 'label-primary' }}">{{ $avoir ? 'Avoir' : 'Facture' }}</span>
+                                                <strong>{{ $piece->no ?: 'à émettre' }}</strong>
+                                                <div class="booking-muted" style="font-size: 12px;">
+                                                    {{ $avoir ? '- ' : '' }}{{ $money($piece->amount) }} TTC
+                                                    @if ($avoir)
+                                                        · {{ $piece->refund_method === 'manual' ? 'virement ' . $piece->refund_reference : 'Stripe' }}
+                                                    @endif
+                                                    @if ($piece->sent_at)
+                                                        · envoyé le {{ $fmt($piece->sent_at, 'd/m/Y') }}
+                                                    @endif
+                                                </div>
+                                                @if ($piece->odoo_error)
+                                                    <div class="text-warning" style="font-size: 12px;">{{ $piece->odoo_error }}</div>
+                                                @endif
+                                            </td>
+                                            <td class="text-right" style="white-space: nowrap; padding-right: 0;">
+                                                @if ($piece->document)
+                                                    <a href="{{ $piece->document }}" target="_blank" class="btn btn-xs btn-default">PDF</a>
+                                                    <form method="POST" action="{{ route('booking.appointments.invoices.resend', [$booking->id, $piece->id]) }}" style="display: inline;">
+                                                        @csrf
+                                                        <button class="btn btn-xs btn-default" title="Renvoyer l'e-mail au demandeur">E-mail</button>
+                                                    </form>
+                                                @endif
+                                                @if (!$piece->no || !$piece->document || $piece->odoo_error)
+                                                    <form method="POST" action="{{ route('booking.appointments.invoices.retry', [$booking->id, $piece->id]) }}" style="display: inline;">
+                                                        @csrf
+                                                        <button class="btn btn-xs btn-warning">Relancer</button>
+                                                    </form>
+                                                @endif
+                                            </td>
+                                        </tr>
+                                    @endforeach
+                                </table>
+                            @endif
+
+                            @if ($refundable > 0)
+                                <h4 style="margin-top: 16px;">Rembourser</h4>
+                                <form method="POST" action="{{ route('booking.appointments.refund', $booking->id) }}" id="refund-form">
+                                    @csrf
+                                    <div class="form-group">
+                                        <label for="refund-amount">Montant (€ TTC)</label>
+                                        <input type="number" id="refund-amount" name="refund" step="0.01" min="0.01" max="{{ $refundable }}"
+                                               value="{{ old('refund', number_format($refundable, 2, '.', '')) }}" class="form-control" required>
+                                        <div class="booking-rule">Maximum : {{ $money($refundable) }}. Un avoir est émis et envoyé au demandeur.</div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="refund-motif">Motif (figure sur l'avoir)</label>
+                                        <select name="motif" id="refund-motif" class="form-control">
+                                            @foreach ($refundMotifs as $m)
+                                                <option value="{{ $m }}" @selected(old('motif') === $m)>{{ $m }}</option>
+                                            @endforeach
+                                            <option value="other" @selected(old('motif') === 'other')>Autre…</option>
+                                        </select>
+                                        <input type="text" name="motif_other" id="refund-motif-other" class="form-control" maxlength="200"
+                                               placeholder="Motif" value="{{ old('motif_other') }}" style="margin-top: 6px; display: none;">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Remboursement</label>
+                                        <div>
+                                            <label class="radio-inline">
+                                                <input type="radio" name="method" value="stripe" @checked(old('method', 'stripe') === 'stripe')
+                                                       @disabled(!$booking->invoice?->stripe_payment_intent_id)> Sur la carte (Stripe)
+                                            </label>
+                                            <label class="radio-inline">
+                                                <input type="radio" name="method" value="manual" @checked(old('method') === 'manual' || !$booking->invoice?->stripe_payment_intent_id)> Fait à la main (virement…)
+                                            </label>
+                                        </div>
+                                        <input type="text" name="reference" id="refund-reference" class="form-control" maxlength="191"
+                                               placeholder="Référence du virement" value="{{ old('reference') }}" style="margin-top: 6px; display: none;">
+                                    </div>
+                                    <button type="submit" class="btn btn-danger"
+                                            onclick="return confirm('Rembourser ce montant et émettre un avoir ?');">Rembourser</button>
+                                </form>
+                            @endif
+                        @endif
                     </div>
                 </div>
             </div>
@@ -939,6 +1026,14 @@
                     toastr.success('Lien copié');
                 });
             });
+
+            // Rembourser : motif libre si « Autre », référence si fait à la main.
+            var syncRefund = function () {
+                $('#refund-motif-other').toggle($('#refund-motif').val() === 'other');
+                $('#refund-reference').toggle($('#refund-form input[name="method"]:checked').val() === 'manual');
+            };
+            $('#refund-motif, #refund-form input[name="method"]').on('change', syncRefund);
+            syncRefund();
 
             // Le remboursement proposé suit la partie choisie ; l'admin peut ensuite le modifier.
             $('#cancel-form input[name="party"]').on('change', function () {

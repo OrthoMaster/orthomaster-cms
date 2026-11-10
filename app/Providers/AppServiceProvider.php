@@ -46,5 +46,7 @@ class AppServiceProvider extends ServiceProvider
         \App\Models\BookingEvent::observe(\App\Observers\BookingEventChatObserver::class);
         // E-mails des rendez-vous experts (demande, réponse, annulation, lien de visio).
         \App\Models\BookingEvent::observe(\App\Observers\BookingEventMailObserver::class);
+        // Factures (VE) et avoirs (RVE) des rendez-vous experts, numérotés par Odoo.
+        \App\Models\BookingEvent::observe(\App\Observers\BookingEventInvoiceObserver::class);
     }
 }

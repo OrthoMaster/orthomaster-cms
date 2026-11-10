@@ -7,8 +7,10 @@ use App\Models\Booking;
 use App\Models\BookingBlock;
 use App\Models\BookingDeclineReason;
 use App\Models\BookingNoShowReport;
+use App\Models\Invoice;
 use App\Services\Booking\BookingAdminService;
 use App\Services\Booking\BookingCheckoutService;
+use App\Services\Booking\BookingInvoiceService;
 use App\Services\Booking\BookingMeetService;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Http\JsonResponse;
@@ -207,9 +209,19 @@ class AppointmentController extends Controller
         $keptHt   = $booking->tva_rate > 0 ? $kept / (1 + (float) $booking->tva_rate / 100) : $kept;
         $payoutHt = round($keptHt * (1 - (float) $booking->commission_rate / 100), 2);
 
+        // Factures et avoirs : la facture (ligne créée à la réservation) puis ses avoirs.
+        $pieces = $booking->invoice_id
+            ? Invoice::where('id', $booking->invoice_id)
+                ->orWhere(fn ($q) => $q->where('kind', 'credit_note')->where('parent_invoice_id', $booking->invoice_id))
+                ->orderByRaw("kind = 'credit_note'")
+                ->orderBy('id')
+                ->get()
+            : collect();
+        $refundMotifs = BookingAdminService::REFUND_MOTIFS;
+
         return view('booking.appointments.show', compact(
             'booking', 'displayStatus', 'refundable', 'suggest', 'noShowSuggest',
-            'canCancel', 'reasons', 'requester', 'kept', 'payoutHt'
+            'canCancel', 'reasons', 'requester', 'kept', 'payoutHt', 'pieces', 'refundMotifs'
         ));
     }
 
@@ -231,6 +243,64 @@ class AppointmentController extends Controller
         );
 
         return $this->back($bookingId, 'Rendez-vous annulé au nom de ' . (self::PARTY_LABELS[$request->input('party')] ?? '—') . '.');
+    }
+
+    /* ===================== REMBOURSEMENTS, FACTURES ===================== */
+
+    /**
+     * Rembourse un rendez-vous débité ; un avoir (RVE) est émis ensuite.
+     * POST /booking/appointments/{bookingId}/refund
+     * refund, motif (motif_other si « Autre »), method (stripe|manual), reference
+     */
+    public function refund(Request $request, int $bookingId): RedirectResponse
+    {
+        $motif = $request->input('motif') === 'other' ? (string) $request->input('motif_other') : (string) $request->input('motif');
+        $this->admin->refundOnly(
+            $this->find($bookingId),
+            $request->filled('refund') ? (float) str_replace(',', '.', $request->input('refund')) : 0.0,
+            $motif,
+            (string) $request->input('method', 'stripe'),
+            $request->input('reference'),
+            $request->user()->id
+        );
+
+        return $this->back($bookingId, "Remboursement enregistré : l'avoir est en cours d'émission (Odoo).");
+    }
+
+    /**
+     * Relance l'émission d'une facture / d'un avoir (Odoo, PDF, e-mail), tout de suite.
+     * POST /booking/appointments/{bookingId}/invoices/{invoiceId}/retry
+     */
+    public function retryInvoice(int $bookingId, int $invoiceId, BookingInvoiceService $invoices): RedirectResponse
+    {
+        $booking = $this->find($bookingId);
+        $invoice = Invoice::findOrFail($invoiceId);
+
+        try {
+            $invoice->kind === 'credit_note' && $invoice->booking_event_id
+                ? $invoices->issueCreditNote((int) $invoice->booking_event_id)
+                : $invoices->issueInvoice($booking->id);
+        } catch (\Throwable $e) {
+            report($e);
+
+            return redirect()->route('booking.appointments.show', $bookingId)
+                ->with(['message' => 'Émission impossible : ' . $e->getMessage(), 'alert-type' => 'error']);
+        }
+
+        return $this->back($bookingId, 'Pièce émise.');
+    }
+
+    /**
+     * Renvoie la facture / l'avoir par e-mail au demandeur.
+     * POST /booking/appointments/{bookingId}/invoices/{invoiceId}/resend
+     */
+    public function resendInvoice(int $bookingId, int $invoiceId, BookingInvoiceService $invoices): RedirectResponse
+    {
+        $this->find($bookingId);
+        $invoice = Invoice::whereNotNull('no')->whereNotNull('document')->findOrFail($invoiceId);
+        $invoices->resend($invoice->setAttribute('booking_id', $invoice->booking_id ?: $bookingId));
+
+        return $this->back($bookingId, 'E-mail renvoyé à ' . $invoice->client_email . '.');
     }
 
     /* ===================== GOOGLE MEET ===================== */

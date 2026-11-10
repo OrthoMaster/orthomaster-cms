@@ -27,6 +27,9 @@
     <a href="{{ route('booking.revenue.index') }}" class="btn btn-default">
         <i class="voyager-dollar"></i> Revenus
     </a>
+    <a href="{{ route('booking.invoices.index') }}" class="btn btn-default">
+        <i class="voyager-file-text"></i> Factures
+    </a>
     <a href="{{ route('booking.experts.index') }}" class="btn btn-default">
         <i class="voyager-people"></i> Experts
     </a>

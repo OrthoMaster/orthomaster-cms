@@ -4,6 +4,7 @@ namespace App\Mail;
 
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
+use Illuminate\Mail\Mailables\Attachment;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
@@ -27,6 +28,9 @@ class BookingNotificationMail extends Mailable
         public array $details = [],
         public ?array $action = null,
         public ?string $note = null,
+        /** Pièce jointe sur S3 (facture / avoir), chemin dans le disque s3. */
+        public ?string $attachmentPath = null,
+        public ?string $attachmentName = null,
     ) {
     }
 
@@ -52,6 +56,14 @@ class BookingNotificationMail extends Mailable
 
     public function attachments(): array
     {
-        return [];
+        if (!$this->attachmentPath) {
+            return [];
+        }
+
+        return [
+            Attachment::fromStorageDisk('s3', $this->attachmentPath)
+                ->as($this->attachmentName ?: basename($this->attachmentPath))
+                ->withMime('application/pdf'),
+        ];
     }
 }

@@ -14,6 +14,9 @@
         <a href="{{ route('booking.appointments.index') }}" class="btn btn-default">
             <i class="voyager-calendar"></i> Rendez-vous
         </a>
+        <a href="{{ route('booking.invoices.index') }}" class="btn btn-default">
+            <i class="voyager-file-text"></i> Factures
+        </a>
         <a href="{{ route('booking.experts.index') }}" class="btn btn-default">
             <i class="voyager-people"></i> Experts
         </a>

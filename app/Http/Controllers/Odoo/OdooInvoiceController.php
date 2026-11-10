@@ -32,16 +32,17 @@ class OdooInvoiceController extends Controller
                 ]];
             }
 
-            // Create invoice in draft state
-            $odooInvoiceId = $this->odooService->create('account.move', [
-                'move_type'          => 'out_invoice',
+            // Create invoice in draft state (out_refund = avoir, lié à la facture d'origine)
+            $odooInvoiceId = $this->odooService->create('account.move', array_filter([
+                'move_type'          => $invoiceData['move_type'] ?? 'out_invoice',
+                'reversed_entry_id'  => $invoiceData['reversed_entry_id'] ?? null,
                 'partner_id'         => $invoiceData['partner_id'],
                 'invoice_date'       => $invoiceData['invoice_date'],
                 'invoice_date_due'   => $invoiceData['invoice_date_due'] ?? null,
                 'ref'                => $invoiceData['ref'] ?? null,  // référence interne
                 'narration'          => $invoiceData['narration'] ?? null,
                 'invoice_line_ids'   => $invoiceLines,
-            ]);
+            ], fn ($v) => $v !== null));
 
             if (!is_numeric($odooInvoiceId)) {
                 Log::channel('api')->error('Odoo invoice create failed for partner: ' . $invoiceData['partner_id'], ['odoo', 'invoice']);
@@ -79,13 +80,13 @@ class OdooInvoiceController extends Controller
      * @param string $fileName       File name to display in Odoo
      * @return bool
      */
-    public function uploadInvoicePdf(string $invoiceNumber, string $pdfPath, string $fileName, string $message)
+    public function uploadInvoicePdf(string $invoiceNumber, string $pdfPath, string $fileName, string $message, string $moveType = 'out_invoice')
     {
         try {
             // Find invoice by number
             $invoice = $this->odooService->searchRead(
                 'account.move',
-                [['name', '=', $invoiceNumber], ['move_type', '=', 'out_invoice']],
+                [['name', '=', $invoiceNumber], ['move_type', '=', $moveType]],
                 ['id', 'name'],
                 1
             );
@@ -168,9 +169,9 @@ class OdooInvoiceController extends Controller
      * @param string $paymentDate (Y-m-d) : date of payment; null is unpay
      * @return bool
      */
-    public function markInvoiceAsPaid(int $odooInvoiceId, float $amount, ?string $paymentDate = null): bool
+    public function markInvoiceAsPaid(int $odooInvoiceId, float $amount, ?string $paymentDate = null, int $journalId = 15): bool
     {
-        $journalId = 15; // Stripe - Application journal
+        // 15 : Stripe - Application journal (avoir : paiement sortant, même journal)
 
         try {
             $date = $paymentDate ?? now()->format('Y-m-d');
