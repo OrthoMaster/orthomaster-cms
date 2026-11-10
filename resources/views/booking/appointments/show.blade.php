@@ -80,6 +80,9 @@
 @section('page_header')
     <h1 class="page-title">
         <i class="voyager-calendar"></i> Rendez-vous #{{ $booking->id }}
+        @if ($booking->requested_at)
+            <small style="font-size: 14px; color: #888;">{{ $booking->reference() }}</small>
+        @endif
         <span class="booking-pill booking-pill--{{ $statusClass }}">{{ $statusLabel }}</span>
         <span class="booking-pill booking-pill--{{ $booking->mode }}">{{ $modeLabel }}</span>
     </h1>

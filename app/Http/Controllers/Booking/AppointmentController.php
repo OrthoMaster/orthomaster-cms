@@ -95,6 +95,10 @@ class AppointmentController extends Controller
                     if (ctype_digit($search)) {
                         $q->orWhere('b.id', (int) $search);
                     }
+                    // Référence donnée au demandeur (RDV-MMJJXXX).
+                    if ($refId = Booking::idFromReference($search)) {
+                        $q->orWhere('b.id', $refId);
+                    }
                     $like = '%' . $search . '%';
                     $q->orWhere('u.name', 'like', $like)
                         ->orWhere('u.email', 'like', $like)

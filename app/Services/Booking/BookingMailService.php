@@ -38,6 +38,11 @@ class BookingMailService
             return;
         }
 
+        // Demande transmise : l'expert est prévenu (ci-dessous), le demandeur reçoit sa confirmation.
+        if ($event->type === 'submitted') {
+            $this->requestConfirmation($booking);
+        }
+
         match ($event->type) {
             'submitted'    => $this->submitted($booking),
             'accepted'     => $this->accepted($booking),
@@ -82,6 +87,54 @@ class BookingMailService
             note: $booking->respond_by
                 ? 'Sans réponse avant le ' . $this->dateTime($booking->respond_by) . ', la demande expirera et le montant réservé sera libéré.'
                 : null,
+        ));
+    }
+
+    /**
+     * « Confirmation de votre demande » au demandeur : trace de la demande et du montant réservé
+     * (non débité) en attendant la réponse de l'expert. Pas une facture : celle-ci (VE) suit l'acceptation.
+     */
+    private function requestConfirmation(Booking $booking): void
+    {
+        [$email, $name] = $this->clientRecipient($booking);
+        if (!$email) {
+            return;
+        }
+
+        $reference = $booking->reference();
+        $details = ['Référence' => $reference, 'Date de la demande' => $this->dateTime($booking->requested_at ?? now())]
+            + ['Expert' => $this->expertName($booking)]
+            + $this->subject($booking)
+            + ['Format' => $this->modeText($booking)]
+            + $this->schedule($booking)
+            + ['Participant' => $this->clientName($booking)]
+            + ($booking->payment_required
+                ? [
+                    'Prix HT'  => $this->money($booking->amount_ht),
+                    'TVA (' . rtrim(rtrim(number_format((float) $booking->tva_rate, 2, ',', ''), '0'), ',') . ' %)' => $this->money($booking->tva_amount),
+                    'Total TTC' => $this->money($booking->amount_ttc),
+                    'Paiement' => 'Réservé sur votre carte le ' . Carbon::parse($booking->requested_at ?? now())->setTimezone('Europe/Paris')->format('d/m/Y') . ' — non débité',
+                ]
+                : ['Montant' => 'Offert']);
+
+        $this->send($email, new BookingNotificationMail(
+            subjectLine: "Confirmation de votre demande {$reference}",
+            heading: 'Confirmation de votre demande',
+            name: $name,
+            lines: array_values(array_filter([
+                'Votre demande de ' . ($booking->isConsultation() ? 'consultation' : 'rendez-vous') . ' avec <strong>'
+                    . e($this->expertName($booking)) . '</strong> a bien été transmise. Elle est en attente de sa réponse.',
+                $booking->payment_required
+                    ? 'Le montant est <strong>réservé</strong> sur votre carte, mais <strong>pas encore débité</strong> : il ne le sera que si l\'expert accepte votre demande. Vous recevrez alors votre facture.'
+                    : null,
+            ])),
+            details: $details,
+            action: ['text' => 'Voir la demande', 'url' => $this->link('rendez-vous', $booking)],
+            note: ltrim(($booking->respond_by
+                    ? 'Sans réponse avant le ' . $this->dateTime($booking->respond_by) . ', ou en cas de refus, '
+                        . ($booking->payment_required ? 'la réservation est libérée et rien n\'est débité.' : 'la demande est close.')
+                    : '')
+                . ' Ce document n\'est pas une facture.'),
         ));
     }
 
