@@ -34,6 +34,7 @@ use App\Http\Controllers\API\ExpertBookingSetupController;
 use App\Http\Controllers\API\AiVideoSearchController;
 use App\Http\Controllers\API\BookingRequestController;
 use App\Http\Controllers\API\ExpertAgendaController;
+use App\Http\Controllers\API\ExpertRevenueController;
 use App\Http\Controllers\API\BookingChatController;
 use App\Http\Controllers\API\ExpertBookingRequestController;
 use Illuminate\Http\Request;
@@ -324,6 +325,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
             Route::get('/agenda', [ExpertAgendaController::class, 'index']);
             Route::get('/agenda/history', [ExpertAgendaController::class, 'history']);
+            // Revenus de l'expert (sa part seulement), par année.
+            Route::get('/revenue', [ExpertRevenueController::class, 'index']);
             Route::post('/requests/{booking}/no-show', [ExpertBookingRequestController::class, 'reportNoShow'])->whereNumber('booking');
 
             Route::put('/profile', [ExpertBookingSetupController::class, 'updateProfile']);
