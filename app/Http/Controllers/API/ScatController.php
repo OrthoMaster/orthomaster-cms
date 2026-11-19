@@ -18,6 +18,7 @@ use Illuminate\Support\Facades\Log;
  *   App OrthoMaster  →  POST /api/scat/handoff                       (auth:sanctum)
  *   scat-server      →  POST /api/partner/scat/verify-credentials    (X-Partner-Key)
  *   scat-server      →  POST /api/partner/scat/handoff/redeem        (X-Partner-Key)
+ *   scat-server      →  POST /api/partner/scat/email-lookup          (X-Partner-Key)
  *   scat-server      →  GET  /api/partner/scat/rpps/{rpps}            (X-Partner-Key)
  */
 class ScatController extends Controller
@@ -126,6 +127,22 @@ class ScatController extends Controller
                 'first_name' => $hcp->first_name,
                 'profession' => $hcp->activities->first()?->label,
             ],
+        ]);
+    }
+
+    /**
+     * scat-server: does this e-mail belong to an OrthoMaster account, and is it a doctor's?
+     * Used at SCAT6 player sign-up and e-mail change: a doctor's OrthoMaster address cannot become a player
+     * account (one person = a doctor account and a player account with two addresses). Students may.
+     */
+    public function emailLookup(Request $request)
+    {
+        $data = $request->validate(['email' => ['required', 'email']]);
+        $user = User::where('email', strtolower(trim($data['email'])))->first();
+
+        return response()->json([
+            'status' => 'success',
+            'data' => ['exists' => $user !== null, 'is_doctor' => $user !== null && self::isDoctor($user)],
         ]);
     }
 

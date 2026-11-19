@@ -74,6 +74,7 @@ Route::prefix('partner/scat')->middleware(['scat.partner', 'throttle:30,1'])->gr
     Route::post('/verify-credentials', [ScatController::class, 'verifyCredentials']);
     Route::post('/handoff/redeem', [ScatController::class, 'redeemHandoff']);
     Route::get('/rpps/{rpps}', [ScatController::class, 'rpps']);
+    Route::post('/email-lookup', [ScatController::class, 'emailLookup']);
 });
 
 // Tracking - Dont use anymore - TODO: delete
