@@ -64,6 +64,7 @@
         'meet_cancelled'   => 'Lien Google Meet supprimé',
         'meet_closed'      => 'Salle Google Meet fermée',
         'meet_reopened'    => 'Salle Google Meet rouverte',
+        'reminder_sent'    => 'Rappel 24 h envoyé (e-mail)',
         'payment_captured_outside' => 'Débit fait hors application (à vérifier)',
     ];
     $actorLabels = [
@@ -79,6 +80,9 @@
 @section('page_header')
     <h1 class="page-title">
         <i class="voyager-calendar"></i> Rendez-vous #{{ $booking->id }}
+        @if ($booking->requested_at)
+            <small style="font-size: 14px; color: #888;">{{ $booking->reference() }}</small>
+        @endif
         <span class="booking-pill booking-pill--{{ $statusClass }}">{{ $statusLabel }}</span>
         <span class="booking-pill booking-pill--{{ $booking->mode }}">{{ $modeLabel }}</span>
     </h1>
@@ -682,56 +686,6 @@
                     </div>
                 @endif
 
-                {{-- --- Journal --- --}}
-                <div class="panel panel-bordered booking-panel">
-                    <div class="panel-body">
-                        <h3>Journal</h3>
-                        @if ($booking->events->isEmpty())
-                            <p class="booking-muted">Aucun événement enregistré.</p>
-                        @else
-                            <ul class="booking-timeline">
-                                @foreach ($booking->events as $event)
-                                    @php $data = $event->data ?? []; @endphp
-                                    <li class="{{ $event->actor === 'admin' ? 'is-admin' : '' }}">
-                                        <strong>{{ $eventLabels[$event->type] ?? $event->type }}</strong>
-                                        <span class="booking-muted">
-                                            · {{ $actorLabels[$event->actor] ?? $event->actor }}
-                                            @if ($event->admin)
-                                                ({{ $event->admin->name }})
-                                            @endif
-                                            @if ($event->on_behalf_of)
-                                                au nom de {{ Appointments::PARTY_LABELS[$event->on_behalf_of] ?? $event->on_behalf_of }}
-                                            @endif
-                                        </span>
-                                        <div class="when">{{ $fmt($event->created_at) }}</div>
-                                        @php
-                                            $details = array_filter([
-                                                isset($data['reason']) && $event->type !== 'refunded' ? 'Motif : ' . $data['reason'] : null,
-                                                isset($data['note']) ? '« ' . $data['note'] . ' »' : null,
-                                                !empty($data['refund']) ? 'Remboursement : ' . $money($data['refund']) : null,
-                                                $event->type === 'refunded' && isset($data['amount']) ? $money($data['amount']) . ' (Stripe ' . ($data['refund_id'] ?? '') . ')' : null,
-                                                $event->type === 'accepted' && !empty($data['captured']) ? 'Débité : ' . $money($data['captured']) : null,
-                                                $event->type === 'refund_synced' && isset($data['amount']) ? $money($data['amount']) . ' (total remboursé : ' . $money($data['total'] ?? 0) . ')' : null,
-                                                $event->type === 'payment_captured_outside' && isset($data['amount']) ? 'Débité : ' . $money($data['amount']) : null,
-                                                ($data['source'] ?? null) === 'webhook' ? 'via webhook Stripe' : null,
-                                                $event->type === 'meet_reopened' && isset($data['until']) ? "Jusqu'à " . $fmt($data['until'], 'H:i') : null,
-                                                in_array($event->type, ['meet_created', 'meet_cancelled', 'meet_closed', 'meet_reopened'], true) && isset($data['date']) ? \Carbon\Carbon::parse($data['date'])->format('d/m/Y') . ' · ' . ($periods[$data['period'] ?? ''] ?? '') : null,
-                                            ]);
-                                        @endphp
-                                        @if ($details)
-                                            <div class="detail">{{ implode(' · ', $details) }}</div>
-                                        @endif
-                                    </li>
-                                @endforeach
-                            </ul>
-                        @endif
-                    </div>
-                </div>
-            </div>
-
-            {{-- ===================== Colonne latérale ===================== --}}
-            <div class="col-md-4">
-
                 {{-- --- Messagerie du couple (tous rendez-vous confondus) --- --}}
                 @php
                     $conversation = \App\Models\BookingConversation::where('expert_id', $booking->expert_id)
@@ -759,15 +713,104 @@
                     </div>
                 @endif
 
-                {{-- --- Actions --- --}}
-                @if ($booking->status === 'pending' || $canCancel)
+                {{-- --- Journal --- --}}
+                <div class="panel panel-bordered booking-panel">
+                    <div class="panel-body">
+                        <h3>Journal</h3>
+                        @if ($booking->events->isEmpty())
+                            <p class="booking-muted">Aucun événement enregistré.</p>
+                        @else
+                            <ul class="booking-timeline">
+                                @foreach ($booking->events as $event)
+                                    @php $data = $event->data ?? []; @endphp
+                                    <li class="{{ $event->actor === 'admin' ? 'is-admin' : '' }}">
+                                        <strong>{{ $eventLabels[$event->type] ?? $event->type }}</strong>
+                                        <span class="booking-muted">
+                                            · {{ $actorLabels[$event->actor] ?? $event->actor }}
+                                            @if ($event->admin)
+                                                ({{ $event->admin->name }})
+                                            @endif
+                                            @if ($event->on_behalf_of)
+                                                au nom de {{ Appointments::PARTY_LABELS[$event->on_behalf_of] ?? $event->on_behalf_of }}
+                                            @endif
+                                        </span>
+                                        <div class="when">{{ $fmt($event->created_at) }}</div>
+                                        @php
+                                            $details = array_filter([
+                                                isset($data['reason']) && $event->type !== 'refunded' ? 'Motif : ' . $data['reason'] : null,
+                                                isset($data['note']) ? '« ' . $data['note'] . ' »' : null,
+                                                isset($data['comment']) ? '« ' . $data['comment'] . ' »' : null,
+                                                !empty($data['refund']) ? 'Remboursement : ' . $money($data['refund']) : null,
+                                                $event->type === 'refunded' && isset($data['amount']) ? $money($data['amount']) . (($data['method'] ?? null) === 'manual' ? ' (à la main · ' . ($data['reference'] ?? '') . ')' : ' (Stripe ' . ($data['refund_id'] ?? '') . ')') . (!empty($data['motif']) ? ' · ' . $data['motif'] : '') : null,
+                                                $event->type === 'accepted' && !empty($data['captured']) ? 'Débité : ' . $money($data['captured']) : null,
+                                                $event->type === 'refund_synced' && isset($data['amount']) ? $money($data['amount']) . ' (total remboursé : ' . $money($data['total'] ?? 0) . ')' : null,
+                                                $event->type === 'payment_captured_outside' && isset($data['amount']) ? 'Débité : ' . $money($data['amount']) : null,
+                                                ($data['source'] ?? null) === 'webhook' ? 'via webhook Stripe' : null,
+                                                $event->type === 'meet_reopened' && isset($data['until']) ? "Jusqu'à " . $fmt($data['until'], 'H:i') : null,
+                                                in_array($event->type, ['meet_created', 'meet_cancelled', 'meet_closed', 'meet_reopened'], true) && isset($data['date']) ? \Carbon\Carbon::parse($data['date'])->format('d/m/Y') . ' · ' . ($periods[$data['period'] ?? ''] ?? '') : null,
+                                            ]);
+                                        @endphp
+                                        @if ($details)
+                                            <div class="detail">{{ implode(' · ', $details) }}</div>
+                                        @endif
+                                    </li>
+                                @endforeach
+                            </ul>
+                        @endif
+                    </div>
+                </div>
+            </div>
+
+            {{-- ===================== Colonne latérale ===================== --}}
+            <div class="col-md-4">
+
+                {{-- --- Paiement --- --}}
+                <div class="panel panel-bordered booking-panel">
+                    <div class="panel-body">
+                        <h3>Paiement</h3>
+                        @if ($booking->payment_required)
+                            <table class="table booking-amounts" style="margin: 0;">
+                                <tr><td>Prix HT</td><td class="text-right">{{ $money($booking->amount_ht) }}</td></tr>
+                                <tr><td>TVA ({{ rtrim(rtrim(number_format($booking->tva_rate, 2, ',', ''), '0'), ',') }} %)</td><td class="text-right">{{ $money($booking->tva_amount) }}</td></tr>
+                                <tr class="is-total"><td>Total TTC</td><td class="text-right">{{ $money($booking->amount_ttc) }}</td></tr>
+                                @if ((float) $booking->refunded_amount > 0)
+                                    <tr><td>Remboursé</td><td class="text-right">− {{ $money($booking->refunded_amount) }}</td></tr>
+                                    <tr class="is-total"><td>Conservé</td><td class="text-right">{{ $money($kept) }}</td></tr>
+                                @endif
+                                <tr>
+                                    <td>Reversement expert estimé (HT)</td>
+                                    <td class="text-right">{{ $money($payoutHt) }}</td>
+                                </tr>
+                            </table>
+                            <p class="booking-muted" style="margin: 8px 0 0; font-size: 12px;">
+                                Commission {{ rtrim(rtrim(number_format($booking->commission_rate, 2, ',', ''), '0'), ',') }} %.
+                                @if ($booking->status === 'pending')
+                                    Montant réservé sur la carte, pas encore débité.
+                                @elseif (in_array($booking->status, ['declined', 'expired'], true) || ($booking->status === 'cancelled' && !$booking->responded_at))
+                                    Empreinte libérée : rien n'a été débité.
+                                @endif
+                            </p>
+                            @if ($booking->invoice)
+                                <p class="booking-muted" style="margin: 8px 0 0; font-size: 12px;">
+                                    Paiement : {{ $booking->invoice->status }}
+                                    @if ($booking->invoice->stripe_payment_intent_id)
+                                        · {{ $booking->invoice->stripe_payment_intent_id }}
+                                    @endif
+                                </p>
+                            @endif
+                        @else
+                            <p class="booking-muted" style="margin: 0;">Rendez-vous offert : aucun paiement.</p>
+                        @endif
+                    </div>
+                </div>
+
+                {{-- --- Répondre au nom de l'expert (demande en attente) --- --}}
+                @if ($booking->status === 'pending')
                     <div class="panel panel-bordered booking-panel">
                         <div class="panel-body">
-                            <h3>Actions</h3>
+                            <h3>Répondre au nom de l'expert</h3>
 
-                            @if ($booking->status === 'pending')
                                 <div class="booking-action">
-                                    <h4>Répondre au nom de l'expert</h4>
                                     <p class="booking-muted">À la demande de l'expert, par exemple s'il n'a pas accès à l'application.</p>
                                     <form method="POST" action="{{ route('booking.appointments.accept', $booking->id) }}"
                                           onsubmit="return confirm('Accepter au nom de l\'expert ? Le montant réservé sera débité.');"
@@ -777,20 +820,32 @@
                                             <label class="booking-muted">Début (heure de l'expert, dans un créneau, par demi-heure)</label>
                                             <input type="datetime-local" name="window_start_local" class="form-control" step="1800" required style="margin-bottom: 8px;">
                                         @elseif ($choosingWindow)
-                                            <select name="window_start" class="form-control" required style="margin-bottom: 8px;">
-                                                <option value="">Première demi-journée…</option>
+                                            <label class="booking-muted">Choisir {{ max(1, (int) $booking->blocks_count) }} demi-journée(s), librement dans les créneaux</label>
+                                            <div style="max-height: 220px; overflow-y: auto; margin-bottom: 8px; border: 1px solid #ddd; border-radius: 4px; padding: 6px 10px;">
                                                 @foreach ($windowOptions as $o)
-                                                    <option value="{{ $o['value'] }}" @disabled(!$o['available'])>
-                                                        {{ \Carbon\Carbon::parse($o['date'])->format('d/m/Y') }} {{ $periods[$o['period']] ?? $o['period'] }}
-                                                        ({{ $o['start_local'] }} → {{ \Carbon\Carbon::parse($o['end_date'])->format('d/m') }} {{ $o['end_local'] }})
-                                                        {{ $o['available'] ? '' : '— indisponible' }}
-                                                    </option>
+                                                    <div class="checkbox" style="margin: 4px 0;">
+                                                        <label @if (!$o['available']) style="color: #aaa;" @endif>
+                                                            <input type="checkbox" name="window_blocks[]" value="{{ $o['value'] }}" @disabled(!$o['available'])>
+                                                            Créneau {{ $o['window'] }} · {{ \Carbon\Carbon::parse($o['date'])->format('d/m/Y') }} {{ $periods[$o['period']] ?? $o['period'] }}
+                                                            ({{ $o['start_local'] }} – {{ $o['end_local'] }})
+                                                            {{ $o['available'] ? '' : '— indisponible' }}
+                                                        </label>
+                                                        @if ($needsLocation && $o['available'])
+                                                            {{-- Lieu propre à cette demi-journée ; vide = lieu commun ci-dessous. --}}
+                                                            <select name="block_locations[{{ $o['value'] }}]" class="form-control input-sm" style="display: inline-block; width: auto; margin-left: 8px;">
+                                                                <option value="">Lieu commun</option>
+                                                                @foreach ($acceptLocations as $location)
+                                                                    <option value="{{ $location->id }}">{{ $location->label }}</option>
+                                                                @endforeach
+                                                            </select>
+                                                        @endif
+                                                    </div>
                                                 @endforeach
-                                            </select>
+                                            </div>
                                         @endif
                                         @if ($needsLocation)
-                                            <select name="location_id" class="form-control" required style="margin-bottom: 8px;">
-                                                <option value="">Lieu (demande hors calendrier)…</option>
+                                            <select name="location_id" class="form-control" @if (!($choosingWindow && !$isConsultation)) required @endif style="margin-bottom: 8px;">
+                                                <option value="">{{ $choosingWindow && !$isConsultation ? 'Lieu commun (demi-journées sans lieu propre)…' : 'Lieu (demande hors calendrier)…' }}</option>
                                                 @foreach ($acceptLocations as $location)
                                                     <option value="{{ $location->id }}">{{ $location->label }} — {{ $location->city }}</option>
                                                 @endforeach
@@ -812,11 +867,17 @@
                                         <button type="submit" class="btn btn-danger btn-block" style="margin-top: 8px;">Refuser la demande</button>
                                     </form>
                                 </div>
-                            @endif
+                        </div>
+                    </div>
+                @endif
 
-                            @if ($canCancel)
+                {{-- --- Annuler --- --}}
+                @if ($canCancel)
+                    <div class="panel panel-bordered booking-panel">
+                        <div class="panel-body">
+                            <h3>Annuler</h3>
+
                                 <div class="booking-action">
-                                    <h4>Annuler le rendez-vous</h4>
                                     <p class="booking-muted">
                                         @if ($booking->status === 'pending')
                                             Rien n'a encore été débité : l'empreinte bancaire est libérée.
@@ -853,56 +914,109 @@
                                         <button type="submit" class="btn btn-danger btn-block" style="margin-top: 8px;">Annuler le rendez-vous</button>
                                     </form>
                                 </div>
-                            @endif
                         </div>
                     </div>
                 @endif
 
-                {{-- --- Paiement --- --}}
-                <div class="panel panel-bordered booking-panel">
-                    <div class="panel-body">
-                        <h3>Paiement</h3>
-                        @if ($booking->payment_required)
-                            <table class="table booking-amounts" style="margin: 0;">
-                                <tr><td>Prix HT</td><td class="text-right">{{ $money($booking->amount_ht) }}</td></tr>
-                                <tr><td>TVA ({{ rtrim(rtrim(number_format($booking->tva_rate, 2, ',', ''), '0'), ',') }} %)</td><td class="text-right">{{ $money($booking->tva_amount) }}</td></tr>
-                                <tr class="is-total"><td>Total TTC</td><td class="text-right">{{ $money($booking->amount_ttc) }}</td></tr>
-                                @if ((float) $booking->refunded_amount > 0)
-                                    <tr><td>Remboursé</td><td class="text-right">− {{ $money($booking->refunded_amount) }}</td></tr>
-                                    <tr class="is-total"><td>Conservé</td><td class="text-right">{{ $money($kept) }}</td></tr>
-                                @endif
-                                <tr>
-                                    <td>Reversement expert estimé (HT)</td>
-                                    <td class="text-right">{{ $money($payoutHt) }}</td>
-                                </tr>
-                            </table>
-                            <p class="booking-muted" style="margin: 8px 0 0; font-size: 12px;">
-                                Commission {{ rtrim(rtrim(number_format($booking->commission_rate, 2, ',', ''), '0'), ',') }} %.
-                                @if ($booking->status === 'pending')
-                                    Montant réservé sur la carte, pas encore débité.
-                                @elseif (in_array($booking->status, ['declined', 'expired'], true) || ($booking->status === 'cancelled' && !$booking->responded_at))
-                                    Empreinte libérée : rien n'a été débité.
-                                @endif
-                            </p>
-                            @if ($booking->invoice)
-                                <p class="booking-muted" style="margin: 8px 0 0; font-size: 12px;">
-                                    Facture #{{ $booking->invoice->id }} · {{ $booking->invoice->status }}
-                                    @if ($booking->invoice->stripe_payment_intent_id)
-                                        · {{ $booking->invoice->stripe_payment_intent_id }}
-                                    @endif
-                                </p>
-                            @endif
-                        @else
-                            <p class="booking-muted" style="margin: 0;">Rendez-vous offert : aucun paiement.</p>
-                        @endif
-                    </div>
-                </div>
-
-                {{-- --- Facturation --- --}}
+                {{-- --- Facturation : adresse, factures (VE) et avoirs (RVE), remboursement --- --}}
                 <div class="panel panel-bordered booking-panel">
                     <div class="panel-body">
                         <h3>Facturation</h3>
                         <div class="booking-message">{{ $booking->client_address }}</div>
+
+                        @if ($booking->payment_required)
+                            <h4 style="margin-top: 16px;">Factures et avoirs</h4>
+                            @php $issuable = $pieces->first(fn ($p) => $p->status === 'paid'); @endphp
+                            @if (!$issuable)
+                                <p class="booking-muted" style="margin: 0;">Pas de facture : rien n'a été débité (facture émise à l'acceptation de l'expert).</p>
+                            @else
+                                <table class="table" style="margin: 0;">
+                                    @foreach ($pieces->where('status', 'paid') as $piece)
+                                        @php $avoir = $piece->kind === 'credit_note'; @endphp
+                                        <tr>
+                                            <td style="padding-left: 0;">
+                                                <span class="label {{ $avoir ? 'label-danger' : 'label-primary' }}">{{ $avoir ? 'Avoir' : 'Facture' }}</span>
+                                                <strong>{{ $piece->no ?: 'à émettre' }}</strong>
+                                                <div class="booking-muted" style="font-size: 12px;">
+                                                    {{ $avoir ? '- ' : '' }}{{ $money($piece->amount) }} TTC
+                                                    @if ($avoir)
+                                                        · {{ $piece->refund_method === 'manual' ? 'virement ' . $piece->refund_reference : 'Stripe' }}
+                                                    @endif
+                                                    @if ($piece->sent_at)
+                                                        · envoyé le {{ $fmt($piece->sent_at, 'd/m/Y') }}
+                                                    @endif
+                                                </div>
+                                                @if ($piece->odoo_error)
+                                                    <div class="text-warning" style="font-size: 12px;">{{ $piece->odoo_error }}</div>
+                                                @endif
+                                            </td>
+                                            <td class="text-right" style="white-space: nowrap; padding-right: 0;">
+                                                @if ($piece->document)
+                                                    <a href="{{ $piece->document }}" target="_blank" class="btn btn-xs btn-default">PDF</a>
+                                                    <form method="POST" action="{{ route('booking.appointments.invoices.resend', [$booking->id, $piece->id]) }}" style="display: inline;">
+                                                        @csrf
+                                                        <button class="btn btn-xs btn-default" title="Renvoyer l'e-mail au demandeur">E-mail</button>
+                                                    </form>
+                                                @endif
+                                                @if (!$piece->no || !$piece->document || $piece->odoo_error)
+                                                    <form method="POST" action="{{ route('booking.appointments.invoices.retry', [$booking->id, $piece->id]) }}" style="display: inline;">
+                                                        @csrf
+                                                        <button class="btn btn-xs btn-warning">Relancer</button>
+                                                    </form>
+                                                @endif
+                                            </td>
+                                        </tr>
+                                    @endforeach
+                                </table>
+                            @endif
+
+                            @if ($refundable > 0)
+                                <h4 style="margin-top: 16px;">Rembourser</h4>
+                                <p class="booking-muted" style="margin: 0 0 10px; font-size: 12px;">Sans annuler le rendez-vous (geste commercial, complément après annulation, virement déjà fait). Pour annuler, voir la carte « Annuler ».</p>
+                                <form method="POST" action="{{ route('booking.appointments.refund', $booking->id) }}" id="refund-form">
+                                    @csrf
+                                    <div class="form-group">
+                                        <label for="refund-amount">Montant (€ TTC)</label>
+                                        <input type="number" id="refund-amount" name="refund" step="0.01" min="0.01" max="{{ $refundable }}"
+                                               value="{{ old('refund', number_format($refundable, 2, '.', '')) }}" class="form-control" required>
+                                        <div class="booking-rule">Maximum : {{ $money($refundable) }}. Un avoir est émis et envoyé au demandeur.</div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="refund-motif">Motif (figure sur l'avoir)</label>
+                                        <select name="motif" id="refund-motif" class="form-control">
+                                            @foreach ($refundMotifs as $m)
+                                                <option value="{{ $m }}" @selected(old('motif') === $m)>{{ $m }}</option>
+                                            @endforeach
+                                            <option value="other" @selected(old('motif') === 'other')>Autre…</option>
+                                        </select>
+                                        <input type="text" name="motif_other" id="refund-motif-other" class="form-control" maxlength="200"
+                                               placeholder="Motif" value="{{ old('motif_other') }}" style="margin-top: 6px; display: none;">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="refund-comment">Précision (facultatif)</label>
+                                        <textarea name="comment" id="refund-comment" rows="2" class="form-control" maxlength="{{ \App\Services\Booking\BookingAdminService::COMMENT_MAX }}"
+                                                  placeholder="Ex. : remboursement des frais de déplacement non engagés">{{ old('comment') }}</textarea>
+                                        <div class="booking-rule">Figure sur l'avoir, sous le motif, et dans l'e-mail au demandeur.</div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Remboursement</label>
+                                        <div>
+                                            <label class="radio-inline">
+                                                <input type="radio" name="method" value="stripe" @checked(old('method', 'stripe') === 'stripe')
+                                                       @disabled(!$booking->invoice?->stripe_payment_intent_id)> Sur la carte (Stripe)
+                                            </label>
+                                            <label class="radio-inline">
+                                                <input type="radio" name="method" value="manual" @checked(old('method') === 'manual' || !$booking->invoice?->stripe_payment_intent_id)> Fait à la main (virement…)
+                                            </label>
+                                        </div>
+                                        <input type="text" name="reference" id="refund-reference" class="form-control" maxlength="191"
+                                               placeholder="Référence du virement" value="{{ old('reference') }}" style="margin-top: 6px; display: none;">
+                                    </div>
+                                    <button type="submit" class="btn btn-danger"
+                                            onclick="return confirm('Rembourser ce montant et émettre un avoir ?');">Rembourser</button>
+                                </form>
+                            @endif
+                        @endif
                     </div>
                 </div>
             </div>
@@ -926,6 +1040,14 @@
                     toastr.success('Lien copié');
                 });
             });
+
+            // Rembourser : motif libre si « Autre », référence si fait à la main.
+            var syncRefund = function () {
+                $('#refund-motif-other').toggle($('#refund-motif').val() === 'other');
+                $('#refund-reference').toggle($('#refund-form input[name="method"]:checked').val() === 'manual');
+            };
+            $('#refund-motif, #refund-form input[name="method"]').on('change', syncRefund);
+            syncRefund();
 
             // Le remboursement proposé suit la partie choisie ; l'admin peut ensuite le modifier.
             $('#cancel-form input[name="party"]').on('change', function () {

@@ -175,17 +175,26 @@ class InvoiceController extends Controller
         $invoice->tva = $cart->tva;
         $invoice->unit_price = $cart->unit_price;
 
-        $invoiceNo = '';
-        do {
-            $currentYear = date('Y');
-            $yearlyInvoiceCount = Invoice::whereYear('created_at', $currentYear)->count() + 1;
+        // Numéro F-AA-NNNN : suite du plus grand numéro F- de l'année, sans trou.
+        // (Avant : nombre de lignes « invoices » de l'année + 1, qui comptait aussi les lignes
+        // d'autres sources — rendez-vous experts, factures Odoo VE… — et faisait sauter des numéros.)
+        // Verrou MySQL : deux paiements simultanés ne prennent pas le même numéro.
+        DB::select("SELECT GET_LOCK('invoice-number-F', 10)");
+        try {
+            $prefix = 'F-' . date('y') . '-';
+            $last = (int) Invoice::where('no', 'like', $prefix . '%')
+                ->max(DB::raw('CAST(SUBSTRING(no, ' . (strlen($prefix) + 1) . ') AS UNSIGNED)'));
 
-            // Format: P + 2 no year + 4 no
-            $invoiceNo = strtoupper('F-' . substr($currentYear, -2) . '-' . str_pad($yearlyInvoiceCount, 4, '0', STR_PAD_LEFT));
-        } while (Invoice::where('no', $invoiceNo)->exists());
+            do {
+                $last++;
+                $invoiceNo = $prefix . str_pad((string) $last, 4, '0', STR_PAD_LEFT);
+            } while (Invoice::where('no', $invoiceNo)->exists());
 
-        $invoice->no = $invoiceNo;
-        $invoice->save();
+            $invoice->no = $invoiceNo;
+            $invoice->save();
+        } finally {
+            DB::select("SELECT RELEASE_LOCK('invoice-number-F')");
+        }
 
         $generatePdfController = new GeneratePdfController();
         $generatePdfController->paymentInvoice($invoice);

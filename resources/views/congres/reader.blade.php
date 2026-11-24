@@ -12,6 +12,8 @@
         * { box-sizing: border-box; }
         body { margin: 0; min-height: 100vh; background: #FFF3E0; color: #1B1F2A; font-family: Poppins, Arial, sans-serif; font-size: 16px; line-height: 24px; }
         main { max-width: 480px; margin: 0 auto; padding: 24px 16px 40px; }
+        /* Place pour remonter le champ au-dessus du clavier, même quand la page est courte. */
+        body.typing main { padding-bottom: 70vh; }
         [hidden] { display: none !important; }
 
         /* --- En-tête --- */
@@ -38,6 +40,7 @@
         .theme input { position: absolute; opacity: 0; inset: 0; margin: 0; width: 100%; height: 100%; }
         .theme span { display: block; min-height: 44px; padding: 10px 16px; border-radius: 999px; border: 2px solid transparent; font-size: 15px; font-weight: 500; }
         .theme input:checked + span { border-color: #1B1F2A; font-weight: 600; }
+        .themes.invalid .theme span { box-shadow: 0 0 0 2px #C62828; }
         .theme input:focus-visible + span { outline: 2px solid #1D3470; outline-offset: 2px; }
 
         /* --- Actions --- */
@@ -93,19 +96,19 @@
             <div class="themes">
                 @foreach ($board->themes as $theme)
                     <label class="theme">
-                        <input type="radio" name="theme" value="{{ $theme->id }}" @checked($board->themes->count() === 1)>
+                        <input type="radio" name="theme" value="{{ $theme->id }}">
                         <span style="background: {{ $theme->color }}">{{ $theme->name }}</span>
                     </label>
                 @endforeach
             </div>
         </fieldset>
 
-        <label for="text">Votre question</label>
+        <label for="text" id="text-label">Votre question</label>
         <textarea id="text" maxlength="{{ $maxLength }}" required></textarea>
         <div class="counter"><span id="count">0</span> / {{ $maxLength }}</div>
 
-        <button type="submit" class="primary" id="send">Envoyer</button>
         <div class="error" id="ask-error" role="alert" hidden></div>
+        <button type="submit" class="primary" id="send">Envoyer</button>
     </form>
 </main>
 
@@ -207,7 +210,7 @@
 
         const name = el('name').value.trim();
         if (name.length < 2) {
-            show('join-error', 'Indiquez votre nom.');
+            show('join-error', 'Veuillez indiquer votre nom.');
             return;
         }
 
@@ -217,7 +220,7 @@
                 save({ token: data.token, name: data.name });
                 render();
             })
-            .catch(() => show('join-error', 'Connexion impossible. Réessayez.'));
+            .catch(() => show('join-error', 'La connexion n\'a pas pu être établie. Veuillez réessayer.'));
     });
 
     el('rename').addEventListener('click', function () {
@@ -226,13 +229,54 @@
         render();
     });
 
+    // Le clavier du téléphone couvre le bas de l'écran : on remonte la question et le bouton Envoyer
+    // en haut de la partie visible, une fois le clavier ouvert.
+    const KEYBOARD_DELAY_MS = 350;
+    let typingTimer = null;
+
+    function revealQuestion() {
+        const top = el('text-label').getBoundingClientRect().top + window.scrollY - 12;
+        window.scrollTo({ top: top, behavior: 'smooth' });
+    }
+
+    el('text').addEventListener('focus', function () {
+        clearTimeout(typingTimer);
+        document.body.classList.add('typing');
+        setTimeout(revealQuestion, KEYBOARD_DELAY_MS);
+    });
+
+    // Retrait différé : sur iOS, le champ perd le focus avant que le tap sur Envoyer ne soit pris en compte.
+    el('text').addEventListener('blur', function () {
+        typingTimer = setTimeout(function () { document.body.classList.remove('typing'); }, 400);
+    });
+
+    if (window.visualViewport) {
+        window.visualViewport.addEventListener('resize', function () {
+            if (document.activeElement === el('text')) {
+                revealQuestion();
+            }
+        });
+    }
+
     el('text').addEventListener('input', function () {
         el('count').textContent = this.value.length;
     });
 
+    function clearThemeError() {
+        el('ask-error').hidden = true;
+        document.querySelector('.themes').classList.remove('invalid');
+    }
+
+    document.querySelectorAll('input[name=theme]').forEach(function (input) {
+        input.addEventListener('change', clearThemeError);
+    });
+
+    // Le thème est choisi à chaque question : une seconde question porte rarement sur le même sujet.
     el('sent-close').addEventListener('click', function () {
         el('sent').close();
-        el('text').focus();
+        document.querySelectorAll('input[name=theme]').forEach(function (input) { input.checked = false; });
+        clearThemeError();
+        document.querySelector('fieldset').scrollIntoView({ block: 'start', behavior: 'smooth' });
     });
 
     el('ask').addEventListener('submit', function (event) {
@@ -243,11 +287,12 @@
         const text = el('text').value.trim();
 
         if (!theme) {
-            show('ask-error', 'Choisissez un thème.');
+            show('ask-error', 'Veuillez sélectionner un thème avant d\'envoyer votre question.');
+            document.querySelector('.themes').classList.add('invalid');
             return;
         }
         if (text.length < 3) {
-            show('ask-error', 'Écrivez votre question.');
+            show('ask-error', 'Veuillez saisir votre question.');
             return;
         }
 
@@ -265,12 +310,12 @@
                 } else if (response.status === 409) {
                     refreshStatus();
                 } else if (response.status === 429) {
-                    show('ask-error', 'Trop de questions d\'affilée. Patientez une minute.');
+                    show('ask-error', 'Vous avez envoyé plusieurs questions en peu de temps. Merci de patienter une minute.');
                 } else {
-                    show('ask-error', 'Envoi impossible. Réessayez.');
+                    show('ask-error', 'Votre question n\'a pas pu être envoyée. Veuillez réessayer.');
                 }
             })
-            .catch(() => show('ask-error', 'Pas de réseau. Votre question est conservée, réessayez.'))
+            .catch(() => show('ask-error', 'La connexion au réseau semble interrompue. Votre question a été conservée, veuillez réessayer.'))
             .finally(() => { el('send').disabled = false; });
     });
 

@@ -16,7 +16,28 @@ class CongressPublicController extends Controller
      */
     public function enter()
     {
-        return view('congres.enter');
+        return view('congres.enter', ['operator' => false]);
+    }
+
+    /**
+     * Saisie du code des intervenants.
+     * GET /congres/operator
+     */
+    public function operatorEnter()
+    {
+        return view('congres.enter', ['operator' => true]);
+    }
+
+    /**
+     * Écran des intervenants : les questions, à supprimer ou réordonner au toucher.
+     * Le code se change dans le CMS : l'ancien cesse alors de répondre.
+     * GET /congres/operator/{code}
+     */
+    public function operator(string $code)
+    {
+        $board = CongressBoard::where('operator_code', strtoupper($code))->firstOrFail();
+
+        return view('congres.operator', ['board' => $board]);
     }
 
     /**

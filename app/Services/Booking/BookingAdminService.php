@@ -32,6 +32,9 @@ class BookingAdminService
 
     public const REASON_MAX = 500;
 
+    /** Précision d'un remboursement (avoir, e-mail). */
+    public const COMMENT_MAX = 280;
+
     public function __construct(
         private StripeService $stripe,
         private BookingCheckoutService $checkout,
@@ -41,10 +44,15 @@ class BookingAdminService
 
     /* ===================== MONTANTS ===================== */
 
-    /** Encore remboursable : montant débité moins les remboursements déjà faits. */
+    /**
+     * Encore remboursable : montant débité moins les remboursements déjà faits.
+     * Débité = accepté par l'expert, y compris un rendez-vous annulé après acceptation.
+     */
     public static function refundable(Booking $booking): float
     {
-        if (!$booking->payment_required || $booking->status !== Booking::STATUS_ACCEPTED) {
+        $captured = $booking->status === Booking::STATUS_ACCEPTED
+            || ($booking->status === Booking::STATUS_CANCELLED && $booking->responded_at !== null);
+        if (!$booking->payment_required || !$captured) {
             return 0.0;
         }
 
@@ -181,7 +189,7 @@ class BookingAdminService
             }
 
             $refundAmount = $this->checkedRefund($locked, $refund);
-            $this->refund($locked, $refundAmount, ['reason' => 'cancel', 'party' => $party], $adminId);
+            $this->refund($locked, $refundAmount, ['reason' => 'cancel', 'party' => $party, 'note' => $reason], $adminId);
 
             $locked->blocks()->update(['hold_key' => null]);
             $locked->update([
@@ -202,11 +210,72 @@ class BookingAdminService
         return $booking->fresh(['blocks']);
     }
 
+    /* ===================== REMBOURSER ===================== */
+
+    /** Motifs proposés (texte repris tel quel sur l'avoir). */
+    public const REFUND_MOTIFS = [
+        "Annulation du rendez-vous par l'expert",
+        "Absence de l'expert",
+        'Geste commercial',
+    ];
+
+    /**
+     * Remboursement d'un rendez-vous débité, sans changer son état (geste, annulation tardive
+     * de l'expert déjà enregistrée, etc.). Donne un avoir (RVE) via le journal « refunded ».
+     *  - stripe : remboursement sur la carte ;
+     *  - manual : remboursement fait hors Stripe (virement…), seulement enregistré ici.
+     * $comment : précision facultative, imprimée sur l'avoir et reprise dans l'e-mail sous le motif.
+     */
+    public function refundOnly(Booking $booking, ?float $amount, string $motif, string $method, ?string $reference, int $adminId, ?string $comment = null): Booking
+    {
+        $motif = mb_substr(trim($motif), 0, 200);
+        $comment = mb_substr(trim((string) $comment), 0, self::COMMENT_MAX);
+        if ($motif === '') {
+            throw ValidationException::withMessages(['motif' => "Indiquez le motif : il figure sur l'avoir."]);
+        }
+        if (!in_array($method, ['stripe', 'manual'], true)) {
+            throw ValidationException::withMessages(['method' => 'Choisissez comment le remboursement est fait.']);
+        }
+        $reference = trim((string) $reference);
+        if ($method === 'manual' && $reference === '') {
+            throw ValidationException::withMessages(['reference' => 'Indiquez la référence du virement (ou du remboursement fait hors Stripe).']);
+        }
+
+        $extra = array_filter(['motif' => $motif, 'comment' => $comment]);
+
+        DB::transaction(function () use ($booking, $amount, $extra, $method, $reference, $adminId) {
+            $locked = $this->lock($booking);
+            $value = $this->checkedRefund($locked, $amount);
+            if ($value <= 0) {
+                throw ValidationException::withMessages(['refund' => 'Indiquez un montant à rembourser.']);
+            }
+
+            if ($method === 'stripe') {
+                $this->refund($locked, $value, ['reason' => 'refund'] + $extra, $adminId);
+
+                return;
+            }
+
+            $locked->update([
+                'refunded_amount' => round((float) $locked->refunded_amount + $value, 2),
+                'refunded_at'     => now(),
+            ]);
+            BookingEvent::log($locked, 'refunded', BookingEvent::ACTOR_ADMIN, [
+                'amount'    => $value,
+                'method'    => 'manual',
+                'reference' => mb_substr($reference, 0, 191),
+                'reason'    => 'refund',
+            ] + $extra, null, $adminId);
+        });
+
+        return $booking->fresh(['blocks']);
+    }
+
     /* ===================== RÉPONDRE AU NOM DE L'EXPERT ===================== */
 
-    public function accept(Booking $booking, int $adminId, ?int $locationId = null, ?string $windowStart = null): Booking
+    public function accept(Booking $booking, int $adminId, ?int $locationId = null, string|array|null $windowStart = null, ?array $blockLocations = null): Booking
     {
-        return $this->decisions->accept($booking, BookingEvent::ACTOR_ADMIN, $adminId, $locationId, $windowStart);
+        return $this->decisions->accept($booking, BookingEvent::ACTOR_ADMIN, $adminId, $locationId, $windowStart, $blockLocations);
     }
 
     public function decline(Booking $booking, array $input, int $adminId): Booking
@@ -317,6 +386,7 @@ class BookingAdminService
 
         BookingEvent::log($booking, 'refunded', BookingEvent::ACTOR_ADMIN, [
             'amount'    => $amount,
+            'method'    => 'stripe',
             'refund_id' => $result['refund_id'],
         ] + $metadata, null, $adminId);
     }

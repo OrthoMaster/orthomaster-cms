@@ -16,6 +16,7 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware) {
         $middleware->alias([
             'cmsAdmin' => \App\Http\Middleware\CmsAdminMiddleware::class,
+            'scat.partner' => \App\Http\Middleware\ScatPartnerKey::class,
         ]);
 
         // Sous-domaine des pages partenaires : uniquement ces pages (404 pour le reste).

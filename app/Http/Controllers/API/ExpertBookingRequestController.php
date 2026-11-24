@@ -102,19 +102,26 @@ class ExpertBookingRequestController extends Controller
     /**
      * POST /booking/me/requests/{booking}/accept
      * Corps : location_id? (présentiel hors calendrier : lieu choisi par l'expert),
-     *         window_start? (demande par créneaux : horaire choisi, voir BookingWindowService)
+     *         window_start? (demande par créneaux, consultation : « Y-m-d H:i »),
+     *         window_blocks[]? (demande par créneaux, thème : « Y-m-d|période », autant que de demi-journées),
+     *         block_locations? ({ « Y-m-d|période »: location_id } : un lieu par demi-journée, présentiel)
      */
     public function accept(Request $request, int $bookingId): JsonResponse
     {
         $request->validate([
             'location_id'  => ['nullable', 'integer'],
-            'window_start' => ['nullable', 'string', 'max:20'],
+            'window_start'    => ['nullable', 'string', 'max:20'],
+            'window_blocks'   => ['nullable', 'array', 'max:40'],
+            'window_blocks.*' => ['string', 'max:20'],
+            'block_locations'   => ['nullable', 'array', 'max:40'],
+            'block_locations.*' => ['integer'],
         ]);
 
         $booking = $this->decisions->accept(
             $this->find($request, $bookingId),
             locationId: $request->filled('location_id') ? (int) $request->input('location_id') : null,
-            windowStart: $request->input('window_start')
+            windowStart: $request->input('window_blocks') ?: $request->input('window_start'),
+            blockLocations: $request->input('block_locations')
         );
 
         return $this->success($this->detail($booking->load(['user', 'declineReason', 'noShowReports'])));
@@ -187,7 +194,7 @@ class ExpertBookingRequestController extends Controller
         return Booking::query()
             ->submitted()
             ->where('expert_id', $this->expertId($request))
-            ->with(['blocks', 'windows', 'user', 'declineReason', 'noShowReports']);
+            ->with(['blocks', 'blocks.presences', 'windows', 'user', 'declineReason', 'noShowReports']);
     }
 
     private function find(Request $request, int $bookingId): Booking

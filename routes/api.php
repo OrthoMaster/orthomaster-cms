@@ -5,6 +5,7 @@ use App\Http\Controllers\API\ApplicationTrackingController;
 use App\Http\Controllers\API\AuthController;
 use App\Http\Controllers\API\CartController;
 use App\Http\Controllers\API\ChatbotController;
+use App\Http\Controllers\API\ScatController;
 use App\Http\Controllers\API\CompanyController;
 use App\Http\Controllers\API\CongressController;
 use App\Http\Controllers\API\ContractController;
@@ -34,6 +35,7 @@ use App\Http\Controllers\API\ExpertBookingSetupController;
 use App\Http\Controllers\API\AiVideoSearchController;
 use App\Http\Controllers\API\BookingRequestController;
 use App\Http\Controllers\API\ExpertAgendaController;
+use App\Http\Controllers\API\ExpertRevenueController;
 use App\Http\Controllers\API\BookingChatController;
 use App\Http\Controllers\API\ExpertBookingRequestController;
 use Illuminate\Http\Request;
@@ -62,6 +64,17 @@ Route::prefix('auth')->group(function () {
 
     // Ads
     Route::post('/ads/interest', [AuthController::class, 'sendAdsInterest'])->middleware('auth:sanctum');
+});
+
+// SCAT6
+// - OrthoMaster app: get a link that opens SCAT6 already signed in (doctors only)
+Route::post('/scat/handoff', [ScatController::class, 'createHandoff'])->middleware(['auth:sanctum', 'throttle:10,1']);
+// - scat-server only (X-Partner-Key)
+Route::prefix('partner/scat')->middleware(['scat.partner', 'throttle:30,1'])->group(function () {
+    Route::post('/verify-credentials', [ScatController::class, 'verifyCredentials']);
+    Route::post('/handoff/redeem', [ScatController::class, 'redeemHandoff']);
+    Route::get('/rpps/{rpps}', [ScatController::class, 'rpps']);
+    Route::post('/email-lookup', [ScatController::class, 'emailLookup']);
 });
 
 // Tracking - Dont use anymore - TODO: delete
@@ -265,6 +278,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
         /* --- Utilisateur : parcourir les thèmes, recherche intelligente (experts | thèmes) --- */
         Route::get('themes', [BookingExpertController::class, 'themes']);
+        Route::get('cities', [BookingExpertController::class, 'cities']);
         Route::get('search', [BookingSearchController::class, 'search'])->middleware('throttle:30,1');
 
         /* --- Expert : sa propre configuration --- */
@@ -323,6 +337,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
             Route::get('/agenda', [ExpertAgendaController::class, 'index']);
             Route::get('/agenda/history', [ExpertAgendaController::class, 'history']);
+            // Revenus de l'expert (sa part seulement), par année.
+            Route::get('/revenue', [ExpertRevenueController::class, 'index']);
             Route::post('/requests/{booking}/no-show', [ExpertBookingRequestController::class, 'reportNoShow'])->whereNumber('booking');
 
             Route::put('/profile', [ExpertBookingSetupController::class, 'updateProfile']);
@@ -367,6 +383,12 @@ Route::post('/internal/heartbeat', [IntEmpTrackerController::class, 'receiveHear
 // Pas de limite sur l'écran (écriture en cache à chaque appel, toutes les 2 secondes) ; il ne fait que lire.
 Route::prefix('congres')->controller(CongressController::class)->group(function () {
     Route::get('/ecran/{token}', 'screen');
+    // Avant /{code}/… ; limite par IP : seuls les intervenants appellent ces routes, et elle freine qui devinerait un code.
+    Route::middleware('throttle:congres-operator')->group(function () {
+        Route::get('/operator/{code}', 'operator');
+        Route::post('/operator/{code}/arrange', 'operatorArrange');
+        Route::delete('/operator/{code}/questions/{question}', 'operatorDelete')->whereNumber('question');
+    });
     Route::get('/{code}/status', 'status');
     Route::post('/{code}/join', 'join')->middleware('throttle:congres-join');
     Route::post('/{code}/questions', 'ask')->middleware('throttle:congres-question');

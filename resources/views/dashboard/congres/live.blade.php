@@ -17,14 +17,22 @@
 
 @section('css')
     <style>
-        /* --- Liens --- */
-        .cg-details { margin-bottom: 12px; background: #fff; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
-        .cg-details summary { padding: 8px 14px; font-weight: 600; cursor: pointer; }
-        .cg-links { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; padding: 4px 14px 14px; }
-        .cg-links label { font-weight: 600; }
-        .cg-link { display: flex; flex-wrap: wrap; gap: 8px; }
-        .cg-link .form-control { flex: 1 1 100%; min-width: 0; }
-        .cg-link .btn { margin: 0; padding: 4px 10px; font-size: 13px; }
+        /* --- Codes : public en orange, intervenants en bleu, pour ne jamais les confondre --- */
+        .cg-codes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-bottom: 14px; }
+        .cg-code { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 18px; padding: 12px 16px; border-radius: 8px; border-left: 6px solid; }
+        .cg-code.public { background: #FFF3E0; border-color: #FF9600; }
+        .cg-code.operator { background: #E8EEFB; border-color: #2D55AF; }
+        .cg-code-main { display: flex; align-items: baseline; gap: 14px; }
+        .cg-code-label { font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+        .public .cg-code-label, .public .cg-code-value { color: #A85F00; }
+        .operator .cg-code-label, .operator .cg-code-value { color: #1D3470; }
+        .cg-code-value { font-family: Menlo, Consolas, monospace; font-size: 30px; font-weight: 700; letter-spacing: 4px; line-height: 36px; }
+        .cg-code-where { flex: 1 1 200px; min-width: 0; color: #4B5563; font-size: 13px; line-height: 18px; }
+        .cg-code-where strong { color: #1B1F2A; }
+        .cg-code-actions { flex: 1 1 100%; display: flex; flex-wrap: wrap; gap: 6px; }
+        .cg-code-actions .btn { margin: 0; padding: 3px 10px; font-size: 12px; }
+        .public .btn-tint { background: #FF9600; border-color: #FF9600; color: #1B1F2A; }
+        .operator .btn-tint { background: #2D55AF; border-color: #2D55AF; color: #fff; }
 
         /* --- Colonnes --- */
         /* Grille et non ligne : six colonnes ne tiennent pas en largeur. Chaque liste défile seule. */
@@ -53,39 +61,47 @@
         .cg-separator { margin: 10px 0; padding-top: 6px; border-top: 2px dashed #CFD4DE; color: #6B7280; font-size: 12px; }
 
         /* --- Petits écrans --- */
+        @media (max-width: 900px) {
+            .cg-codes { grid-template-columns: minmax(0, 1fr); }
+        }
         @media (max-width: 1100px) {
-            .cg-links, #columns { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+            #columns { grid-template-columns: repeat(2, minmax(0, 1fr)); }
         }
         @media (max-width: 700px) {
-            .cg-links, #columns { grid-template-columns: minmax(0, 1fr); }
+            #columns { grid-template-columns: minmax(0, 1fr); }
         }
     </style>
 @stop
 
 @section('content')
     <div class="page-content container-fluid">
-        {{-- Replié en séance : six thèmes doivent tenir sur un écran sans défiler. --}}
-        <details class="cg-details" @if ($board->status === 'draft') open @endif>
-            <summary>Liens de projection et du public</summary>
-            <div class="cg-links">
-                <div>
-                    <label for="screen-url">Lien de projection</label>
-                    <div class="cg-link">
-                        <input type="text" class="form-control" id="screen-url" readonly value="{{ $board->screenUrl() }}">
-                        <button type="button" class="btn btn-default" data-copy="screen-url">Copier</button>
-                        <a class="btn btn-default" id="screen-open" href="{{ $board->screenUrl() }}" target="_blank" rel="noopener">Ouvrir</a>
-                        <button type="button" class="btn btn-default" id="screen-reset">Générer un nouveau lien</button>
-                    </div>
+        <div class="cg-codes">
+            <section class="cg-code public" aria-label="Code du public">
+                <div class="cg-code-main">
+                    <span class="cg-code-label">Public</span>
+                    <span class="cg-code-value">{{ $board->code }}</span>
                 </div>
-                <div>
-                    <label for="reader-url">Lien du public (QR affiché sur l'écran)</label>
-                    <div class="cg-link">
-                        <input type="text" class="form-control" id="reader-url" readonly value="{{ $board->readerUrl() }}">
-                        <button type="button" class="btn btn-default" data-copy="reader-url">Copier</button>
-                    </div>
+                <div class="cg-code-where">Affiché avec le QR sur l'écran de la salle. Saisie sur <strong>{{ preg_replace('#^https?://#', '', rtrim(config('app.auth_url'), '/')) }}/congres</strong></div>
+                <div class="cg-code-actions">
+                    <button type="button" class="btn btn-tint" data-copy="{{ $board->screenUrl() }}" id="screen-copy">Copier le lien de projection</button>
+                    <a class="btn btn-default" id="screen-open" href="{{ $board->screenUrl() }}" target="_blank" rel="noopener">Ouvrir</a>
+                    <button type="button" class="btn btn-default" data-copy="{{ $board->readerUrl() }}">Lien du public</button>
+                    <button type="button" class="btn btn-default" id="screen-reset">Nouveau lien</button>
                 </div>
-            </div>
-        </details>
+            </section>
+            <section class="cg-code operator" aria-label="Code des intervenants">
+                <div class="cg-code-main">
+                    <span class="cg-code-label">Intervenants</span>
+                    <span class="cg-code-value" id="operator-code">{{ $board->operator_code }}</span>
+                </div>
+                <div class="cg-code-where">À donner aux intervenants uniquement. Saisie sur <strong>{{ preg_replace('#^https?://#', '', $board->operatorEntryUrl()) }}</strong></div>
+                <div class="cg-code-actions">
+                    <button type="button" class="btn btn-tint" data-copy="{{ $board->operatorUrl() }}" id="operator-copy">Copier le lien des intervenants</button>
+                    <a class="btn btn-default" id="operator-open" href="{{ $board->operatorUrl() }}" target="_blank" rel="noopener">Ouvrir</a>
+                    <button type="button" class="btn btn-default" id="operator-reset">Nouveau code</button>
+                </div>
+            </section>
+        </div>
 
         <div id="columns"></div>
     </div>
@@ -102,6 +118,7 @@
                 stop: @json(route('dashboard.congres.stop', $board)),
                 arrange: @json(route('dashboard.congres.arrange', $board)),
                 link: @json(route('dashboard.congres.screen-link', $board)),
+                operatorCode: @json(route('dashboard.congres.operator-code', $board)),
                 question: @json(url('admin/dashboard/congres/' . $board->id . '/questions')),
             };
             const CSRF = @json(csrf_token());
@@ -183,7 +200,7 @@
                 // Même disposition que l'écran : au-delà de quatre thèmes, deux rangées de trois.
                 const count = themes.length;
                 columns[0].style.setProperty('--cols', count >= 5 ? 3 : Math.max(count, 1));
-                columns[0].style.setProperty('--list-height', count >= 5 ? 'max(200px, calc(50vh - 190px))' : 'max(260px, calc(100vh - 280px))');
+                columns[0].style.setProperty('--list-height', count >= 5 ? 'max(200px, calc(50vh - 225px))' : 'max(260px, calc(100vh - 350px))');
 
                 themes.forEach((theme) => {
                     const col = $('<div class="cg-col">').attr('data-theme', theme.id);
@@ -327,24 +344,37 @@
             $('#stop').on('click', () => send(URLS.stop, 'POST').then(reload).catch(fail));
 
             $('[data-copy]').on('click', function () {
-                const input = document.getElementById($(this).attr('data-copy'));
-                input.select();
+                const value = $(this).attr('data-copy');
                 if (navigator.clipboard) {
-                    navigator.clipboard.writeText(input.value);
+                    navigator.clipboard.writeText(value);
                 } else {
+                    const field = $('<textarea>').val(value).appendTo('body').select();
                     document.execCommand('copy');
+                    field.remove();
                 }
                 toastr.success('Lien copié');
             });
 
             $('#screen-reset').on('click', function () {
-                if (!window.confirm('L\'écran qui utilise le lien actuel affichera « Lien désactivé ». Continuer ?')) {
+                if (!window.confirm('L\'écran de la salle qui utilise le lien actuel affichera « Lien désactivé ». Continuer ?')) {
                     return;
                 }
                 send(URLS.link, 'POST').then((data) => {
-                    $('#screen-url').val(data.screen_url);
+                    $('#screen-copy').attr('data-copy', data.screen_url);
                     $('#screen-open').attr('href', data.screen_url);
-                    toastr.success('Nouveau lien généré');
+                    toastr.success('Nouveau lien de projection généré');
+                }).catch(fail);
+            });
+
+            $('#operator-reset').on('click', function () {
+                if (!window.confirm('L\'écran des intervenants ouvert avec le code actuel affichera « Code désactivé ». Continuer ?')) {
+                    return;
+                }
+                send(URLS.operatorCode, 'POST').then((data) => {
+                    $('#operator-code').text(data.operator_code);
+                    $('#operator-copy').attr('data-copy', data.operator_url);
+                    $('#operator-open').attr('href', data.operator_url);
+                    toastr.success('Nouveau code intervenant : ' + data.operator_code);
                 }).catch(fail);
             });
 
