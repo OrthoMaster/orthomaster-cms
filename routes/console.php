@@ -46,6 +46,14 @@ Schedule::command('fifpl:send-invoices')
     ->dailyAt('08:15')
     ->timezone('Europe/Paris');
 
+// OPCO-EP : factures des conventions signées (dès le lendemain), e-mail au manager un mois après la signature
+Schedule::command('opco:invoices')
+    ->dailyAt('17:30')
+    ->timezone('Europe/Paris');
+Schedule::command('opco:send-documents')
+    ->dailyAt('08:30')
+    ->timezone('Europe/Paris');
+
 // Sales
 Schedule::command('sales:update-assignments')
     ->dailyAt('01:00')

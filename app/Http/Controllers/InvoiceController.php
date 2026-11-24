@@ -12,6 +12,8 @@ use App\Models\SystemNotification;
 use App\Models\User;
 use App\Organization;
 use App\Services\OdooService;
+use App\Services\Opco\OpcoInvoiceService;
+use App\Jobs\GenerateOpcoInvoicesJob;
 use Exception;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
@@ -46,6 +48,10 @@ class InvoiceController extends Controller
 
         $invoices = DB::table('invoices as i')
             ->leftJoin('users as u', 'u.id', '=', 'i.user_id')
+            // Convention liée (FIFPL / OPCO-EP) : une facture au plus par convention signée.
+            ->leftJoin('contracts as c', function ($join) {
+                $join->on('c.invoice_id', '=', 'i.id')->where('c.type', '=', 'signed');
+            })
             ->select(
                 'i.id',
                 'i.no',
@@ -64,7 +70,11 @@ class InvoiceController extends Controller
                 'i.paid_at',
                 'i.document',
                 'i.certification',
-                'u.email as user_email'
+                'i.sent_at',
+                'i.sent_cnt',
+                'u.email as user_email',
+                'c.no as contract_no',
+                'c.organization as contract_organization'
             )
             ->when($search !== '', function ($q) use ($search) {
                 $q->where(function ($sub) use ($search) {
@@ -81,6 +91,8 @@ class InvoiceController extends Controller
 
         return view('invoices.list', [
             'invoices' => $invoices,
+            'opcoPending' => app(OpcoInvoiceService::class)->contractsWithoutInvoice()->count(),
+            'opcoOrganization' => OpcoInvoiceService::ORGANIZATION,
             'search'   => $search,
             'status'   => $status,
             'statuses' => self::STATUSES,
@@ -136,6 +148,16 @@ class InvoiceController extends Controller
                 $invController = new InvoiceController();
                 $invController->generateInvoiceDocument($invoiceId);
             })->afterResponse();
+        } elseif (app(OpcoInvoiceService::class)->isOpcoInvoice($invoice->id)) { // OPCO-EP : réglée par l'OPCO
+            $invoiceId = $invoice->id;
+            dispatch(function () use ($invoiceId) {
+                // Facture acquittée + PDF et paiement dans Odoo
+                try {
+                    app(OpcoInvoiceService::class)->markPaid(Invoice::findOrFail($invoiceId));
+                } catch (Exception $e) {
+                    Log::error($e->getMessage(), ['inv-' . $invoiceId, 'opco-invoice-paid']);
+                }
+            })->afterResponse();
         } else { // FIFPL
             // Clear notification
             SystemNotification::where('user_id', $invoice->user_id)
@@ -154,6 +176,51 @@ class InvoiceController extends Controller
             ->route('invoices.list')
             ->with('message', 'Facture ' . $invoice->no . ' marquée comme réglée par virement.')
             ->with('alert-type', 'success');
+    }
+
+    /**
+     * Crée les factures des conventions OPCO-EP signées qui n'en ont pas (rattrapage), en file d'attente.
+     * POST /dashboard/invoices/opco/generate
+     */
+    public function generateOpcoInvoices()
+    {
+        $pending = app(OpcoInvoiceService::class)->contractsWithoutInvoice()->count();
+        if ($pending === 0) {
+            return back()
+                ->with('message', 'Toutes les conventions OPCO-EP ont déjà leur facture.')
+                ->with('alert-type', 'info');
+        }
+
+        GenerateOpcoInvoicesJob::dispatch(true);
+
+        return back()
+            ->with('message', "Création lancée pour {$pending} convention(s) OPCO-EP. Rechargez la page dans quelques minutes.")
+            ->with('alert-type', 'success');
+    }
+
+    /**
+     * Envoie tout de suite au manager la facture et les certificats d'une convention OPCO-EP
+     * (conventions anciennes : pas d'envoi automatique ; ou renvoi).
+     * POST /dashboard/invoices/{invoice}/opco-send
+     */
+    public function sendOpcoDocuments(int $invoiceId)
+    {
+        $opco = app(OpcoInvoiceService::class);
+        $invoice = Invoice::findOrFail($invoiceId);
+        abort_unless($opco->isOpcoInvoice($invoice->id), 404);
+
+        try {
+            $sent = $opco->send($invoice);
+        } catch (Exception $e) {
+            Log::error($e->getMessage(), ['inv-' . $invoiceId, 'opco-send']);
+            return back()
+                ->with('message', "Envoi impossible : " . $e->getMessage())
+                ->with('alert-type', 'error');
+        }
+
+        return $sent
+            ? back()->with('message', "Facture {$invoice->no} et certificats envoyés au manager.")->with('alert-type', 'success')
+            : back()->with('message', "Pas encore envoyé : le certificat de réalisation OPCO n'est pas prêt (modèle manquant).")->with('alert-type', 'warning');
     }
 
     // Generate normal invoice

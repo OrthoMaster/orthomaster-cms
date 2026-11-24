@@ -232,6 +232,13 @@ Route::group(['prefix' => 'admin', 'middleware' => ['cmsAdmin']], function () {
 
             Route::post('/{invoiceId}/virement', [InvoiceController::class, 'markAsVirement'])
                 ->name('invoices.virement');
+
+            // OPCO-EP : factures des conventions sans facture (rattrapage), envoi au manager
+            Route::post('/opco/generate', [InvoiceController::class, 'generateOpcoInvoices'])
+                ->name('invoices.opco.generate');
+            Route::post('/{invoiceId}/opco-send', [InvoiceController::class, 'sendOpcoDocuments'])
+                ->whereNumber('invoiceId')
+                ->name('invoices.opco.send');
         });
 
 

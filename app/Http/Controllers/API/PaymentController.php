@@ -138,6 +138,15 @@ class PaymentController extends Controller
                         $invController = new InvoiceController();
                         $invController->generateInvoiceDocument($invoiceId);
                     })->afterResponse();
+                } elseif (app(\App\Services\Opco\OpcoInvoiceService::class)->isOpcoInvoice($invoice->id)) { // OPCO-EP
+                    $invoiceId = $invoice->id;
+                    dispatch(function () use ($invoiceId) {
+                        try {
+                            app(\App\Services\Opco\OpcoInvoiceService::class)->markPaid(Invoice::findOrFail($invoiceId));
+                        } catch (\Exception $e) {
+                            \Illuminate\Support\Facades\Log::error($e->getMessage(), ['inv-' . $invoiceId, 'opco-invoice-paid']);
+                        }
+                    })->afterResponse();
                 } else { // FIFPL
                     // Clear notification
                     SystemNotification::where('user_id', $invoice->user_id)

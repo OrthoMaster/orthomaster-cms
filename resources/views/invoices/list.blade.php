@@ -50,6 +50,22 @@
                     </div>
                 </div>
 
+                {{-- ============ OPCO-EP : conventions sans facture ============ --}}
+                @if ($opcoPending > 0)
+                    <div class="alert alert-info opco-pending">
+                        <form action="{{ route('invoices.opco.generate') }}" method="POST"
+                            onsubmit="return confirm('Créer dans Odoo la facture de {{ $opcoPending }} convention(s) OPCO-EP ?\n\nVérifiez d\'abord qu\'aucune facture n\'a déjà été faite à la main dans Odoo pour ces conventions : une facture validée ne s\'annule que par un avoir.');">
+                            @csrf
+                            <span>
+                                <b>{{ $opcoPending }}</b> convention(s) OPCO-EP signée(s) sans facture.
+                            </span>
+                            <button type="submit" class="btn btn-sm btn-primary">
+                                <i class="voyager-receipt"></i> Créer les factures OPCO-EP
+                            </button>
+                        </form>
+                    </div>
+                @endif
+
                 {{-- ============ LISTE ============ --}}
                 @if ($invoices->isEmpty())
                     <div class="alert alert-warning">
@@ -72,6 +88,7 @@
                                     $meta   = $statuses[$invoice->status] ?? ['label' => $invoice->status, 'class' => ''];
                                     $isPaid = $invoice->status === 'paid';
                                     $isCard = $invoice->payment_method && $invoice->payment_method !== 'virement';
+                                    $isOpco = $invoice->contract_organization === $opcoOrganization;
                                 @endphp
 
                                 <div class="invoice-block" data-invoice="{{ $invoice->id }}">
@@ -81,7 +98,12 @@
                                             <i class="voyager-angle-right"></i>
                                         </button>
 
-                                        <div class="invoice-no">{{ $invoice->no ?: '—' }}</div>
+                                        <div class="invoice-no">
+                                            {{ $invoice->no ?: '—' }}
+                                            @if ($invoice->contract_organization)
+                                                <span class="invoice-org">{{ $invoice->contract_organization }}</span>
+                                            @endif
+                                        </div>
 
                                         <div class="invoice-client">
                                             <div class="invoice-client-name">{{ $invoice->client_name ?: '—' }}</div>
@@ -135,6 +157,11 @@
                                             <div class="col-md-4">
                                                 <div class="detail-head detail-head-spaced">Documents</div>
                                                 <dl class="detail-list">
+                                                    @if ($invoice->contract_no)
+                                                        <dt>Convention</dt>
+                                                        <dd>{{ $invoice->contract_no }}</dd>
+                                                    @endif
+
                                                     <dt>Facture</dt>
                                                     <dd>
                                                         @if ($invoice->document)
@@ -144,15 +171,41 @@
                                                         @endif
                                                     </dd>
 
-                                                    <dt>Attestation</dt>
+                                                    <dt>{{ $isOpco ? 'Certificats' : 'Attestation' }}</dt>
                                                     <dd>
                                                         @if ($invoice->certification)
                                                             <a href="{{ $invoice->certification }}" target="_blank">Ouvrir</a>
+                                                        @elseif ($isOpco)
+                                                            <span class="detail-muted">en attente du modèle</span>
                                                         @else
                                                             —
                                                         @endif
                                                     </dd>
+
+                                                    @if ($isOpco)
+                                                        <dt>E-mail manager</dt>
+                                                        <dd>
+                                                            @if ($invoice->sent_at)
+                                                                prévu le {{ \Illuminate\Support\Carbon::parse($invoice->sent_at)->format('d/m/Y') }}
+                                                            @elseif ($invoice->sent_cnt > 0)
+                                                                envoyé
+                                                            @else
+                                                                <span class="detail-muted">pas d'envoi automatique</span>
+                                                            @endif
+                                                        </dd>
+                                                    @endif
                                                 </dl>
+
+                                                @if ($isOpco)
+                                                    <form action="{{ route('invoices.opco.send', $invoice->id) }}" method="POST"
+                                                        onsubmit="return confirm('Envoyer maintenant la facture et les certificats au manager ({{ $invoice->client_email }}) ?');">
+                                                        @csrf
+                                                        <button type="submit" class="btn btn-sm btn-default">
+                                                            <i class="voyager-paper-plane"></i>
+                                                            {{ $invoice->sent_cnt > 0 ? 'Renvoyer au manager' : 'Envoyer au manager' }}
+                                                        </button>
+                                                    </form>
+                                                @endif
                                             </div>
 
                                             <div class="col-md-4">
@@ -438,6 +491,25 @@
 
         .detail-error {
             color: #c0392b;
+        }
+
+        .opco-pending form {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin: 0;
+        }
+
+        .invoice-org {
+            display: inline-block;
+            margin-left: 6px;
+            padding: 1px 6px;
+            border-radius: 3px;
+            background: #eef2f7;
+            color: #4a5a70;
+            font-size: 11px;
+            font-weight: 600;
         }
 
         .invoice-detail .btn-virement {
