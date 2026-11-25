@@ -129,6 +129,11 @@ class GeneratePdfController extends Controller
         $pdf->setOption('isRemoteEnabled', true);
         $pdf->setPaper('A4', 'portrait');
 
+        // Contenu seul, sans rien enregistrer (écran de test du CMS)
+        if ($exportPdf === 'content') {
+            return $pdf->output();
+        }
+
         // Export pdf for generate/test
         if ($exportPdf) {
             return $pdf->download($qNo . '-' . now()->format('YmdHi') . '.pdf');
@@ -249,6 +254,12 @@ class GeneratePdfController extends Controller
         } else {
             $itemGroups = $cart->groupItemsByDurationBestFit();
         }
+        return $this->autoProgPdfContentForGroups($cart, $itemGroups, $groupIndex, $companyName, $name, $date, $signatureLink, $location);
+    }
+
+    /** Comme autoProgPdfContent(), avec un panier et des dossiers déjà construits (même non enregistrés). */
+    public function autoProgPdfContentForGroups($cart, $itemGroups, ?int $groupIndex = null, $companyName = '', $name = '', $date = '', $signatureLink = '', $location = ''): string
+    {
         $contractTotal = sizeof($itemGroups);
 
         $html = '';

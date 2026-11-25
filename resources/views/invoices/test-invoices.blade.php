@@ -63,6 +63,58 @@
                         </form>
                     </div>
                 </div>
+
+                <div class="panel panel-bordered">
+                    <div class="panel-body">
+                        <h4 class="test-result-title">Devis OPCO-EP fictif</h4>
+                        <p class="test-intro">
+                            Invente un devis OPCO-EP signé aujourd'hui (entreprise « Cabinet TEST OrthoMaster »,
+                            apprenants « TEST Apprenant n », vous comme manager) avec de vraies formations,
+                            un seul dossier de 10 h au plus. Envoie l'e-mail de fin de formation OPCO avec
+                            <b>devis + facture + certificat + programme</b>.
+                            <br>
+                            <span class="text-muted">Tout est fait en mémoire : rien n'est enregistré.</span>
+                        </p>
+
+                        <form action="{{ route('test-invoices.fake-opco') }}" method="POST">
+                            @csrf
+
+                            <div class="row">
+                                <div class="col-md-8 form-group @error('fake_email') has-error @enderror">
+                                    <label for="fake_email">Envoyer à</label>
+                                    <input type="email" class="form-control" name="fake_email" id="fake_email"
+                                        value="{{ old('fake_email', $email) }}" required>
+                                    @error('fake_email')
+                                        <span class="help-block">{{ $message }}</span>
+                                    @enderror
+                                </div>
+                                <div class="col-md-4 form-group @error('learners') has-error @enderror">
+                                    <label for="learners">Apprenants</label>
+                                    <input type="number" class="form-control" name="learners" id="learners"
+                                        min="1" max="20" value="{{ old('learners', 3) }}" required>
+                                    @error('learners')
+                                        <span class="help-block">{{ $message }}</span>
+                                    @enderror
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="package_ids">Formations <span class="text-muted">(vide : au hasard)</span></label>
+                                <select class="form-control select2" name="package_ids[]" id="package_ids" multiple>
+                                    @foreach ($packages as $p)
+                                        <option value="{{ $p->id }}" @selected(in_array($p->id, (array) old('package_ids', [])))>
+                                            {{ $p->name }} ({{ rtrim(rtrim(number_format($p->duration / 60, 2, ',', ''), '0'), ',') }} h)
+                                        </option>
+                                    @endforeach
+                                </select>
+                            </div>
+
+                            <button type="submit" class="btn btn-primary">
+                                <i class="voyager-paper-plane"></i> Créer et envoyer le devis fictif
+                            </button>
+                        </form>
+                    </div>
+                </div>
             </div>
 
             @if ($result)
@@ -129,7 +181,7 @@
     <script>
         $(function () {
             if ($.fn.select2) {
-                $('#invoice_id').select2({ width: '100%' });
+                $('#invoice_id, #package_ids').select2({ width: '100%' });
             }
         });
     </script>

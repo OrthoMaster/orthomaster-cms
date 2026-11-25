@@ -143,7 +143,7 @@ class OpcoInvoiceService
     public function issueForContract(Contract $contract): Invoice
     {
         $dossier = $this->dossier($contract);
-        $signedAt = Carbon::parse($contract->getRawOriginal('created_at'));
+        $signedAt = $this->signedAt($contract);
         $invoiceDate = $signedAt->copy()->addMonth();
         $dueDate = $signedAt->copy()->addMonths(2);
 
@@ -314,14 +314,14 @@ class OpcoInvoiceService
     }
 
     /** Contenu du PDF des certificats (une page par apprenant), sans rien enregistrer ; null tant que le modèle manque. */
-    public function certificatesPdfContent(Invoice $invoice, Contract $contract): ?string
+    public function certificatesPdfContent(Invoice $invoice, Contract $contract, ?array $dossier = null): ?string
     {
         if (!$this->certificateReady()) {
             return null;
         }
 
         // À écrire avec le modèle PDF : remplissage FPDI comme GeneratePdfController::fifplCertificateContent(),
-        // une page par apprenant du dossier ($this->dossier($contract)['members']).
+        // une page par apprenant du dossier (($dossier ?? $this->dossier($contract))['members']).
         return null;
     }
 
@@ -368,18 +368,33 @@ class OpcoInvoiceService
             throw new RuntimeException("Convention {$contract->no} : manager introuvable.");
         }
 
+        return $this->buildDossier(
+            $cart,
+            $items,
+            $members,
+            $manager,
+            $contract->company_id ? Company::find($contract->company_id) : null,
+            (float) ($cart->tva ?? setting('system.tva'))
+        );
+    }
+
+    /**
+     * Dossier à partir de ses éléments (aussi des modèles non enregistrés : devis fictif de l'écran de test) :
+     * montants comme le devis, 20 € HT / h / apprenant.
+     */
+    public function buildDossier(Cart $cart, Collection $items, Collection $members, User $manager, ?Company $company, float $tva): array
+    {
         $minutes = (int) $cart->calculateGroupDuration($items);
         $unitPrice = (float) Organization::OPCO_UNIT_PRICE->value;
-        $tva = (float) ($cart->tva ?? setting('system.tva'));
         $amountHt = round($unitPrice * $minutes / 60 * $members->count(), 2);
         $tvaAmount = round($amountHt * $tva / 100, 2);
 
         return [
             'cart'       => $cart,
             'items'      => $items->values(),
-            'members'    => $members,
+            'members'    => $members->values(),
             'manager'    => $manager,
-            'company'    => $contract->company_id ? Company::find($contract->company_id) : null,
+            'company'    => $company,
             'minutes'    => $minutes,
             'unit_price' => $unitPrice,
             'tva'        => $tva,
@@ -387,6 +402,14 @@ class OpcoInvoiceService
             'tva_amount' => $tvaAmount,
             'amount'     => round($amountHt + $tvaAmount, 2),
         ];
+    }
+
+    /** Date de signature de la convention (now pour une convention non enregistrée sans date). */
+    public function signedAt(Contract $contract): Carbon
+    {
+        $raw = $contract->getRawOriginal('created_at') ?: ($contract->getAttributes()['created_at'] ?? null);
+
+        return $raw ? Carbon::parse($raw) : now();
     }
 
     /** Rang du dossier dans le panier (0 = premier) : suffixe « _n » du numéro de convention. */
@@ -438,11 +461,14 @@ class OpcoInvoiceService
         return $invoice->document;
     }
 
-    /** Contenu du PDF de la facture, sans rien enregistrer (aussi pour l'envoi test du CMS). */
-    public function invoicePdfContent(Invoice $invoice, Contract $contract): string
+    /**
+     * Contenu du PDF de la facture, sans rien enregistrer (aussi pour l'écran de test).
+     * $dossier : déjà calculé (devis fictif) ; sinon lu depuis la convention.
+     */
+    public function invoicePdfContent(Invoice $invoice, Contract $contract, ?array $dossier = null): string
     {
-        $dossier = $this->dossier($contract);
-        $signedAt = Carbon::parse($contract->getRawOriginal('created_at'));
+        $dossier ??= $this->dossier($contract);
+        $signedAt = $this->signedAt($contract);
 
         $pdf = Pdf::loadView('pdf.opco_invoice', [
             'company'    => GeneratePdfController::COMPANY,

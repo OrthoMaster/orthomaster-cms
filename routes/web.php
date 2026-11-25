@@ -231,6 +231,8 @@ Route::group(['prefix' => 'admin', 'middleware' => ['cmsAdmin']], function () {
         ->name('test-invoices');
     Route::post('dashboard/test-invoices', [InvoiceTestController::class, 'send'])
         ->name('test-invoices.send');
+    Route::post('dashboard/test-invoices/fake-opco', [InvoiceTestController::class, 'fakeOpco'])
+        ->name('test-invoices.fake-opco');
 
     // Invoices
     Route::prefix('dashboard/invoices')

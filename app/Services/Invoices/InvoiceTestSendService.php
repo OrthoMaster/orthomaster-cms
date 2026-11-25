@@ -6,12 +6,15 @@ use App\Http\Controllers\GeneratePdfController;
 use App\Mail\OpcoCompletedDocumentMail;
 use App\Mail\SendFifplCompletedDocumentMail;
 use App\Models\Cart;
+use App\Models\CartItem;
+use App\Models\Company;
 use App\Models\Contract;
+use App\Models\FundingOrganization;
 use App\Models\Invoice;
+use App\Models\Package;
 use App\Models\User;
 use App\Organization;
 use App\Services\Opco\OpcoInvoiceService;
-use Illuminate\Mail\Mailable;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -89,6 +92,145 @@ class InvoiceTestSendService
 
         return [
             'organization' => $contract->organization,
+            'invoice_no'   => $invoice->no,
+            'attachments'  => array_keys($files),
+            'notes'        => $notes,
+        ];
+    }
+
+    /* ---------------------------------------------------------------- devis OPCO fictif */
+
+    /** Formations proposées pour le devis fictif (actives, avec une durée). */
+    public function packages(): Collection
+    {
+        return Package::active()->where('duration', '>', 0)->orderBy('name')->get(['id', 'name', 'duration']);
+    }
+
+    /**
+     * Devis OPCO-EP fictif, tout en mémoire (rien en base, rien sur S3, rien dans Odoo) : entreprise et
+     * apprenants inventés, formations réelles ; un seul dossier (≤ 10 h), signé aujourd'hui.
+     * Envoie à $email l'e-mail de fin de formation OPCO avec devis + facture + certificat + programme.
+     *
+     * @param  int[]  $packageIds  vide : formations prises au hasard
+     * @return array{organization: string, invoice_no: string, attachments: string[], notes: string[]}
+     */
+    public function sendFakeOpco(string $email, User $manager, array $packageIds = [], int $learners = 3): array
+    {
+        $notes = [];
+        $maxMinutes = Organization::OPCO_MAX_DURATION->value;
+
+        $pool = Package::active()
+            ->with(['modules', 'modules.lessons'])
+            ->where('duration', '>', 0)
+            ->when($packageIds, fn ($q) => $q->whereIn('id', $packageIds), fn ($q) => $q->inRandomOrder()->limit(20))
+            ->get();
+
+        // Un seul dossier : on garde les formations tant que le total reste ≤ 10 h.
+        $packages = collect();
+        foreach ($pool as $package) {
+            if ($packages->sum('duration') + $package->duration <= $maxMinutes) {
+                $packages->push($package);
+            }
+        }
+        if ($packages->isEmpty()) {
+            throw new RuntimeException('Aucune formation active de 10 h ou moins à mettre dans le devis.');
+        }
+        if ($packageIds && $packages->count() < count($packageIds)) {
+            $notes[] = 'Formations au-delà de 10 h au total laissées de côté (un dossier OPCO = 10 h au plus).';
+        }
+
+        // Tout est construit sans être enregistré.
+        $cart = (new Cart())->forceFill(['id' => 0, 'payment_type' => 1, 'tva' => (float) setting('system.tva')]);
+        $items = $packages->map(fn (Package $p) => (new CartItem())->forceFill(['package_id' => $p->id])->setRelation('package', $p))->values();
+        $members = collect(range(1, max(1, min(20, $learners))))->map(fn (int $i) => (new User())->forceFill([
+            'name'       => 'TEST',
+            'first_name' => 'Apprenant ' . $i,
+            'email'      => 'apprenant' . $i . '@example.com',
+        ]));
+        $company = (new Company())->forceFill([
+            'name'        => 'Cabinet TEST OrthoMaster',
+            'address'     => '1 rue du Test',
+            'postal_code' => '67000',
+            'city'        => 'Strasbourg',
+            'siret'       => '00000000000000',
+        ]);
+        $cart->setRelation('items', $items);
+        $cart->setRelation('members', $members);
+
+        $code = FundingOrganization::find(1)?->code ?: 'opco-ep';
+        $contract = (new Contract())->forceFill([
+            'no'           => 'D-' . now()->format('ym') . '-' . $code . '-TEST-000',
+            'organization' => OpcoInvoiceService::ORGANIZATION,
+            'type'         => 'signed',
+            'created_at'   => now(),
+        ]);
+        $dossier = $this->opco->buildDossier($cart, $items, $members, $manager, $company, (float) $cart->tva);
+        $invoice = (new Invoice())->forceFill([
+            'no'         => 'TEST/OPCO/' . now()->format('YmdHi'),
+            'amount_ht'  => $dossier['amount_ht'],
+            'tva'        => $dossier['tva'],
+            'tva_amount' => $dossier['tva_amount'],
+            'amount'     => $dossier['amount'],
+        ]);
+
+        $files = [];
+        $today = now();
+        $files['Devis_' . $contract->no . '.pdf'] = $this->pdf->quotationTemp(
+            0,
+            $contract->no,
+            $today->format('d/m/Y'),
+            $today->copy()->addMonth()->format('d/m/Y'),
+            $company,
+            $today->format('d/m/Y') . ' - ' . $today->copy()->addMonth()->format('d/m/Y'),
+            1,
+            $members,
+            $items,
+            Organization::OPCO_UNIT_PRICE->value,
+            (float) $cart->tva,
+            $dossier['minutes'],
+            null,
+            null,
+            'content'
+        );
+        $notes[] = 'Devis non signé (le devis signé porte la signature du manager).';
+
+        $files['Facture_' . str_replace('/', '_', $invoice->no) . '.pdf'] = $this->opco->invoicePdfContent($invoice, $contract, $dossier);
+
+        $certificates = $this->opco->certificatesPdfContent($invoice, $contract, $dossier);
+        if ($certificates !== null) {
+            $files['Certificats_realisation_' . $contract->no . '.pdf'] = $certificates;
+        } else {
+            $notes[] = 'Certificat OPCO-EP pas encore disponible (modèle PDF manquant) : non joint.';
+        }
+
+        $files['Programme_' . $contract->no . '.pdf'] = $this->pdf->autoProgPdfContentForGroups(
+            $cart,
+            collect([$items]),
+            0,
+            $company->name,
+            trim($manager->name . ' ' . $manager->first_name),
+            $today->format('d/m/Y')
+        );
+
+        $mail = new OpcoCompletedDocumentMail($manager, $invoice, $contract);
+        foreach ($files as $name => $content) {
+            $mail->attachData($content, $name, ['mime' => 'application/pdf']);
+        }
+
+        // Filet de sécurité, comme pour une facture existante.
+        DB::beginTransaction();
+        try {
+            Mail::to($email)->send($mail);
+        } finally {
+            DB::rollBack();
+        }
+
+        $notes[] = $packages->count() . ' formation(s), ' . $members->count() . ' apprenant(s), '
+            . number_format($dossier['minutes'] / 60, 2, ',', ' ') . ' h, '
+            . number_format($dossier['amount_ht'], 2, ',', ' ') . ' € HT.';
+
+        return [
+            'organization' => OpcoInvoiceService::ORGANIZATION . ' (fictif)',
             'invoice_no'   => $invoice->no,
             'attachments'  => array_keys($files),
             'notes'        => $notes,
