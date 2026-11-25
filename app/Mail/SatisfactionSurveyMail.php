@@ -32,13 +32,11 @@ class SatisfactionSurveyMail extends Mailable
 
     public function content(): Content
     {
-        $learner = $this->survey->user;
-
         return new Content(
             view: 'emails.satisfaction-survey',
             with: [
-                'mailTo'   => $learner->email, // footer
-                'name'     => trim($learner->first_name . ' ' . $learner->name),
+                'mailTo'   => $this->survey->recipientEmail(), // footer
+                'name'     => $this->survey->recipientName(),
                 'packages' => explode("\n", $this->survey->packages_label),
                 'url'      => $this->survey->url(),
                 'reminder' => $this->reminder,

@@ -21,45 +21,48 @@
     <div class="page-content browse container-fluid">
         @include('voyager::alerts')
 
-        @if ($fakeCount > 0)
-            <div class="alert alert-info">
-                <strong>{{ $fakeCount }} questionnaire(s) fictif(s)</strong> sont inclus dans les chiffres (marqués « Démo »).
-                Pour les retirer : <code>php artisan satisfaction:fake --clear</code>
-            </div>
-        @endif
-
         <div class="row">
             <div class="col-lg-12">
 
-                {{-- ============ FILTRES ============ --}}
-                <div class="panel panel-bordered">
-                    <div class="panel-heading">
-                        <h3 class="panel-title"><i class="voyager-search"></i> Période</h3>
+                {{-- ============ PÉRIODE + EXPORT ============ --}}
+                <div class="row row-eq-height">
+                    <div class="col-md-8 col-sm-12">
+                        <div class="panel panel-bordered">
+                            <div class="panel-heading">
+                                <h3 class="panel-title"><i class="voyager-calendar"></i> Période</h3>
+                            </div>
+                            <div class="panel-body">
+                                <form class="row" action="{{ route('dashboard.lessons.suivi') }}" method="GET" id="filters">
+                                    <div class="col-sm-5">
+                                        <label for="from">Du</label>
+                                        <input type="date" class="form-control" name="from" id="from" value="{{ $filters['from'] }}">
+                                    </div>
+                                    <div class="col-sm-5">
+                                        <label for="to">Au</label>
+                                        <input type="date" class="form-control" name="to" id="to" value="{{ $filters['to'] }}">
+                                    </div>
+                                    <div class="col-sm-2 filter-actions">
+                                        <button type="submit" class="btn btn-primary">Appliquer</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
                     </div>
-                    <div class="panel-body">
-                        <form class="row" action="{{ route('dashboard.lessons.suivi') }}" method="GET" id="filters">
-                            <div class="col-md-3">
-                                <label for="from">Du</label>
-                                <input type="date" class="form-control" name="from" id="from" value="{{ $filters['from'] }}">
+
+                    <div class="col-md-4 col-sm-12">
+                        <div class="panel panel-bordered">
+                            <div class="panel-heading">
+                                <h3 class="panel-title"><i class="voyager-download"></i> Export Excel</h3>
                             </div>
-                            <div class="col-md-3">
-                                <label for="to">Au</label>
-                                <input type="date" class="form-control" name="to" id="to" value="{{ $filters['to'] }}">
-                            </div>
-                            <div class="col-md-6 filter-actions">
+                            <div class="panel-body export-actions">
                                 <a href="#" class="btn btn-success js-export" data-url="{{ route('dashboard.lessons.suivi.export') }}">
-                                    <i class="voyager-download"></i> Export satisfaction
+                                    <i class="voyager-star-two"></i> Satisfaction
                                 </a>
-                                <a href="#" class="btn btn-success js-export" data-url="{{ route('dashboard.lessons.suivi.export-completion') }}"
-                                    title="Toutes les inscriptions aux formations (devis, carte, attribution manuelle), % par paquet et par apprenant">
-                                    <i class="voyager-download"></i> Export complétion
+                                <a href="#" class="btn btn-success js-export" data-url="{{ route('dashboard.lessons.suivi.export-completion') }}">
+                                    <i class="voyager-book"></i> Complétion
                                 </a>
-                                <button type="submit" class="btn btn-primary">Appliquer</button>
                             </div>
-                        </form>
-                        <p class="filter-note">
-                            Complétion : devis datés dans la période. Satisfaction : réponses reçues dans la période.
-                        </p>
+                        </div>
                     </div>
                 </div>
 
@@ -212,16 +215,12 @@
                     <h4 class="modal-title"><i class="voyager-paper-plane"></i> Envoyer un questionnaire maintenant</h4>
                 </div>
                 <div class="modal-body">
-                    <label for="survey_id">Apprenant</label>
-                    <select name="survey_id" id="survey_id" style="width:100%" required></select>
-                    <p class="filter-note">
-                        Nom ou e-mail. Seuls les apprenants ayant un devis signé et n'ayant pas encore répondu sont proposés ;
-                        un apprenant avec plusieurs devis apparaît une fois par devis. L'e-mail part tout de suite, sans attendre les 3 mois.
-                    </p>
+                    <label for="send-email">E-mail</label>
+                    <input type="email" class="form-control" name="email" id="send-email" required autocomplete="off" placeholder="prenom.nom@exemple.fr">
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-default" data-dismiss="modal">Annuler</button>
-                    <button type="submit" class="btn btn-success" id="send-submit" disabled>Envoyer</button>
+                    <button type="submit" class="btn btn-success" id="send-submit">Envoyer</button>
                 </div>
             </form>
         </div>
@@ -233,10 +232,13 @@
     @include('dashboard.lessons._styles')
     <style>
         /* --- Filtres --- */
-        .filter-actions { padding-top: 25px; text-align: right; }
-        .filter-actions .btn { margin: 0 0 6px 8px; }
+        .filter-actions { padding-top: 25px; }
+        .filter-actions .btn { margin: 0; width: 100%; }
         .page-title + .btn-add-new { margin-top: 18px; }
-        .filter-note { margin: 12px 0 0; color: #8a9199; font-size: 12px; }
+
+        /* --- Export : boutons alignés sur le bas des champs de la carte Période --- */
+        .export-actions { display: flex; gap: 10px; }
+        .export-actions .btn { flex: 1 1 0; margin: 25px 0 0; }
 
         /* --- KPI --- */
         .kpi-foot { margin-top: 12px; padding-top: 10px; border-top: 1px solid #eceff3; color: #8a9199; font-size: 12px; }
@@ -265,26 +267,7 @@
             });
 
             /* ---------- Envoi immédiat ---------- */
-            $('#survey_id').select2({
-                width: '100%',
-                dropdownParent: $('#send-modal'),
-                placeholder: 'Rechercher un apprenant',
-                minimumInputLength: 2,
-                language: {
-                    inputTooShort: function () { return 'Saisissez au moins 2 caractères'; },
-                    noResults: function () { return 'Aucun questionnaire en attente pour cette recherche'; },
-                    searching: function () { return 'Recherche…'; }
-                },
-                ajax: {
-                    url: '{{ route('dashboard.lessons.suivi.search-surveys') }}',
-                    dataType: 'json',
-                    delay: 250,
-                    data: function (params) { return { q: params.term }; },
-                    processResults: function (data) { return { results: data }; }
-                }
-            }).on('change', function () {
-                $('#send-submit').prop('disabled', !$(this).val());
-            });
+            $('#send-modal').on('shown.bs.modal', function () { $('#send-email').trigger('focus'); });
 
             $('#send-form').on('submit', function () {
                 $('#send-submit').prop('disabled', true).text('Envoi…');

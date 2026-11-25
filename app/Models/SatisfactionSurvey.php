@@ -45,6 +45,19 @@ class SatisfactionSurvey extends Model
         return $this->belongsTo(User::class);
     }
 
+    /** Compte de l'apprenant, sinon l'adresse saisie dans le CMS (questionnaire de test). */
+    public function recipientEmail(): ?string
+    {
+        return $this->user?->email ?? $this->email;
+    }
+
+    public function recipientName(): string
+    {
+        $name = trim(($this->user?->first_name ?? '') . ' ' . ($this->user?->name ?? ''));
+
+        return $name !== '' ? $name : (string) $this->email;
+    }
+
     public function url(): string
     {
         return rtrim(config('app.auth_url'), '/') . '/satisfaction/' . $this->token;

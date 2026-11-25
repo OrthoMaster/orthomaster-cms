@@ -41,74 +41,29 @@ class DashboardLessonFollowUpController extends Controller
             'survey'     => $this->surveySummary($f),
             'responses'  => $this->answeredQuery($f)->orderByDesc('s.answered_at')->paginate(self::PER_PAGE)->withQueryString(),
             'minimum'    => self::COMPLETION_MIN,
-            'fakeCount'  => SatisfactionSurvey::where('is_fake', true)->count(),
         ]);
     }
 
     /* ===================== ENVOI IMMÉDIAT ===================== */
 
     /**
-     * Questionnaires réels sans réponse, cherchés par nom ou e-mail de l'apprenant (select2).
-     * GET /admin/dashboard/lessons/suivi/search-surveys?q=...
-     */
-    public function searchSurveys(Request $request)
-    {
-        $term = trim((string) $request->query('q', ''));
-        if (mb_strlen($term) < 2) {
-            return response()->json([]);
-        }
-
-        $like = '%' . $term . '%';
-
-        $rows = DB::table('satisfaction_surveys as s')
-            ->join('users as u', 'u.id', '=', 's.user_id')
-            ->where('s.is_fake', false)
-            ->whereNull('s.answered_at')
-            ->where(fn ($q) => $q->where('u.email', 'like', $like)
-                ->orWhere('u.name', 'like', $like)
-                ->orWhere('u.first_name', 'like', $like)
-                ->orWhereRaw("CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.name, '')) LIKE ?", [$like]))
-            ->orderBy('u.name')
-            ->orderByDesc('s.purchased_at')
-            ->limit(30)
-            ->get(['s.id', 's.contract_no', 's.purchased_at', 's.sent_at', 's.packages_label', 'u.first_name', 'u.name', 'u.email']);
-
-        return response()->json($rows->map(function ($r) {
-            $tz = $this->displayTz();
-            $sent = $r->sent_at ? 'déjà envoyé le ' . Carbon::parse($r->sent_at)->setTimezone($tz)->format('d/m/Y') : 'jamais envoyé';
-
-            return [
-                'id'   => $r->id,
-                'text' => trim($r->first_name . ' ' . $r->name) . ' · ' . $r->email
-                    . ' — ' . str_replace("\n", ' ; ', $r->packages_label)
-                    . ' (devis ' . ($r->contract_no ?: '?') . ' du ' . Carbon::parse($r->purchased_at)->setTimezone($tz)->format('d/m/Y') . ', ' . $sent . ')',
-            ];
-        }));
-    }
-
-    /**
-     * Envoie tout de suite le questionnaire choisi, sans attendre les 3 mois.
+     * Envoie tout de suite un questionnaire à l'adresse saisie (apprenant ou non), sans attendre les 3 mois.
      * POST /admin/dashboard/lessons/suivi/send
      */
     public function send(Request $request, SatisfactionSurveyService $service)
     {
-        $request->validate(['survey_id' => 'required|integer']);
-        $survey = SatisfactionSurvey::with('user')->findOrFail($request->integer('survey_id'));
+        $email = mb_strtolower(trim((string) $request->input('email')));
+        $request->merge(['email' => $email])->validate(['email' => 'required|email|max:255']);
 
         try {
-            $service->sendNow($survey);
-        } catch (\RuntimeException $e) {
-            return back()->with(['message' => $e->getMessage(), 'alert-type' => 'error']);
+            $service->sendTo($email);
         } catch (\Throwable $e) {
-            Log::error($e->getMessage(), ['satisfaction-send-now', $survey->id]);
+            Log::error($e->getMessage(), ['satisfaction-send-now', $email]);
 
             return back()->with(['message' => 'L\'e-mail n\'a pas pu être envoyé.', 'alert-type' => 'error']);
         }
 
-        return back()->with([
-            'message'    => 'Questionnaire envoyé à ' . $survey->user->email . '.',
-            'alert-type' => 'success',
-        ]);
+        return back()->with(['message' => 'Questionnaire envoyé à ' . $email . '.', 'alert-type' => 'success']);
     }
 
     /* ===================== EXPORT COMPLÉTION ===================== */
@@ -278,8 +233,8 @@ class DashboardLessonFollowUpController extends Controller
             return (object) [
                 'purchased_at' => $s->purchased_at->copy()->setTimezone($this->displayTz()),
                 'contract_no'  => $s->contract_no,
-                'learner'      => trim(($s->user?->first_name ?? '') . ' ' . ($s->user?->name ?? '')),
-                'email'        => $s->user?->email,
+                'learner'      => $s->recipientName(),
+                'email'        => $s->recipientEmail(),
                 'package'      => $names[$packageId] ?? ('#' . $packageId),
                 'progress'     => $value,
                 'completed'    => $value > self::COMPLETION_MIN,
@@ -308,8 +263,9 @@ class DashboardLessonFollowUpController extends Controller
     {
         return $this->answeredBase($f)
             ->leftJoin('users as u', 'u.id', '=', 's.user_id')
-            ->select('s.*', 'u.email')
-            ->selectRaw("TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.name, ''))) as learner");
+            ->select('s.*')
+            ->selectRaw('COALESCE(u.email, s.email) as email')
+            ->selectRaw("COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.name, ''))), ''), s.email) as learner");
     }
 
     private function answeredBase(array $f)

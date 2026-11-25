@@ -27,7 +27,7 @@ class SatisfactionPublicController extends Controller
 
         return view('satisfaction.form', [
             'survey'   => $survey,
-            'name'     => trim(($survey->user?->first_name ?? '') . ' ' . ($survey->user?->name ?? '')),
+            'name'     => $survey->recipientName(),
             'packages' => explode("\n", $survey->packages_label),
         ]);
     }

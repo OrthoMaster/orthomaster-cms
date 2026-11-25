@@ -182,7 +182,7 @@ class SatisfactionSurveyService
     {
         $row = [
             'survey'    => $survey->id,
-            'email'     => $survey->user?->email,
+            'email'     => $survey->recipientEmail(),
             'devis'     => $survey->contract_no,
             'date'      => $survey->purchased_at->format('d/m/Y'),
             'kind'      => $reminder ? 'relance' : 'envoi',
@@ -209,24 +209,69 @@ class SatisfactionSurveyService
     }
 
     /**
-     * Envoi immédiat depuis le CMS, sans attendre les 3 mois.
-     * Premier e-mail → sent_at ; s'il a déjà reçu le questionnaire, l'e-mail part comme relance.
+     * Envoi immédiat depuis le CMS, à n'importe quelle adresse, sans attendre les 3 mois.
+     *  - compte avec un questionnaire sans réponse → ce questionnaire (le devis le plus récent) ;
+     *  - compte sans questionnaire mais inscrit à des formations → nouveau questionnaire sur ces paquets ;
+     *  - sinon (adresse inconnue, compte sans formation) → questionnaire de test (is_fake, retiré par satisfaction:fake --clear).
+     * Retourne le questionnaire envoyé.
      */
-    public function sendNow(SatisfactionSurvey $survey): void
+    public function sendTo(string $email): SatisfactionSurvey
     {
-        if ($survey->is_fake) {
-            throw new \RuntimeException('Questionnaire fictif : aucun e-mail.');
-        }
-        if ($survey->answered_at) {
-            throw new \RuntimeException('Cet apprenant a déjà répondu.');
-        }
-        if (!$survey->user?->email) {
-            throw new \RuntimeException('Cet apprenant n\'a pas d\'e-mail.');
+        $user = DB::table('users')->where('email', $email)->first(['id', 'email']);
+        $survey = $user ? $this->pendingSurveyFor($user->id) ?? $this->manualSurveyFor($user->id) : null;
+        $survey ??= SatisfactionSurvey::create([
+            'is_fake'        => true,
+            'token'          => Str::random(32),
+            'user_id'        => $user?->id,
+            'email'          => $email,
+            'purchased_at'   => now(),
+            'package_ids'    => [],
+            'packages_label' => 'Formation OrthoMaster',
+        ]);
+
+        // L'adresse saisie fait foi, même si le compte a changé d'e-mail depuis.
+        $reminder = $survey->sent_at !== null;
+        Mail::to($email)->send(new SatisfactionSurveyMail($survey, $reminder));
+        $survey->forceFill([$reminder ? 'reminded_at' : 'sent_at' => now()])->save();
+
+        return $survey;
+    }
+
+    private function pendingSurveyFor(int $userId): ?SatisfactionSurvey
+    {
+        return SatisfactionSurvey::where('user_id', $userId)
+            ->where('is_fake', false)
+            ->whereNull('answered_at')
+            ->orderByDesc('purchased_at')
+            ->first();
+    }
+
+    /**
+     * Compte inscrit sans devis (carte, attribution manuelle) : questionnaire sur ses paquets en cours.
+     * Pas de cart_id → pas de conflit avec sync().
+     */
+    private function manualSurveyFor(int $userId): ?SatisfactionSurvey
+    {
+        $packages = DB::table('package_user as pu')
+            ->join('packages as p', 'p.id', '=', 'pu.package_id')
+            ->leftJoin('trainings as t', 't.id', '=', 'p.training_id')
+            ->where('pu.user_id', $userId)
+            ->orderBy('p.id')
+            ->select('p.id', 'pu.created_at')
+            ->selectRaw("CASE WHEN t.name IS NULL OR t.name = p.name THEN p.name ELSE CONCAT(t.name, ' — ', p.name) END as label")
+            ->get();
+
+        if ($packages->isEmpty()) {
+            return null;
         }
 
-        $reminder = $survey->sent_at !== null;
-        Mail::to($survey->user->email)->send(new SatisfactionSurveyMail($survey, $reminder));
-        $survey->forceFill([$reminder ? 'reminded_at' : 'sent_at' => now()])->save();
+        return SatisfactionSurvey::create([
+            'token'          => Str::random(32),
+            'user_id'        => $userId,
+            'purchased_at'   => $packages->max('created_at') ?? now(),
+            'package_ids'    => $packages->pluck('id')->all(),
+            'packages_label' => $packages->pluck('label')->implode("\n"),
+        ]);
     }
 
     /* ===================== RÉPONSE ===================== */
