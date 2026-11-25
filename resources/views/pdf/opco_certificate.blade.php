@@ -118,35 +118,6 @@
             color: #111827;
         }
 
-        .facts {
-            width: 100%;
-            margin: 4mm 0 3mm;
-            border-collapse: separate;
-            border-spacing: 3mm 0;
-        }
-
-        .facts td {
-            width: 33.33%;
-            padding: 3mm 2mm;
-            border: 1px solid #e5e7eb;
-            border-radius: 3px;
-            text-align: center;
-        }
-
-        .facts .fact-label {
-            font-size: 8pt;
-            text-transform: uppercase;
-            letter-spacing: 0.8px;
-            color: #6b7280;
-        }
-
-        .facts .fact-value {
-            margin-top: 1mm;
-            font-size: 12.5pt;
-            font-weight: bold;
-            color: #eb7b0f;
-        }
-
         .hl {
             font-weight: bold;
             color: #111827;
@@ -228,23 +199,6 @@
                     orthopédique en pharmacie d'officine.
                 </div>
             </div>
-
-            <table class="facts">
-                <tr>
-                    <td>
-                        <div class="fact-label">Du</div>
-                        <div class="fact-value">{{ $from }}</div>
-                    </td>
-                    <td>
-                        <div class="fact-label">Au</div>
-                        <div class="fact-value">{{ $to }}</div>
-                    </td>
-                    <td>
-                        <div class="fact-label">Durée</div>
-                        <div class="fact-value">{{ $hours }} {{ $hoursLabel }}</div>
-                    </td>
-                </tr>
-            </table>
 
             <div class="section">
                 Cette formation s'est déroulée du <span class="hl">{{ $from }}</span>
