@@ -75,7 +75,7 @@
                                 <div class="kpi-label">Taux de complétion</div>
                                 <div class="kpi-split">
                                     <div class="kpi-part">
-                                        <div class="kpi-sub">Paquets dont la progression dépasse {{ $minimum }} %</div>
+                                        <div class="kpi-sub">Formations terminées</div>
                                         <div class="kpi-value">{{ $fmt($completion['rate']) }}{{ $completion['rate'] !== null ? ' %' : '' }}</div>
                                     </div>
                                     <div class="kpi-part">

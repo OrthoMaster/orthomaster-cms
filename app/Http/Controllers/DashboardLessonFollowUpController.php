@@ -40,7 +40,6 @@ class DashboardLessonFollowUpController extends Controller
             'completion' => $this->completionSummary($this->completionRows($f)),
             'survey'     => $this->surveySummary($f),
             'responses'  => $this->answeredQuery($f)->orderByDesc('s.answered_at')->paginate(self::PER_PAGE)->withQueryString(),
-            'minimum'    => self::COMPLETION_MIN,
         ]);
     }
 
@@ -120,7 +119,7 @@ class DashboardLessonFollowUpController extends Controller
 
         $spreadsheet = new Spreadsheet();
         $this->fillSheet($spreadsheet->getActiveSheet(), 'Par formation', $period,
-            ['Formation', 'Apprenants inscrits', 'Terminés (> ' . self::COMPLETION_MIN . ' %)', 'Taux de complétion (%)', 'Progression moyenne (%)'],
+            ['Formation', 'Apprenants inscrits', 'Terminés', 'Taux de complétion (%)', 'Progression moyenne (%)'],
             $byPackage->all());
         $spreadsheet->getActiveSheet()->getStyle('A5:E5')->getFont()->setBold(true);
         $this->fillSheet($spreadsheet->createSheet(), 'Par apprenant', $period,
@@ -313,7 +312,7 @@ class DashboardLessonFollowUpController extends Controller
         $fmt = fn ($v, $suffix = '') => $v === null ? '—' : str_replace('.', ',', (string) $v) . $suffix;
 
         $rows = [
-            ['Taux de complétion', $fmt($c['rate'], ' %'), "Paquets dont la progression dépasse " . self::COMPLETION_MIN . " % / paquets achetés (devis datés dans la période) : {$c['done']} / {$c['total']}"],
+            ['Taux de complétion', $fmt($c['rate'], ' %'), "Formations terminées / formations achetées (devis datés dans la période) : {$c['done']} / {$c['total']}"],
             ['Score de satisfaction', $fmt($s['score'], ' / 5'), 'Moyenne des 6 questions notées de 1 à 5, réponses reçues dans la période'],
             ['Taux de satisfaction', $fmt($s['satisfaction'], ' %'), 'Part des répondants ayant noté la satisfaction globale ' . SatisfactionSurvey::SATISFIED_MIN . ' ou 5'],
             ['Net Promoter Score', $fmt($s['nps']), '% de notes 9–10 moins % de notes 0–6 (recommandation)'],
