@@ -38,7 +38,7 @@ use Throwable;
  *   date du jour de création. Échéance = date de facture.
  * - Créée dès que possible (tâche du soir ou bouton CMS) ; à la fin de la formation, chaque apprenant reçoit
  *   par e-mail SON certificat de réalisation (la facture n'est envoyée à personne)
- *   (invoices.sent_at = date prévue d'envoi, remise à null une fois envoyé, sent_cnt + 1).
+ *   (invoices.sent_at = date d'envoi prévue, puis date du dernier envoi ; sent_cnt = nombre d'envois).
  * - Conventions anciennes (date de facture déjà passée) : documents créés, pas d'e-mail automatique ;
  *   envoi possible depuis la liste des factures du CMS.
  * - Pas de règlement dans le CMS : ni Stripe, ni virement, ni paiement Odoo — seulement facture + certificat.
@@ -233,6 +233,7 @@ class OpcoInvoiceService
     {
         return Invoice::whereNotNull('sent_at')
             ->whereDate('sent_at', '<=', today())
+            ->where(fn ($q) => $q->whereNull('sent_cnt')->orWhere('sent_cnt', 0)) // pas encore envoyés
             ->whereIn('id', $this->opcoInvoiceIds())
             ->orderBy('id')
             ->get();
@@ -355,7 +356,8 @@ class OpcoInvoiceService
 
         if ($result['sent'] > 0) {
             $invoice->update([
-                'sent_at'  => null,
+                // OPCO : sent_at = date du dernier envoi aux apprenants (avant : date d'envoi prévue)
+                'sent_at'  => now(),
                 'sent_cnt' => (int) $invoice->sent_cnt + 1,
             ]);
         }

@@ -208,17 +208,21 @@
                                                     <dd>
                                                         @if ($invoice->certification)
                                                             <a href="{{ $invoice->certification }}" target="_blank">Ouvrir</a>
+                                                            @if ($isOpco && $invoice->sent_at)
+                                                                {{-- Envoi des certificats aux apprenants : fait / prévu --}}
+                                                                <span class="detail-muted">
+                                                                    · {{ $invoice->sent_cnt > 0 ? 'envoyée le' : 'envoi prévu le' }}
+                                                                    {{ \Illuminate\Support\Carbon::parse($invoice->sent_at)->format($invoice->sent_cnt > 0 ? 'd/m/Y à H:i' : 'd/m/Y') }}
+                                                                </span>
+                                                            @elseif ($isOpco)
+                                                                <span class="detail-muted">· pas encore envoyée</span>
+                                                            @endif
                                                         @elseif ($isOpco)
                                                             <span class="detail-muted">pas encore créée</span>
                                                         @else
                                                             —
                                                         @endif
                                                     </dd>
-
-                                                    @if ($isOpco && $invoice->sent_cnt > 0)
-                                                        <dt>Certificats</dt>
-                                                        <dd>envoyés aux apprenants</dd>
-                                                    @endif
                                                 </dl>
 
                                                 @if ($isOpco)
