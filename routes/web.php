@@ -225,6 +225,13 @@ Route::group(['prefix' => 'admin', 'middleware' => ['cmsAdmin']], function () {
                 ->name('dashboard.events.stats');
         });
 
+    // Test admin (hors menu) : refait facture + certificat + programme d'une facture FIFPL / OPCO-EP
+    // et envoie l'e-mail de fin de formation à une adresse saisie. Rien n'est enregistré.
+    Route::get('dashboard/test-invoices', [InvoiceTestController::class, 'form'])
+        ->name('test-invoices');
+    Route::post('dashboard/test-invoices', [InvoiceTestController::class, 'send'])
+        ->name('test-invoices.send');
+
     // Invoices
     Route::prefix('dashboard/invoices')
         ->group(function () {
@@ -240,12 +247,6 @@ Route::group(['prefix' => 'admin', 'middleware' => ['cmsAdmin']], function () {
             Route::post('/{invoiceId}/opco-send', [InvoiceController::class, 'sendOpcoDocuments'])
                 ->whereNumber('invoiceId')
                 ->name('invoices.opco.send');
-
-            // Envoi test : refait facture + certificat + programme et envoie l'e-mail à une adresse saisie (rien enregistré)
-            Route::get('/test-send', [InvoiceTestController::class, 'form'])
-                ->name('invoices.test-send');
-            Route::post('/test-send', [InvoiceTestController::class, 'send'])
-                ->name('invoices.test-send.post');
         });
 
 

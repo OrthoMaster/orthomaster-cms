@@ -7,9 +7,6 @@
         <h1 class="page-title">
             <i class="voyager-receipt"></i> Factures
         </h1>
-        <a href="{{ route('invoices.test-send') }}" class="btn btn-default btn-test-send">
-            <i class="voyager-paper-plane"></i> Envoi test
-        </a>
     </div>
 @stop
 
@@ -209,13 +206,6 @@
                                                         </dd>
                                                     @endif
                                                 </dl>
-
-                                                @if (in_array($invoice->contract_organization, ['FIFPL', $opcoOrganization], true))
-                                                    <a href="{{ route('invoices.test-send', ['invoice' => $invoice->id]) }}"
-                                                        class="btn btn-sm btn-default">
-                                                        <i class="voyager-paper-plane"></i> Envoi test
-                                                    </a>
-                                                @endif
 
                                                 @if ($isOpco)
                                                     <form action="{{ route('invoices.opco.send', $invoice->id) }}" method="POST"
@@ -513,10 +503,6 @@
 
         .detail-error {
             color: #c0392b;
-        }
-
-        .btn-test-send {
-            margin: 22px 0 0 10px;
         }
 
         .invoice-org-opco-ep {

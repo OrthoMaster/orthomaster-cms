@@ -1,15 +1,12 @@
 @extends('voyager::master')
 
-@section('page_title', ' Factures — envoi test')
+@section('page_title', ' Test factures')
 
 @section('page_header')
     <div class="container-fluid">
         <h1 class="page-title">
-            <i class="voyager-paper-plane"></i> Envoi test
+            <i class="voyager-paper-plane"></i> Test factures
         </h1>
-        <a href="{{ route('invoices.list') }}" class="btn btn-default">
-            <i class="voyager-angle-left"></i> Factures
-        </a>
     </div>
 @stop
 
@@ -31,7 +28,7 @@
                             </span>
                         </p>
 
-                        <form action="{{ route('invoices.test-send.post') }}" method="POST">
+                        <form action="{{ route('test-invoices.send') }}" method="POST">
                             @csrf
 
                             <div class="form-group @error('invoice_id') has-error @enderror">
@@ -102,10 +99,6 @@
 
 @section('css')
     <style>
-        .page-title + .btn {
-            margin: 22px 0 0 10px;
-        }
-
         .test-intro {
             margin-bottom: 18px;
         }

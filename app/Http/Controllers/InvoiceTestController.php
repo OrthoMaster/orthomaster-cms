@@ -8,17 +8,17 @@ use Illuminate\Support\Facades\Log;
 use Throwable;
 
 /**
- * CMS — Factures → « Envoi test » : refait facture + certificat + programme d'une facture existante
+ * Test admin /admin/dashboard/test-invoices (hors menu) : refait facture + certificat + programme d'une facture existante
  * et envoie l'e-mail de fin de formation à l'adresse saisie. Rien n'est enregistré.
  */
 class InvoiceTestController extends Controller
 {
     public function __construct(private InvoiceTestSendService $tester) {}
 
-    /** GET /admin/dashboard/invoices/test-send */
+    /** GET /admin/dashboard/test-invoices */
     public function form(Request $request)
     {
-        return view('invoices.test-send', [
+        return view('invoices.test-invoices', [
             'candidates' => $this->tester->candidates(),
             'selected'   => (string) old('invoice_id', $request->query('invoice', '')),
             'email'      => old('email', $request->user()?->email),
@@ -26,7 +26,7 @@ class InvoiceTestController extends Controller
         ]);
     }
 
-    /** POST /admin/dashboard/invoices/test-send */
+    /** POST /admin/dashboard/test-invoices */
     public function send(Request $request)
     {
         $data = $request->validate([
@@ -48,7 +48,7 @@ class InvoiceTestController extends Controller
         }
 
         return redirect()
-            ->route('invoices.test-send', ['invoice' => $data['invoice_id']])
+            ->route('test-invoices', ['invoice' => $data['invoice_id']])
             ->withInput()
             ->with('test_send_result', $result + ['email' => $data['email']])
             ->with('message', "E-mail test de la facture {$result['invoice_no']} envoyé à {$data['email']}.")
