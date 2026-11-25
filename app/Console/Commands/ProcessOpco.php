@@ -14,7 +14,9 @@ use Illuminate\Console\Command;
  *   php artisan opco:process --run --exclude=3,7     sans ces conventions (id), p. ex. déjà facturées à la main dans Odoo
  *   php artisan opco:process --run --no-email        facture + attestation, sans e-mail aux apprenants
  *   ... --csv=storage/app/opco.csv                   rapport en CSV
- *   ... --force                                      sans confirmation (tâche planifiée)
+ *   ... --since=2026-10-25                           seulement les conventions signées depuis cette date
+ *   ... --force                                      sans confirmation
+ *   php artisan opco:process --run --auto            tâche quotidienne : conventions signées depuis OPCO_AUTO_SINCE
  *
  * Formation en cours (signature + 1 mois pas atteint) : facture seulement, datée de signature + 1 mois ;
  * attestation et e-mails lors d'un passage après cette date. Rejouable sans doublon.
@@ -27,6 +29,8 @@ class ProcessOpco extends Command
         {--exclude= : Laisser de côté ces conventions (id séparés par des virgules)}
         {--no-email : Ne pas envoyer les certificats aux apprenants}
         {--csv= : Écrire le rapport dans ce fichier CSV}
+        {--since= : Seulement les conventions signées à partir de cette date (AAAA-MM-JJ)}
+        {--auto : Tâche planifiée : --since = services.opco.auto_since (OPCO_AUTO_SINCE), sans confirmation}
         {--force : Ne pas demander de confirmation (tâche planifiée)}';
 
     protected $description = 'OPCO-EP : facture, attestation et certificats aux apprenants pour toutes les conventions signées';
@@ -34,13 +38,26 @@ class ProcessOpco extends Command
     public function handle(OpcoInvoiceService $opco): int
     {
         $dryRun = !$this->option('run');
+        $since = $this->option('since');
+        if ($this->option('auto')) {
+            // Tâche quotidienne : jamais les anciennes conventions (rattrapage à la main, avec --exclude)
+            $since = config('services.opco.auto_since');
+            if (!$since) {
+                $this->warn('OPCO_AUTO_SINCE non défini : tâche quotidienne OPCO-EP ignorée.');
+                return Command::SUCCESS;
+            }
+        }
         $ids = fn (?string $v) => array_values(array_filter(array_map('intval', explode(',', (string) $v))));
 
         $this->info($dryRun
             ? 'SIMULATION — rien ne sera créé ni envoyé (ajoutez --run pour le faire).'
             : 'EXÉCUTION — factures Odoo, attestations et e-mails réels.');
 
-        if (!$dryRun && !$this->option('force') && !$this->confirm('Créer les factures dans Odoo et envoyer les e-mails maintenant ?', false)) {
+        if ($since) {
+            $this->info("Conventions signées à partir du {$since}.");
+        }
+
+        if (!$dryRun && !$this->option('force') && !$this->option('auto') && !$this->confirm('Créer les factures dans Odoo et envoyer les e-mails maintenant ?', false)) {
             return Command::FAILURE;
         }
 
@@ -58,7 +75,8 @@ class ProcessOpco extends Command
                 } else {
                     $this->line($line);
                 }
-            }
+            },
+            $since
         );
 
         $count = collect($rows)->countBy('status');

@@ -46,9 +46,12 @@ Schedule::command('fifpl:send-invoices')
     ->dailyAt('08:15')
     ->timezone('Europe/Paris');
 
-// OPCO-EP : traitement complet (facture, attestation, certificats aux apprenants) — désactivé pour l'instant,
-// à lancer à la main : php artisan opco:process (simulation) puis --run. Pour l'automatiser :
-// Schedule::command('opco:process --run --force')->dailyAt('08:30')->timezone('Europe/Paris');
+// OPCO-EP : chaque jour, conventions signées depuis OPCO_AUTO_SINCE — facture dès le lendemain de la signature
+// (datée signature + 1 mois), puis à la fin de la formation attestation + certificat à chaque apprenant.
+Schedule::command('opco:process --run --auto')
+    ->dailyAt('08:30')
+    ->timezone('Europe/Paris')
+    ->withoutOverlapping(120);
 
 // Sales
 Schedule::command('sales:update-assignments')

@@ -100,9 +100,10 @@ class OpcoInvoiceService
      * @param  int[]     $exclude    conventions à laisser de côté (id), p. ex. déjà facturées à la main
      * @param  bool      $sendEmails false : facture + attestation, sans e-mail
      * @param  callable|null $report fn(array $row) appelée après chaque convention
+     * @param  string|null $since    seulement les conventions signées à partir de cette date (Y-m-d)
      * @return array<int, array{contract: string, company: string, signed: string, end: string, steps: string[], status: string, error: ?string}>
      */
-    public function processAll(bool $dryRun = true, array $only = [], array $exclude = [], bool $sendEmails = true, ?callable $report = null): array
+    public function processAll(bool $dryRun = true, array $only = [], array $exclude = [], bool $sendEmails = true, ?callable $report = null, ?string $since = null): array
     {
         $lock = Cache::lock('opco-process', 3600);
         if (!$dryRun && !$lock->get()) {
@@ -115,6 +116,7 @@ class OpcoInvoiceService
                 ->where('status', Status::ACTIVE->value)
                 ->when($only, fn ($q) => $q->whereIn('id', $only))
                 ->when($exclude, fn ($q) => $q->whereNotIn('id', $exclude))
+                ->when($since, fn ($q) => $q->where('created_at', '>=', Carbon::parse($since)->startOfDay()))
                 ->orderBy('id')
                 ->get();
             $companies = Company::whereIn('id', $contracts->pluck('company_id')->filter()->unique())->pluck('name', 'id');
