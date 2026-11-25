@@ -393,7 +393,7 @@
                     <td class="item-desc">
                         <div class="item-title">[V-PAO] Formation : {{ $item->package->name }}</div>
                         <div class="item-detail">FORMATION sur le thème S10-007 - Orthopédie</div>
-                        <div class="item-detail">E-learning ORTHOMASTER / Une formation destinée au professionnels de santé
+                        <div class="item-detail">E-learning ORTHOMASTER / Une formation destinée aux professionnels de santé
                             pour bien délivrer les Dispositifs Médicaux de petit appareillage orthopédique
                             (orthèses et attelles de série).</div>
                     </td>
