@@ -32,17 +32,16 @@
                         </div>
 
                         @if ($opcoPending->isNotEmpty())
-                            <form class="opco-form" action="{{ route('invoices.opco.generate') }}" method="POST"
-                                onsubmit="var o = this.contract_id.options[this.contract_id.selectedIndex]; return !!this.contract_id.value && confirm('Créer dans Odoo la facture de la convention ' + o.dataset.no + ' ?\n\nVérifiez d\'abord qu\'aucune facture n\'a déjà été faite à la main pour cette convention : une facture validée ne s\'annule que par un avoir.');">
+                            <form class="opco-form" id="opco-form" action="{{ route('invoices.opco.generate') }}" method="POST"
+                                onsubmit="if (!this.contract_id.value) { alert('Choisissez une convention dans la liste.'); return false; } return confirm('Créer dans Odoo la facture de la convention ' + this.dataset.no + ' ?\n\nVérifiez d\'abord qu\'aucune facture n\'a déjà été faite à la main pour cette convention : une facture validée ne s\'annule que par un avoir.');">
                                 @csrf
-                                <select name="contract_id" class="form-control opco-contract" required>
-                                    <option value="">Choisir une convention…</option>
-                                    @foreach ($opcoPending as $c)
-                                        <option value="{{ $c->id }}" data-no="{{ $c->no }}">
-                                            {{ $c->no }} · {{ $c->company }} · signée le {{ $c->signed_at }}
-                                        </option>
-                                    @endforeach
-                                </select>
+                                {{-- Recherche : 3 caractères au moins, 3 propositions au plus --}}
+                                <div class="opco-search">
+                                    <input type="text" class="form-control" id="opco-contract-search" autocomplete="off"
+                                        placeholder="Rechercher une convention (n°, entreprise) — 3 caractères minimum">
+                                    <input type="hidden" name="contract_id" id="opco-contract-id">
+                                    <ul class="opco-suggestions" id="opco-suggestions"></ul>
+                                </div>
                                 <button type="submit" class="btn btn-primary">
                                     <i class="voyager-receipt"></i> Créer la facture
                                 </button>
@@ -562,9 +561,52 @@
             margin: 0;
         }
 
-        .opco-form .opco-contract {
+        .opco-search {
+            position: relative;
             flex: 1;
             min-width: 0;
+        }
+
+        .opco-suggestions {
+            display: none;
+            position: absolute;
+            z-index: 20;
+            top: 100%;
+            left: 0;
+            right: 0;
+            margin: 2px 0 0;
+            padding: 4px 0;
+            list-style: none;
+            background: #fff;
+            border: 1px solid #dfe3e8;
+            border-radius: 4px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+        }
+
+        .opco-suggestions li {
+            padding: 8px 12px;
+            cursor: pointer;
+            line-height: 1.35;
+        }
+
+        .opco-suggestions li:hover,
+        .opco-suggestions li.active {
+            background: #f3f6f9;
+        }
+
+        .opco-suggestions .sug-no {
+            font-weight: 600;
+            color: #2b3a4a;
+        }
+
+        .opco-suggestions .sug-meta {
+            font-size: 12px;
+            color: #76838f;
+        }
+
+        .opco-suggestions .sug-empty {
+            cursor: default;
+            color: #76838f;
         }
 
         .filters {
@@ -613,5 +655,63 @@
                 $('#virementModal').modal('show');
             });
         });
-    </script>
+    
+            /* ---------- OPCO-EP : recherche de convention (3 caractères, 3 propositions) ---------- */
+            (function () {
+                var contracts = @json($opcoPending);
+                var $input = $('#opco-contract-search'), $id = $('#opco-contract-id'),
+                    $list = $('#opco-suggestions'), form = document.getElementById('opco-form');
+                if (!$input.length) return;
+
+                var norm = function (v) {
+                    return (v || '').toString().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+                };
+                var esc = function (v) { return $('<div>').text(v).html(); };
+                var current = [], active = -1;
+
+                function choose(c) {
+                    $input.val(c.no + ' · ' + c.company);
+                    $id.val(c.id);
+                    form.dataset.no = c.no;
+                    $list.hide();
+                }
+
+                function render() {
+                    $list.empty();
+                    if (!current.length) {
+                        $list.append('<li class="sug-empty">Aucune convention trouvée</li>');
+                    }
+                    current.forEach(function (c, i) {
+                        $('<li>')
+                            .toggleClass('active', i === active)
+                            .html('<div class="sug-no">' + esc(c.no) + '</div>'
+                                + '<div class="sug-meta">' + esc(c.company) + ' · signée le ' + esc(c.signed_at) + '</div>')
+                            .on('mousedown', function (e) { e.preventDefault(); choose(c); })
+                            .appendTo($list);
+                    });
+                    $list.show();
+                }
+
+                $input.on('input', function () {
+                    $id.val('');
+                    var q = norm($input.val().trim());
+                    if (q.length < 3) { $list.hide(); return; }
+                    current = contracts.filter(function (c) {
+                        return norm(c.no + ' ' + c.company).indexOf(q) !== -1;
+                    }).slice(0, 3);
+                    active = current.length ? 0 : -1;
+                    render();
+                });
+
+                $input.on('keydown', function (e) {
+                    if (!$list.is(':visible') || !current.length) return;
+                    if (e.key === 'ArrowDown') { active = (active + 1) % current.length; render(); e.preventDefault(); }
+                    if (e.key === 'ArrowUp') { active = (active - 1 + current.length) % current.length; render(); e.preventDefault(); }
+                    if (e.key === 'Enter' && active >= 0) { choose(current[active]); e.preventDefault(); }
+                    if (e.key === 'Escape') { $list.hide(); }
+                });
+
+                $input.on('blur', function () { $list.hide(); });
+            })();
+        </script>
 @stop
