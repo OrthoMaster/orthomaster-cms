@@ -61,7 +61,7 @@ class OpcoInvoiceService
     /** Certificat de réalisation : signataire pour l'organisme, lieu de signature, logos. */
     public const CERTIFICATE_SIGNATORY = 'LÊ Guillaume';
     public const CERTIFICATE_PLACE = 'Strasbourg';
-    public const CERTIFICATE_LOGO = 'https://content-orthomaster-prod.s3.eu-west-1.amazonaws.com/application-data/logo-v2/pdf/logo.png';
+    public const CERTIFICATE_LOGO = 'https://content-orthomaster-prod.s3.eu-west-1.amazonaws.com/application-data/logo-v2/pdf/logo_primary_1024.png';
     public const CERTIFICATE_BRAND = 'https://content-orthomaster-prod.s3.eu-west-1.amazonaws.com/application-data/logo-v2/pdf/brand_name_primary.png';
 
     public function __construct(private OdooService $odoo) {}
