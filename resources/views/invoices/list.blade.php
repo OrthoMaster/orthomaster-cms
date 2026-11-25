@@ -561,6 +561,17 @@
             margin: 0;
         }
 
+        /* La liste de propositions doit passer par-dessus la carte suivante */
+        .panel.opco-section,
+        .panel.opco-section .panel-body {
+            overflow: visible;
+        }
+
+        .panel.opco-section {
+            position: relative;
+            z-index: 30;
+        }
+
         .opco-search {
             position: relative;
             flex: 1;
@@ -570,7 +581,7 @@
         .opco-suggestions {
             display: none;
             position: absolute;
-            z-index: 20;
+            z-index: 1000;
             top: 100%;
             left: 0;
             right: 0;
