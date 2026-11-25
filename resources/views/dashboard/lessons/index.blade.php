@@ -7,6 +7,12 @@
         <h1 class="page-title">
             <i class="voyager-book"></i> Leçons
         </h1>
+        <a href="{{ route('dashboard.lessons.suivi') }}#satisfaction" class="btn btn-warning btn-add-new">
+            <i class="voyager-star-two"></i> <span>Satisfaction</span>
+        </a>
+        <a href="{{ route('dashboard.lessons.suivi') }}#completion" class="btn btn-warning btn-add-new">
+            <i class="voyager-check"></i> <span>Complétion</span>
+        </a>
     </div>
 @stop
 

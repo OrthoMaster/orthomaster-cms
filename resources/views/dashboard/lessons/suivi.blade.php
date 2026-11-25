@@ -55,10 +55,10 @@
                                 <h3 class="panel-title"><i class="voyager-download"></i> Export Excel</h3>
                             </div>
                             <div class="panel-body export-actions">
-                                <a href="#" class="btn btn-success js-export" data-url="{{ route('dashboard.lessons.suivi.export') }}">
+                                <a href="#" class="btn btn-warning js-export" data-url="{{ route('dashboard.lessons.suivi.export') }}">
                                     <i class="voyager-star-two"></i> Satisfaction
                                 </a>
-                                <a href="#" class="btn btn-success js-export" data-url="{{ route('dashboard.lessons.suivi.export-completion') }}">
+                                <a href="#" class="btn btn-warning js-export" data-url="{{ route('dashboard.lessons.suivi.export-completion') }}">
                                     <i class="voyager-book"></i> Complétion
                                 </a>
                             </div>
@@ -68,7 +68,7 @@
 
                 {{-- ============ KPI ============ --}}
                 <div class="row row-eq-height">
-                    <div class="col-md-6 col-sm-12">
+                    <div class="col-md-6 col-sm-12" id="completion">
                         <div class="panel panel-bordered kpi-panel kpi-blue">
                             <div class="panel-body">
                                 <i class="voyager-book kpi-icon"></i>
@@ -87,7 +87,7 @@
                         </div>
                     </div>
 
-                    <div class="col-md-6 col-sm-12">
+                    <div class="col-md-6 col-sm-12" id="satisfaction">
                         <div class="panel panel-bordered kpi-panel kpi-green">
                             <div class="panel-body">
                                 <i class="voyager-star-two kpi-icon"></i>
@@ -236,9 +236,8 @@
         .filter-actions .btn { margin: 0; width: 100%; }
         .page-title + .btn-add-new { margin-top: 18px; }
 
-        /* --- Export : boutons alignés sur le bas des champs de la carte Période --- */
-        .export-actions { display: flex; gap: 10px; }
-        .export-actions .btn { flex: 1 1 0; margin: 25px 0 0; }
+        /* --- Export : boutons à la hauteur du bouton Appliquer --- */
+        .export-actions .btn { margin: 25px 8px 0 0; }
 
         /* --- KPI --- */
         .kpi-foot { margin-top: 12px; padding-top: 10px; border-top: 1px solid #eceff3; color: #8a9199; font-size: 12px; }
