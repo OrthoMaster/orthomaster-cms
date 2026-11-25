@@ -12,7 +12,7 @@ use Illuminate\Queue\SerializesModels;
 
 /**
  * Fin de formation OPCO-EP : à chaque apprenant, son certificat de réalisation
- * (joint par OpcoInvoiceService::certificateMail()). Pas de facture.
+ * (sa page de l'attestation, jointe par OpcoInvoiceService::sendCertificates()). Pas de facture.
  */
 class OpcoCertificateMail extends Mailable
 {

@@ -222,15 +222,26 @@
                                                 </dl>
 
                                                 @if ($isOpco)
-                                                    {{-- Attestation = PDF de tous les certificats ; e-mails aux apprenants seulement si OPCO_SEND_CERTIFICATES --}}
-                                                    <form action="{{ route('invoices.opco.attestation', $invoice->id) }}" method="POST"
-                                                        onsubmit="return confirm('{{ $invoice->certification ? 'Recréer' : 'Créer' }} l\'attestation de la facture {{ $invoice->no }}{{ $opcoSendCertificates ? ' et envoyer à chaque apprenant son certificat' : '' }} ?');">
-                                                        @csrf
-                                                        <button type="submit" class="btn btn-sm btn-primary">
-                                                            <i class="voyager-certificate"></i>
-                                                            {{ $invoice->certification ? 'Recréer l\'attestation' : 'Créer l\'attestation' }}
-                                                        </button>
-                                                    </form>
+                                                    @if (!$invoice->certification)
+                                                        {{-- 1) Attestation = PDF de tous les certificats, sur S3. N'envoie rien. --}}
+                                                        <form action="{{ route('invoices.opco.attestation', $invoice->id) }}" method="POST"
+                                                            onsubmit="return confirm('Créer l\'attestation de la facture {{ $invoice->no }} ? Aucun e-mail ne sera envoyé.');">
+                                                            @csrf
+                                                            <button type="submit" class="btn btn-sm btn-primary">
+                                                                <i class="voyager-certificate"></i> Créer l'attestation
+                                                            </button>
+                                                        </form>
+                                                    @else
+                                                        {{-- 2) Après vérification : chaque apprenant reçoit SA page de l'attestation --}}
+                                                        <form action="{{ route('invoices.opco.certificates', $invoice->id) }}" method="POST"
+                                                            onsubmit="return confirm('{{ $invoice->sent_cnt > 0 ? 'Les certificats ont déjà été envoyés. Les renvoyer' : 'Envoyer' }} à chaque apprenant son certificat de réalisation ?');">
+                                                            @csrf
+                                                            <button type="submit" class="btn btn-sm {{ $invoice->sent_cnt > 0 ? 'btn-default' : 'btn-primary' }}">
+                                                                <i class="voyager-paper-plane"></i>
+                                                                {{ $invoice->sent_cnt > 0 ? 'Renvoyer les certificats' : 'Envoyer les certificats aux apprenants' }}
+                                                            </button>
+                                                        </form>
+                                                    @endif
                                                 @endif
                                             </div>
 

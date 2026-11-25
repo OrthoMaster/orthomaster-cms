@@ -249,6 +249,9 @@ Route::group(['prefix' => 'admin', 'middleware' => ['cmsAdmin']], function () {
             Route::post('/{invoiceId}/opco-attestation', [InvoiceController::class, 'createOpcoAttestation'])
                 ->whereNumber('invoiceId')
                 ->name('invoices.opco.attestation');
+            Route::post('/{invoiceId}/opco-certificates', [InvoiceController::class, 'sendOpcoCertificates'])
+                ->whereNumber('invoiceId')
+                ->name('invoices.opco.certificates');
         });
 
 

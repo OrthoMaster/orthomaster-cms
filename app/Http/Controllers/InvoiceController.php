@@ -129,7 +129,6 @@ class InvoiceController extends Controller
             'invoices' => $invoices,
             'opcoPending' => $this->opcoContractOptions(),
             'opcoOrganization' => OpcoInvoiceService::ORGANIZATION,
-            'opcoSendCertificates' => (bool) config('services.opco.send_certificates'),
             'search'   => $search,
             'status'   => $status,
             'statuses' => self::STATUSES,
@@ -247,8 +246,7 @@ class InvoiceController extends Controller
     }
 
     /**
-     * (Re)crée l'attestation d'une facture OPCO-EP : PDF de tous les certificats, sur S3 ; envoie aussi à chaque
-     * apprenant son certificat si OPCO_SEND_CERTIFICATES=true (désactivé pendant les tests).
+     * Crée l'attestation d'une facture OPCO-EP (PDF de tous les certificats, sur S3). N'envoie rien.
      * POST /dashboard/invoices/{invoice}/opco-attestation
      */
     public function createOpcoAttestation(int $invoiceId)
@@ -258,7 +256,7 @@ class InvoiceController extends Controller
         abort_unless($opco->isOpcoInvoice($invoice->id), 404);
 
         try {
-            $result = $opco->createAttestation($invoice);
+            $opco->createAttestation($invoice);
         } catch (Exception $e) {
             Log::error($e->getMessage(), ['inv-' . $invoiceId, 'opco-attestation']);
             return back()
@@ -266,14 +264,41 @@ class InvoiceController extends Controller
                 ->with('alert-type', 'error');
         }
 
-        $message = "Attestation de la facture {$invoice->no} créée.";
-        $message .= $result['sent'] === null
-            ? ' Aucun e-mail envoyé (envoi aux apprenants désactivé).'
-            : " Certificat envoyé à {$result['sent']} apprenant(s).";
+        return back()
+            ->with('message', "Attestation de la facture {$invoice->no} créée. Vérifiez-la, puis envoyez les certificats aux apprenants.")
+            ->with('alert-type', 'success');
+    }
+
+    /**
+     * Envoie à chaque apprenant SA page de l'attestation (après vérification).
+     * POST /dashboard/invoices/{invoice}/opco-certificates
+     */
+    public function sendOpcoCertificates(int $invoiceId)
+    {
+        $opco = app(OpcoInvoiceService::class);
+        $invoice = Invoice::findOrFail($invoiceId);
+        abort_unless($opco->isOpcoInvoice($invoice->id), 404);
+
+        try {
+            $result = $opco->sendCertificates($invoice);
+        } catch (Exception $e) {
+            Log::error($e->getMessage(), ['inv-' . $invoiceId, 'opco-certificates']);
+            return back()
+                ->with('message', 'Certificats non envoyés : ' . $e->getMessage())
+                ->with('alert-type', 'error');
+        }
+
+        $message = "Certificat envoyé à {$result['sent']} apprenant(s).";
+        if ($result['no_email']) {
+            $message .= ' Sans e-mail : ' . implode(', ', $result['no_email']) . '.';
+        }
+        if ($result['failed']) {
+            $message .= ' Échec : ' . implode(', ', $result['failed']) . ' (voir les logs).';
+        }
 
         return back()
             ->with('message', $message)
-            ->with('alert-type', 'success');
+            ->with('alert-type', ($result['no_email'] || $result['failed']) ? 'warning' : 'success');
     }
 
     // Generate normal invoice

@@ -14,6 +14,7 @@ use App\Organization;
 use App\Services\OdooService;
 use App\Status;
 use Barryvdh\DomPDF\Facade\Pdf;
+use setasign\Fpdi\Tcpdf\Fpdi;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
@@ -260,8 +261,8 @@ class OpcoInvoiceService
     }
 
     /**
-     * Fin de formation (tâche opco:send-documents) : attestation si elle manque, puis envoi à chaque apprenant
-     * de SON certificat (si services.opco.send_certificates). La facture n'est pas envoyée.
+     * Fin de formation (tâche opco:send-documents, désactivée pour l'instant) : attestation si elle manque,
+     * puis envoi à chaque apprenant de SON certificat. La facture n'est pas envoyée.
      */
     public function send(Invoice $invoice): bool
     {
@@ -275,26 +276,21 @@ class OpcoInvoiceService
             return false;
         }
 
-        if (!config('services.opco.send_certificates')) {
-            Log::info('OPCO : envoi des certificats désactivé (OPCO_SEND_CERTIFICATES)', ['opco-invoice', 'inv-' . $invoice->id]);
-            return false;
-        }
-
-        return $this->sendCertificatesToLearners($invoice, $contract) > 0;
+        return $this->sendCertificates($invoice)['sent'] > 0;
     }
 
     /**
-     * Bouton « Créer l'attestation » du CMS : (re)crée l'attestation = PDF de tous les certificats de la convention,
-     * enregistrée sur S3 (invoices.certification) ; puis, si services.opco.send_certificates, envoie à chaque
-     * apprenant son propre certificat.
-     *
-     * @return array{url: string, sent: int|null}  sent = null quand l'envoi est désactivé
+     * Bouton « Créer l'attestation » : PDF de tous les certificats (une page par apprenant), sur S3
+     * (invoices.certification). Une seule fois : c'est ce document, vérifié, qui sera découpé et envoyé.
      */
-    public function createAttestation(Invoice $invoice): array
+    public function createAttestation(Invoice $invoice): string
     {
         $contract = $this->contractOf($invoice);
         if (!$contract) {
             throw new RuntimeException("Facture {$invoice->no} : convention OPCO introuvable.");
+        }
+        if ($invoice->certification) {
+            throw new RuntimeException("L'attestation de la facture {$invoice->no} existe déjà.");
         }
 
         $url = $this->generateCertificates($invoice, $contract);
@@ -302,48 +298,96 @@ class OpcoInvoiceService
             throw new RuntimeException("Facture {$invoice->no} : attestation non créée.");
         }
 
-        $sent = config('services.opco.send_certificates')
-            ? $this->sendCertificatesToLearners($invoice, $contract)
-            : null;
-
-        return ['url' => $url, 'sent' => $sent];
+        return $url;
     }
 
-    /** Chaque apprenant reçoit SON certificat. Retourne le nombre d'e-mails partis. */
-    private function sendCertificatesToLearners(Invoice $invoice, Contract $contract): int
+    /**
+     * Bouton « Envoyer les certificats » (après vérification de l'attestation) : chaque apprenant reçoit
+     * SA page de l'attestation enregistrée — exactement le document vérifié, rien n'est refait.
+     *
+     * @return array{sent: int, no_email: string[], failed: string[]}
+     */
+    public function sendCertificates(Invoice $invoice): array
     {
+        $contract = $this->contractOf($invoice);
+        if (!$contract) {
+            throw new RuntimeException("Facture {$invoice->no} : convention OPCO introuvable.");
+        }
+        if (!$invoice->certification) {
+            throw new RuntimeException("Facture {$invoice->no} : créez d'abord l'attestation.");
+        }
+
         $dossier = $this->dossier($contract);
-        $sent = 0;
-        foreach ($dossier['members'] as $learner) {
+        $learners = $dossier['members'];
+        $pages = $this->attestationPages($invoice);
+        if (count($pages) !== $learners->count()) {
+            throw new RuntimeException("Attestation de la facture {$invoice->no} : " . count($pages)
+                . " page(s) pour {$learners->count()} apprenant(s). Rien n'a été envoyé.");
+        }
+
+        $result = ['sent' => 0, 'no_email' => [], 'failed' => []];
+        foreach ($learners->values() as $i => $learner) {
+            $name = trim($learner->first_name . ' ' . $learner->name);
             if (!$learner->email) {
+                $result['no_email'][] = $name;
                 Log::warning('OPCO : apprenant sans e-mail, certificat non envoyé', ['opco-invoice', 'inv-' . $invoice->id, 'user-' . $learner->id]);
                 continue;
             }
             try {
-                Mail::to($learner->email)->send($this->certificateMail($invoice, $contract, $dossier, $learner));
-                $sent++;
+                $mail = (new OpcoCertificateMail($learner, $contract))
+                    ->attachData($pages[$i], $this->certificateFileName($learner), ['mime' => 'application/pdf']);
+                Mail::to($learner->email)->send($mail);
+                $result['sent']++;
             } catch (Throwable $e) {
+                $result['failed'][] = $name;
                 Log::error('OPCO : certificat non envoyé — ' . $e->getMessage(), ['opco-invoice', 'inv-' . $invoice->id, 'user-' . $learner->id]);
             }
         }
 
-        if ($sent > 0) {
+        if ($result['sent'] > 0) {
             $invoice->update([
                 'sent_at'  => null,
                 'sent_cnt' => (int) $invoice->sent_cnt + 1,
             ]);
         }
 
-        return $sent;
+        return $result;
     }
 
-    /** E-mail d'un apprenant avec son certificat (une page) en pièce jointe. */
-    public function certificateMail(Invoice $invoice, Contract $contract, array $dossier, User $learner): OpcoCertificateMail
+    /** Pages de l'attestation enregistrée, une par apprenant (même ordre que dossier()['members']). */
+    private function attestationPages(Invoice $invoice): array
     {
-        $content = $this->certificatesPdfContent($invoice, $contract, $dossier, collect([$learner]));
+        $content = Storage::disk('s3')->get($this->attestationPath($invoice));
+        if (!$content) {
+            throw new RuntimeException("Attestation de la facture {$invoice->no} introuvable sur S3.");
+        }
 
-        return (new OpcoCertificateMail($learner, $contract))
-            ->attachData($content, $this->certificateFileName($learner), ['mime' => 'application/pdf']);
+        $tmp = tempnam(sys_get_temp_dir(), 'opco-att');
+        file_put_contents($tmp, $content);
+        try {
+            $count = (new Fpdi())->setSourceFile($tmp);
+            $pages = [];
+            for ($i = 1; $i <= $count; $i++) {
+                $one = new Fpdi();
+                $one->setPrintHeader(false);
+                $one->setPrintFooter(false);
+                $one->setSourceFile($tmp);
+                $tpl = $one->importPage($i);
+                $size = $one->getTemplateSize($tpl);
+                $one->AddPage($size['orientation'], [$size['width'], $size['height']]);
+                $one->useTemplate($tpl);
+                $pages[] = $one->Output('', 'S');
+            }
+
+            return $pages;
+        } finally {
+            @unlink($tmp);
+        }
+    }
+
+    public function attestationPath(Invoice $invoice): string
+    {
+        return 'certifications/opco/' . str_replace('/', '_', $invoice->no) . '.pdf';
     }
 
     public function certificateFileName(User $learner): string
@@ -365,7 +409,7 @@ class OpcoInvoiceService
             return null;
         }
 
-        $fileName = 'certifications/opco/' . str_replace('/', '_', $invoice->no) . '.pdf';
+        $fileName = $this->attestationPath($invoice);
         if (!Storage::disk('s3')->put($fileName, $content)) {
             throw new RuntimeException("Facture {$invoice->no} : certificats non enregistrés.");
         }
@@ -460,7 +504,8 @@ class OpcoInvoiceService
             throw new RuntimeException("Convention {$contract->no} : dossier n° " . ($index + 1) . " introuvable dans le panier #{$cart->id}.");
         }
 
-        $members = $cart->members->values();
+        // Ordre fixe (id) : la page n de l'attestation = le n-ième apprenant.
+        $members = $cart->members->sortBy('id')->values();
         if ($members->isEmpty()) {
             throw new RuntimeException("Convention {$contract->no} : aucun apprenant.");
         }
