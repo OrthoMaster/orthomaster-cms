@@ -54,6 +54,13 @@ Schedule::command('opco:process --run --daily')
     ->timezone('Europe/Paris')
     ->withoutOverlapping(120);
 
+// Qualiopi : questionnaire de satisfaction 3 mois après le devis, relance à 6 mois.
+// L'historique (devis avant le 25/08/2026) : une fois, à la main (php artisan satisfaction:send puis --run).
+Schedule::command('satisfaction:send --run --daily')
+    ->dailyAt('10:30')
+    ->timezone('Europe/Paris')
+    ->withoutOverlapping(60);
+
 // Sales
 Schedule::command('sales:update-assignments')
     ->dailyAt('01:00')
