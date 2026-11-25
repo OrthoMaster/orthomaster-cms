@@ -277,18 +277,26 @@
             margin-top: 10px;
         }
 
-        .member-company {
-            margin-top: 6px;
-            font-size: 9pt;
-            color: #555;
+        /* Factures OPCO : description longue sur plusieurs lignes, chiffres en haut de la ligne */
+        .items-table.opco td {
+            vertical-align: top;
         }
 
-        .subrogation {
-            margin-top: 10px;
-            padding: 8px 10px;
-            border-left: 3px solid #eb7b0f;
-            background: #fdf3e8;
-            font-size: 9pt;
+        .item-desc {
+            line-height: 1.35;
+        }
+
+        .item-desc .item-title {
+            font-weight: bold;
+        }
+
+        .item-desc .item-detail {
+            font-size: 8pt;
+            color: #444;
+        }
+
+        .items-table.opco .nowrap {
+            white-space: nowrap;
         }
     </style>
 </head>
@@ -296,22 +304,18 @@
 
 <body>
 
-    <!-- Header : client = OPCO (subrogation), puis OrthoMaster -->
+    <!-- Header -->
     <div class="header no-break">
         <table>
             <tr>
                 <td style="vertical-align: bottom;">
+                    {{-- Client : l'OPCO (subrogation) --}}
                     <div class="client-info">
                         <div class="client-name">{{ $opco['name'] }}</div>
-                        @if ($opco['street'])
-                            <div class="small">{{ $opco['street'] }}</div>
-                        @endif
-                        @if ($opco['zip'] || $opco['city'])
-                            <div class="small">{{ $opco['zip'] }} {{ $opco['city'] }}</div>
-                        @endif
-                        @if ($opco['vat'])
-                            <div class="small"><strong>N° TVA :</strong> {{ $opco['vat'] }}</div>
-                        @endif
+                        @foreach ($opco['address'] as $line)
+                            <div class="small">{{ $line }}</div>
+                        @endforeach
+                        <div class="small"><strong>TVA :</strong> {{ $opco['vat'] }}</div>
                     </div>
                 </td>
                 <td style="text-align: right;">
@@ -332,7 +336,7 @@
         </table>
     </div>
 
-    <!-- Title -->
+    <!-- Contract Title -->
     <div class="contract-title">
         Facture #{{ $invNo }}
     </div>
@@ -343,7 +347,7 @@
             <tr>
                 <td class="info-label">Date de la facture : </td>
                 <td class="info-label">Échéance : </td>
-                <td class="info-label">Convention : </td>
+                <td class="info-label">Référence : </td>
             </tr>
             <tr>
                 <td class="text-center">{{ $date }}</td>
@@ -353,120 +357,79 @@
         </table>
     </div>
 
-    <!-- Entreprise, formation and learners -->
-    <div class="formation-section no-break">
-        <table>
-            <tr>
-                <td>
-                    <div class="section-title">Entreprise adhérente</div>
-                    @if ($client)
-                        <div><strong>{{ $client->name }}</strong></div>
-                        @if ($client->address)
-                            <div class="small">{{ $client->address }}</div>
-                        @endif
-                        @if ($client->postal_code || $client->city)
-                            <div class="small">{{ $client->postal_code }} {{ $client->city }}</div>
-                        @endif
-                        @if ($client->siret)
-                            <div class="small"><strong>N° SIRET :</strong> {{ $client->siret }}</div>
-                        @endif
-                    @else
-                        <div>—</div>
-                    @endif
-
-                    <div class="section-title" style="margin-top: 10px;">Dates de formation</div>
-                    <div>{{ $rangeDate }}</div>
-                </td>
-                <td>
-                    <div class="learners-box">
-                        <div class="section-title">Apprenants</div>
-                        @foreach ($members as $member)
-                            <div class="learner-item">{{ $member->name . ' ' . $member->first_name }}</div>
-                        @endforeach
-                    </div>
-                </td>
-            </tr>
-        </table>
-    </div>
-
     <br />
 
-    <!-- Items Table (comme le devis signé) -->
-    <table class="items-table">
+    <!-- Items Table (comme le devis OPCO, description complète) -->
+    <table class="items-table opco">
         <thead>
             <tr>
-                <th style="width: 35%;">DESCRIPTION</th>
+                <th style="width: 44%;">DESCRIPTION</th>
                 <th class="text-right" style="width: 10%;">HEURES</th>
-                <th class="text-right" style="width: 20%;">PRIX UNITAIRE</th>
-                <th class="text-right" style="width: 15%;">QUANTITÉ</th>
-                <th class="text-right" style="width: 20%;">MONTANT HT</th>
+                <th class="text-right" style="width: 16%;">PRIX UNITAIRE</th>
+                <th class="text-right" style="width: 14%;">QUANTITÉ</th>
+                <th class="text-right" style="width: 16%;">MONTANT HT</th>
             </tr>
         </thead>
         <tbody>
             @foreach ($items as $item)
                 <tr>
-                    <td>{{ $item->package->name }}</td>
-                    <td class="text-right">{{ number_format($item->package->duration / 60, 2, ',', ' ') }}</td>
-                    <td class="text-right">{{ number_format(($item->package->duration / 60) * $unitPrice, 2, ',', ' ') }} €</td>
-                    <td class="text-right">{{ number_format(count($members), 2, ',', ' ') }}
-                        {{ count($members) > 1 ? 'Unité(s)' : 'Unité' }}</td>
-                    <td class="text-right">{{ number_format(($item->package->duration / 60) * $unitPrice * count($members), 2, ',', ' ') }} €</td>
+                    <td class="item-desc">
+                        <div class="item-title">[V-PAO] Formation : {{ $item->package->name }}</div>
+                        <div class="item-detail">FORMATION sur le thème S10-007 - Orthopédie</div>
+                        <div class="item-detail">E-learning ORTHOMASTER / Une formation destinée au professionels de santé
+                            pour bien délivrer les Dispositifs Médicaux de petit appareillage orthopédique
+                            (orthèses et attelles de série).</div>
+                    </td>
+                    <td class="text-right nowrap">
+                        {{ number_format($item->package->duration / 60, 2, ',', ' ') }}
+                    </td>
+                    <td class="text-right nowrap">
+                        {{ number_format(($item->package->duration / 60) * $unitPrice, 2, ',', ' ') }} €
+                    </td>
+                    <td class="text-right nowrap">
+                        {{ number_format(count($members), 2, ',', ' ') }}
+                        {{ count($members) > 1 ? 'Unité(s)' : 'Unité' }}
+                    </td>
+                    <td class="text-right nowrap">
+                        {{ number_format(($item->package->duration / 60) * $unitPrice * count($members), 2, ',', ' ') }} €
+                    </td>
                 </tr>
             @endforeach
 
+            <!-- Subtotal Row -->
             <tr class="total-row">
                 <td colspan="4" class="text-right">Montant hors taxes</td>
-                <td class="text-right">{{ number_format($amount_ht, 2, ',', ' ') }} €</td>
+                <td class="text-right nowrap">{{ number_format($amount_ht, 2, ',', ' ') }} €</td>
             </tr>
+
+            <!-- TVA Row -->
             <tr class="total-row">
                 <td colspan="4" class="text-right">TVA {{ rtrim(rtrim(number_format($tva, 2, ',', ''), '0'), ',') }}%</td>
-                <td class="text-right">{{ number_format($tva_amount, 2, ',', ' ') }} €</td>
+                <td class="text-right nowrap">{{ number_format($tva_amount, 2, ',', ' ') }} €</td>
             </tr>
+
+            <!-- Total Row -->
             <tr class="grand-total">
                 <td colspan="4" class="text-right"><strong>Total</strong></td>
-                <td class="text-right"><strong>{{ number_format($amount, 2, ',', ' ') }} €</strong></td>
+                <td class="text-right nowrap"><strong>{{ number_format($amount, 2, ',', ' ') }} €</strong></td>
             </tr>
-
         </tbody>
     </table>
-
-    <div class="subrogation no-break">
-        Facture émise au nom de {{ $opco['name'] }} dans le cadre de la subrogation de paiement :
-        l'opérateur de compétences règle directement {{ $company['name'] }} pour le compte de
-        l'entreprise adhérente{{ $client ? ' ' . $client->name : '' }}.
-    </div>
 
     <!-- Footer -->
     <div class="footer">
         <div>Communication de paiement : <strong>{{ $invNo }}</strong></div>
-        <div>Option pour le paiement de la taxe d'après les débits</div>
+        <div>Tax exigibility on debits</div>
         <div class="terms-link">
             <span>Conditions générales de vente :</span> {{ $company['terms_url'] }}
         </div>
 
-        <!-- Signature Section -->
-        <table style="width: 100%">
-            <tbody>
-                <tr>
-                    <td style="width: 50%">
-                        <div class="signature-section">
-                            @if (isset($company['signature']))
-                                <img src="{{ $company['signature'] }}" alt="Signature" height="100"
-                                    class="signature-image">
-                            @endif
-                        </div>
-                    </td>
-                    <td style="width: 50%; font-size: 10pt;">
-                        <div><strong>Coordonnées Bancaire</strong></div>
-                        <div><strong>RIB :</strong> {{ $company['rib'] }}</div>
-                        <div><strong>IBAN :</strong> {{ $company['iban'] }}</div>
-                        <div><strong>BIC / SWIFT :</strong> {{ $company['bic'] }}</div>
-                        <div><strong>Domiciliation :</strong> {{ $company['domi'] }}</div>
-                        <div><strong>Agence :</strong> {{ $company['agent'] }}</div>
-                    </td>
-                </tr>
-            </tbody>
-        </table>
+        <!-- Signature Section (sans coordonnées bancaires) -->
+        <div class="signature-section">
+            @if (isset($company['signature']))
+                <img src="{{ $company['signature'] }}" alt="Signature" height="100" class="signature-image">
+            @endif
+        </div>
 
         <!-- Footer Contact Info -->
         <div class="footer-info">

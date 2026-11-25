@@ -33,7 +33,8 @@ use Throwable;
  *
  * - Facture Odoo (numéro donné par Odoo, comme FIFPL), client = OPCO EP (res.partner 20) :
  *   l'OPCO règle directement OrthoMaster (subrogation). L'entreprise et les apprenants figurent sur la facture.
- * - Date de facture = signature + 1 mois (fin de formation), échéance = signature + 2 mois.
+ * - Date de facture = signature + 1 mois (fin de formation) ; convention rattrapée après cette date :
+ *   date du jour de création. Échéance = date de facture.
  * - Créée dès que possible (tâche du soir ou bouton CMS) ; e-mail au manager seulement à la date de facture
  *   (invoices.sent_at = date prévue d'envoi, remise à null une fois envoyé, sent_cnt + 1).
  * - Conventions anciennes (date de facture déjà passée) : documents créés, pas d'e-mail automatique ;
@@ -46,6 +47,13 @@ class OpcoInvoiceService
 
     /** Client Odoo des factures : OPCO EP. */
     public const ODOO_PARTNER_ID = 20;
+
+    /** Client imprimé sur la facture (en-tête gauche). */
+    public const OPCO_CLIENT = [
+        'name'    => 'OPCO des Entreprises de Proximité',
+        'address' => ['4 rue Colonel Driant', '75046 Paris Cedex 1', 'France'],
+        'vat'     => 'FR21879036895',
+    ];
 
     /** TVA 20 % dans Odoo. */
     public const ODOO_TAX_ID = 3;
@@ -144,10 +152,11 @@ class OpcoInvoiceService
     {
         $dossier = $this->dossier($contract);
         $signedAt = $this->signedAt($contract);
-        $invoiceDate = $signedAt->copy()->addMonth();
-        $dueDate = $signedAt->copy()->addMonths(2);
+        $plannedDate = $signedAt->copy()->addMonth()->startOfDay();
+        $invoiceDate = $this->invoiceDate($contract, now());
+        $dueDate = $invoiceDate;
 
-        $invoice = DB::transaction(function () use ($contract, $dossier, $invoiceDate, $dueDate) {
+        $invoice = DB::transaction(function () use ($contract, $dossier, $plannedDate, $invoiceDate, $dueDate) {
             $locked = Contract::whereKey($contract->id)->lockForUpdate()->first();
             if ($locked->invoice_id && ($existing = Invoice::find($locked->invoice_id))) {
                 return $existing;
@@ -171,7 +180,6 @@ class OpcoInvoiceService
                 throw new RuntimeException("Odoo : facture non créée pour la convention {$contract->no}.");
             }
 
-            $partner = $this->opcoPartner();
             $company = $dossier['company'];
 
             $invoice = Invoice::create([
@@ -186,9 +194,9 @@ class OpcoInvoiceService
                 'tva_amount'     => $dossier['tva_amount'],
                 'amount_ht'      => $dossier['amount_ht'],
                 'issued_at'      => now(),
-                // Envoi au manager à la date de facture ; pas d'envoi automatique si elle est déjà passée.
-                'sent_at'        => $invoiceDate->isBefore(today()) ? null : $invoiceDate,
-                'client_name'    => $partner['name'],
+                // Envoi au manager à la date de facture ; convention rattrapée (date prévue passée) : pas d'envoi automatique.
+                'sent_at'        => $plannedDate->isBefore(today()) ? null : $plannedDate,
+                'client_name'    => self::OPCO_CLIENT['name'],
                 'client_email'   => $dossier['manager']->email,
                 'client_company' => $company?->name,
                 'client_address' => $company ? trim($company->address . ', ' . $company->postal_code . ' ' . $company->city, ' ,') : null,
@@ -412,6 +420,18 @@ class OpcoInvoiceService
         return $raw ? Carbon::parse($raw) : now();
     }
 
+    /**
+     * Date de la facture : signature + 1 mois ; si la facture est créée plus tard (rattrapage d'une
+     * convention dépassée), le jour de sa création. $issuedAt = invoices.issued_at (null : aujourd'hui).
+     */
+    public function invoiceDate(Contract $contract, $issuedAt = null): Carbon
+    {
+        $planned = $this->signedAt($contract)->copy()->addMonth()->startOfDay();
+        $issued = Carbon::parse($issuedAt ?? now())->startOfDay();
+
+        return $issued->greaterThan($planned) ? $issued : $planned;
+    }
+
     /** Rang du dossier dans le panier (0 = premier) : suffixe « _n » du numéro de convention. */
     public function dossierIndex(Contract $contract): int
     {
@@ -468,17 +488,15 @@ class OpcoInvoiceService
     public function invoicePdfContent(Invoice $invoice, Contract $contract, ?array $dossier = null): string
     {
         $dossier ??= $this->dossier($contract);
-        $signedAt = $this->signedAt($contract);
+        $invoiceDate = $this->invoiceDate($contract, $invoice->issued_at);
 
         $pdf = Pdf::loadView('pdf.opco_invoice', [
             'company'    => GeneratePdfController::COMPANY,
-            'opco'       => $this->opcoPartner(),
-            'client'     => $dossier['company'],
+            'opco'       => self::OPCO_CLIENT,
             'invNo'      => $invoice->no,
             'qNo'        => $contract->no,
-            'date'       => $signedAt->copy()->addMonth()->format('d/m/Y'),
-            'exp_date'   => $signedAt->copy()->addMonths(2)->format('d/m/Y'),
-            'rangeDate'  => $signedAt->format('d/m/Y') . ' - ' . $signedAt->copy()->addMonth()->format('d/m/Y'),
+            'date'       => $invoiceDate->format('d/m/Y'),
+            'exp_date'   => $invoiceDate->format('d/m/Y'), // échéance = date de facture
             'members'    => $dossier['members'],
             'items'      => $dossier['items'],
             'unitPrice'  => $dossier['unit_price'],
@@ -515,38 +533,6 @@ class OpcoInvoiceService
         ], ['id', 'name'], 1);
 
         return $found[0] ?? null;
-    }
-
-    /** Nom et adresse de l'OPCO tels qu'enregistrés dans Odoo (gardés un jour ; pas gardés si Odoo ne répond pas). */
-    public function opcoPartner(): array
-    {
-        $key = 'opco-odoo-partner-' . self::ODOO_PARTNER_ID;
-        if (is_array($cached = Cache::get($key))) {
-            return $cached;
-        }
-
-        try {
-            $p = $this->odoo->searchRead('res.partner', [['id', '=', self::ODOO_PARTNER_ID]], ['name', 'street', 'street2', 'zip', 'city', 'vat'], 1)[0] ?? null;
-        } catch (Throwable $e) {
-            Log::warning('OPCO : partenaire Odoo illisible — ' . $e->getMessage(), ['opco-invoice']);
-            $p = null;
-        }
-
-        // Odoo renvoie false pour un champ vide.
-        $field = fn (string $name) => (is_array($p) && !empty($p[$name])) ? (string) $p[$name] : null;
-        $partner = [
-            'name'   => $field('name') ?? 'OPCO EP',
-            'street' => trim(($field('street') ?? '') . ' ' . ($field('street2') ?? '')) ?: null,
-            'zip'    => $field('zip'),
-            'city'   => $field('city'),
-            'vat'    => $field('vat'),
-        ];
-
-        if ($p) {
-            Cache::put($key, $partner, 86400);
-        }
-
-        return $partner;
     }
 
     private function lineLabel(Contract $contract, array $dossier): string
