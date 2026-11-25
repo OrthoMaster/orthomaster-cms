@@ -92,7 +92,7 @@ class DashboardLessonFollowUpController extends Controller
             ->get();
 
         $byPackage = $rows->groupBy('package_id')->map(function ($group) {
-            $done = $group->filter(fn ($r) => (int) $r->progress > self::COMPLETION_MIN)->count();
+            $done = $group->filter(fn ($r) => (int) $r->progress >= self::COMPLETION_MIN)->count();
 
             return [
                 $group->first()->package,
@@ -104,7 +104,7 @@ class DashboardLessonFollowUpController extends Controller
         })->sortByDesc(fn ($r) => [$r[3], $r[4]])->values();
 
         $total = $rows->count();
-        $totalDone = $rows->filter(fn ($r) => (int) $r->progress > self::COMPLETION_MIN)->count();
+        $totalDone = $rows->filter(fn ($r) => (int) $r->progress >= self::COMPLETION_MIN)->count();
         $byPackage->prepend(['TOUTES LES FORMATIONS', $total, $totalDone, $total ? round($totalDone * 100 / $total, 1) : 0, round((float) $rows->avg(fn ($r) => (int) $r->progress), 1)]);
 
         $byLearner = $rows->sortByDesc(fn ($r) => (int) $r->progress)->values()->map(fn ($r) => [
@@ -112,7 +112,7 @@ class DashboardLessonFollowUpController extends Controller
             $r->email,
             $r->package,
             (int) $r->progress,
-            (int) $r->progress > self::COMPLETION_MIN ? 'Oui' : 'Non',
+            (int) $r->progress >= self::COMPLETION_MIN ? 'Oui' : 'Non',
             $r->created_at ? Carbon::parse($r->created_at)->setTimezone($this->displayTz())->format('d/m/Y') : '',
         ])->all();
 
@@ -235,7 +235,7 @@ class DashboardLessonFollowUpController extends Controller
                 'email'        => $s->recipientEmail(),
                 'package'      => $names[$packageId] ?? ('#' . $packageId),
                 'progress'     => $value,
-                'completed'    => $value > self::COMPLETION_MIN,
+                'completed'    => $value >= self::COMPLETION_MIN,
             ];
         }))->values();
     }

@@ -15,7 +15,7 @@ use Illuminate\Support\Str;
  */
 class SatisfactionFakeDataService
 {
-    /** Part des questionnaires fictifs choisis parmi les paquets avancés (progress > COMPLETION_MIN) : le taux de complétion reste bon. */
+    /** Part des questionnaires fictifs choisis parmi les paquets avancés (progress >= COMPLETION_MIN, terminés). */
     private const COMPLETED_SHARE = 0.85;
 
     /** Part des questionnaires fictifs envoyés qui ont une réponse. */
@@ -67,7 +67,7 @@ class SatisfactionFakeDataService
             return 0;
         }
 
-        [$done, $pending] = $pairs->partition(fn ($p) => (int) $p->progress > SatisfactionSurvey::COMPLETION_MIN)->all();
+        [$done, $pending] = $pairs->partition(fn ($p) => (int) $p->progress >= SatisfactionSurvey::COMPLETION_MIN)->all();
         $done = $done->shuffle()->values();
         $pending = $pending->shuffle()->values();
         $labels = $this->packageLabels($pairs->pluck('package_id')->unique());
