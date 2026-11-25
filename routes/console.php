@@ -46,9 +46,10 @@ Schedule::command('fifpl:send-invoices')
     ->dailyAt('08:15')
     ->timezone('Europe/Paris');
 
-// OPCO-EP : chaque jour, conventions signées depuis OPCO_AUTO_SINCE — facture dès le lendemain de la signature
-// (datée signature + 1 mois), puis à la fin de la formation attestation + certificat à chaque apprenant.
-Schedule::command('opco:process --run --auto')
+// OPCO-EP : chaque jour — conventions signées depuis le 25/11/2026 (facture le lendemain, datée signature + 1 mois)
+// et conventions déjà facturées (attestation + certificat à chaque apprenant à la fin de la formation).
+// Les anciennes conventions sans facture : une fois, à la main (php artisan opco:process puis --run).
+Schedule::command('opco:process --run --daily')
     ->dailyAt('08:30')
     ->timezone('Europe/Paris')
     ->withoutOverlapping(120);

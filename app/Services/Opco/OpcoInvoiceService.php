@@ -60,6 +60,9 @@ class OpcoInvoiceService
     /** TVA 20 % dans Odoo. */
     public const ODOO_TAX_ID = 3;
 
+    /** Mise en service de la tâche quotidienne : les conventions signées avant (sans facture) se font à la main. */
+    public const DAILY_FROM = '2026-11-25';
+
     /** Certificat de réalisation : signataire pour l'organisme, lieu de signature, logos. */
     public const CERTIFICATE_SIGNATORY = 'LÊ Guillaume';
     public const CERTIFICATE_PLACE = 'Strasbourg';
@@ -100,10 +103,12 @@ class OpcoInvoiceService
      * @param  int[]     $exclude    conventions à laisser de côté (id), p. ex. déjà facturées à la main
      * @param  bool      $sendEmails false : facture + attestation, sans e-mail
      * @param  callable|null $report fn(array $row) appelée après chaque convention
-     * @param  string|null $since    seulement les conventions signées à partir de cette date (Y-m-d)
+     * @param  bool $daily           tâche quotidienne : conventions signées depuis DAILY_FROM, et celles qui ont
+     *                               déjà leur facture (attestation / e-mails à la fin de formation). Jamais les
+     *                               anciennes conventions sans facture (rattrapage à la main).
      * @return array<int, array{contract: string, company: string, signed: string, end: string, steps: string[], status: string, error: ?string}>
      */
-    public function processAll(bool $dryRun = true, array $only = [], array $exclude = [], bool $sendEmails = true, ?callable $report = null, ?string $since = null): array
+    public function processAll(bool $dryRun = true, array $only = [], array $exclude = [], bool $sendEmails = true, ?callable $report = null, bool $daily = false): array
     {
         $lock = Cache::lock('opco-process', 3600);
         if (!$dryRun && !$lock->get()) {
@@ -116,7 +121,9 @@ class OpcoInvoiceService
                 ->where('status', Status::ACTIVE->value)
                 ->when($only, fn ($q) => $q->whereIn('id', $only))
                 ->when($exclude, fn ($q) => $q->whereNotIn('id', $exclude))
-                ->when($since, fn ($q) => $q->where('created_at', '>=', Carbon::parse($since)->startOfDay()))
+                ->when($daily, fn ($q) => $q->where(fn ($w) => $w
+                    ->where('created_at', '>=', Carbon::parse(self::DAILY_FROM)->startOfDay())
+                    ->orWhereNotNull('invoice_id')))
                 ->orderBy('id')
                 ->get();
             $companies = Company::whereIn('id', $contracts->pluck('company_id')->filter()->unique())->pluck('name', 'id');
