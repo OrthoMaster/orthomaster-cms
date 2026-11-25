@@ -19,6 +19,9 @@ class InvoiceTestController extends Controller
     /** GET /admin/dashboard/test-invoices */
     public function form(Request $request)
     {
+        // Écran de test : administrateurs seulement (role_id = 1), comme les actions OPCO-EP
+        abort_unless(InvoiceController::canManageOpco(), 403);
+
         return view('invoices.test-invoices', [
             'candidates' => $this->tester->candidates(),
             'packages'   => $this->tester->packages(),
@@ -31,6 +34,9 @@ class InvoiceTestController extends Controller
     /** POST /admin/dashboard/test-invoices */
     public function send(Request $request)
     {
+        // Écran de test : administrateurs seulement (role_id = 1), comme les actions OPCO-EP
+        abort_unless(InvoiceController::canManageOpco(), 403);
+
         $data = $request->validate([
             'invoice_id' => ['required', 'integer', 'exists:invoices,id'],
             'email'      => ['required', 'email:rfc'],
@@ -60,6 +66,9 @@ class InvoiceTestController extends Controller
     /** POST /admin/dashboard/test-invoices/fake-opco — devis OPCO-EP fictif, rien enregistré */
     public function fakeOpco(Request $request)
     {
+        // Écran de test : administrateurs seulement (role_id = 1), comme les actions OPCO-EP
+        abort_unless(InvoiceController::canManageOpco(), 403);
+
         $data = $request->validate([
             'fake_email'    => ['required', 'email:rfc'],
             'learners'      => ['required', 'integer', 'min:1', 'max:20'],
