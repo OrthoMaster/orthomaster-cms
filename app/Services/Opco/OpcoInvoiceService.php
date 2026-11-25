@@ -318,7 +318,7 @@ class OpcoInvoiceService
     /**
      * Contenu du PDF des certificats, sans rien enregistrer : une page par apprenant (pdf.opco_certificate).
      * Lieu de travail = entreprise de la convention ; du … au … = période du devis (signature → + 1 mois) ;
-     * durée = heures du dossier ; « Le » = jour de création du fichier.
+     * durée = heures du dossier ; « Le » = le plus tardif entre fin de formation et jour de création du fichier.
      */
     public function certificatesPdfContent(Invoice $invoice, Contract $contract, ?array $dossier = null): ?string
     {
@@ -336,6 +336,10 @@ class OpcoInvoiceService
             : '—';
 
         $hours = $dossier['minutes'] / 60;
+        $endDate = $signedAt->copy()->addMonth()->startOfDay();
+        // Signé au plus tôt le jour de fin de formation : le plus tardif entre fin de formation et création du fichier.
+        $signedOn = today()->greaterThan($endDate) ? today() : $endDate;
+
         $pdf = Pdf::loadView('pdf.opco_certificate', [
             'company'     => GeneratePdfController::COMPANY,
             'logo'        => self::CERTIFICATE_LOGO,
@@ -345,10 +349,10 @@ class OpcoInvoiceService
             'learners'    => $dossier['members']->map(fn ($m) => trim($m->first_name . ' ' . $m->name))->values(),
             'workplace'   => $workplace,
             'from'        => $signedAt->format('d/m/Y'),
-            'to'          => $signedAt->copy()->addMonth()->format('d/m/Y'),
+            'to'          => $endDate->format('d/m/Y'),
             'hours'       => rtrim(rtrim(number_format($hours, 2, ',', ''), '0'), ','),
             'hoursLabel'  => $hours > 1 ? 'heures' : 'heure',
-            'signedOn'    => now()->format('d/m/Y'),
+            'signedOn'    => $signedOn->format('d/m/Y'),
         ]);
         $pdf->setOption('isPhpEnabled', true);
         $pdf->setOption('isRemoteEnabled', true);
