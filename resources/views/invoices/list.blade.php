@@ -59,17 +59,25 @@
                     </div>
                 </div>
 
-                {{-- ============ OPCO-EP : conventions sans facture ============ --}}
-                @if ($opcoPending > 0)
+                {{-- ============ OPCO-EP : facture d'une convention choisie ============ --}}
+                @if ($opcoPending->isNotEmpty())
                     <div class="alert alert-info opco-pending">
                         <form action="{{ route('invoices.opco.generate') }}" method="POST"
-                            onsubmit="return confirm('Créer dans Odoo la facture de {{ $opcoPending }} convention(s) OPCO-EP ?\n\nVérifiez d\'abord qu\'aucune facture n\'a déjà été faite à la main dans Odoo pour ces conventions : une facture validée ne s\'annule que par un avoir.');">
+                            onsubmit="var o = this.contract_id.options[this.contract_id.selectedIndex]; return !!this.contract_id.value && confirm('Créer dans Odoo la facture de la convention ' + o.dataset.no + ' ?\n\nVérifiez d\'abord qu\'aucune facture n\'a déjà été faite à la main pour cette convention : une facture validée ne s\'annule que par un avoir.');">
                             @csrf
-                            <span>
-                                <b>{{ $opcoPending }}</b> convention(s) OPCO-EP signée(s) sans facture.
+                            <span class="opco-pending-label">
+                                <b>{{ $opcoPending->count() }}</b> convention(s) OPCO-EP sans facture
                             </span>
+                            <select name="contract_id" class="form-control input-sm opco-contract" required>
+                                <option value="">Choisir une convention…</option>
+                                @foreach ($opcoPending as $c)
+                                    <option value="{{ $c->id }}" data-no="{{ $c->no }}">
+                                        {{ $c->no }} · {{ $c->company }} · signée le {{ $c->signed_at }}
+                                    </option>
+                                @endforeach
+                            </select>
                             <button type="submit" class="btn btn-sm btn-primary">
-                                <i class="voyager-receipt"></i> Créer les factures OPCO-EP
+                                <i class="voyager-receipt"></i> Créer la facture OPCO-EP
                             </button>
                         </form>
                     </div>
@@ -182,38 +190,31 @@
                                                         @endif
                                                     </dd>
 
-                                                    <dt>{{ $isOpco ? 'Certificats' : 'Attestation' }}</dt>
+                                                    <dt>Attestation</dt>
                                                     <dd>
                                                         @if ($invoice->certification)
                                                             <a href="{{ $invoice->certification }}" target="_blank">Ouvrir</a>
                                                         @elseif ($isOpco)
-                                                            <span class="detail-muted">créés à la fin de la formation</span>
+                                                            <span class="detail-muted">pas encore créée</span>
                                                         @else
                                                             —
                                                         @endif
                                                     </dd>
 
-                                                    @if ($isOpco)
-                                                        <dt>Certificats aux apprenants</dt>
-                                                        <dd>
-                                                            @if ($invoice->sent_at)
-                                                                prévu le {{ \Illuminate\Support\Carbon::parse($invoice->sent_at)->format('d/m/Y') }}
-                                                            @elseif ($invoice->sent_cnt > 0)
-                                                                envoyé
-                                                            @else
-                                                                <span class="detail-muted">pas d'envoi automatique</span>
-                                                            @endif
-                                                        </dd>
+                                                    @if ($isOpco && $invoice->sent_cnt > 0)
+                                                        <dt>Certificats</dt>
+                                                        <dd>envoyés aux apprenants</dd>
                                                     @endif
                                                 </dl>
 
                                                 @if ($isOpco)
-                                                    <form action="{{ route('invoices.opco.send', $invoice->id) }}" method="POST"
-                                                        onsubmit="return confirm('Envoyer maintenant à chaque apprenant son certificat de réalisation ?');">
+                                                    {{-- Attestation = PDF de tous les certificats ; e-mails aux apprenants seulement si OPCO_SEND_CERTIFICATES --}}
+                                                    <form action="{{ route('invoices.opco.attestation', $invoice->id) }}" method="POST"
+                                                        onsubmit="return confirm('{{ $invoice->certification ? 'Recréer' : 'Créer' }} l\'attestation de la facture {{ $invoice->no }}{{ $opcoSendCertificates ? ' et envoyer à chaque apprenant son certificat' : '' }} ?');">
                                                         @csrf
-                                                        <button type="submit" class="btn btn-sm btn-default">
-                                                            <i class="voyager-paper-plane"></i>
-                                                            {{ $invoice->sent_cnt > 0 ? 'Renvoyer les certificats' : 'Envoyer les certificats' }}
+                                                        <button type="submit" class="btn btn-sm btn-primary">
+                                                            <i class="voyager-certificate"></i>
+                                                            {{ $invoice->certification ? 'Recréer l\'attestation' : 'Créer l\'attestation' }}
                                                         </button>
                                                     </form>
                                                 @endif
@@ -523,9 +524,14 @@
         .opco-pending form {
             display: flex;
             align-items: center;
-            justify-content: space-between;
             gap: 12px;
             margin: 0;
+        }
+
+        .opco-pending .opco-contract {
+            flex: 1;
+            min-width: 0;
+            color: #333;
         }
 
         .invoice-org {

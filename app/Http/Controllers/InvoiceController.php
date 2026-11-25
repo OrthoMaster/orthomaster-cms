@@ -14,7 +14,6 @@ use App\Models\User;
 use App\Organization;
 use App\Services\OdooService;
 use App\Services\Opco\OpcoInvoiceService;
-use App\Jobs\GenerateOpcoInvoicesJob;
 use Exception;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
@@ -38,6 +37,20 @@ class InvoiceController extends Controller
      * Liste des factures.
      * GET /invoices/list
      */
+    /** Conventions OPCO-EP sans facture, pour le choix du bouton « Créer la facture OPCO-EP ». */
+    private function opcoContractOptions()
+    {
+        $contracts = app(OpcoInvoiceService::class)->contractsWithoutInvoice();
+        $companies = \App\Models\Company::whereIn('id', $contracts->pluck('company_id')->filter()->unique())->pluck('name', 'id');
+
+        return $contracts->sortByDesc('id')->map(fn ($c) => (object) [
+            'id'        => $c->id,
+            'no'        => $c->no,
+            'company'   => $companies[$c->company_id] ?? '—',
+            'signed_at' => \Illuminate\Support\Carbon::parse($c->getRawOriginal('created_at'))->format('d/m/Y'),
+        ])->values();
+    }
+
     /** Filtre « origine » de la liste : en plus des organismes de financement. */
     private const ORIGIN_BOOKING = 'rendez-vous';
     private const ORIGIN_DIRECT = 'direct';
@@ -114,8 +127,9 @@ class InvoiceController extends Controller
 
         return view('invoices.list', [
             'invoices' => $invoices,
-            'opcoPending' => app(OpcoInvoiceService::class)->contractsWithoutInvoice()->count(),
+            'opcoPending' => $this->opcoContractOptions(),
             'opcoOrganization' => OpcoInvoiceService::ORGANIZATION,
+            'opcoSendCertificates' => (bool) config('services.opco.send_certificates'),
             'search'   => $search,
             'status'   => $status,
             'statuses' => self::STATUSES,
@@ -202,48 +216,64 @@ class InvoiceController extends Controller
     }
 
     /**
-     * Crée les factures des conventions OPCO-EP signées qui n'en ont pas (rattrapage), en file d'attente.
-     * POST /dashboard/invoices/opco/generate
+     * Crée la facture (Odoo + PDF) d'UNE convention OPCO-EP choisie, sans attestation.
+     * POST /dashboard/invoices/opco/generate  (contract_id)
      */
-    public function generateOpcoInvoices()
+    public function generateOpcoInvoice(Request $request)
     {
-        $pending = app(OpcoInvoiceService::class)->contractsWithoutInvoice()->count();
-        if ($pending === 0) {
+        $data = $request->validate(['contract_id' => ['required', 'integer']]);
+        $opco = app(OpcoInvoiceService::class);
+
+        $contract = $opco->contractsWithoutInvoice()->firstWhere('id', (int) $data['contract_id']);
+        if (!$contract) {
             return back()
-                ->with('message', 'Toutes les conventions OPCO-EP ont déjà leur facture.')
-                ->with('alert-type', 'info');
+                ->with('message', 'Cette convention OPCO-EP n\'existe pas ou a déjà sa facture.')
+                ->with('alert-type', 'error');
         }
 
-        GenerateOpcoInvoicesJob::dispatch(true);
+        try {
+            $invoice = $opco->issueForContract($contract);
+        } catch (Exception $e) {
+            Log::error($e->getMessage(), ['contract-' . $contract->id, 'opco-invoice-create']);
+            return back()
+                ->with('message', "Facture de la convention {$contract->no} non créée : " . $e->getMessage())
+                ->with('alert-type', 'error');
+        }
 
-        return back()
-            ->with('message', "Création lancée pour {$pending} convention(s) OPCO-EP. Rechargez la page dans quelques minutes.")
+        return redirect()
+            ->route('invoices.list', ['q' => $invoice->no])
+            ->with('message', "Facture {$invoice->no} créée pour la convention {$contract->no}.")
             ->with('alert-type', 'success');
     }
 
     /**
-     * Envoie tout de suite à chaque apprenant son certificat de réalisation (convention OPCO-EP)
-     * (conventions anciennes : pas d'envoi automatique ; ou renvoi).
-     * POST /dashboard/invoices/{invoice}/opco-send
+     * (Re)crée l'attestation d'une facture OPCO-EP : PDF de tous les certificats, sur S3 ; envoie aussi à chaque
+     * apprenant son certificat si OPCO_SEND_CERTIFICATES=true (désactivé pendant les tests).
+     * POST /dashboard/invoices/{invoice}/opco-attestation
      */
-    public function sendOpcoDocuments(int $invoiceId)
+    public function createOpcoAttestation(int $invoiceId)
     {
         $opco = app(OpcoInvoiceService::class);
         $invoice = Invoice::findOrFail($invoiceId);
         abort_unless($opco->isOpcoInvoice($invoice->id), 404);
 
         try {
-            $sent = $opco->send($invoice);
+            $result = $opco->createAttestation($invoice);
         } catch (Exception $e) {
-            Log::error($e->getMessage(), ['inv-' . $invoiceId, 'opco-send']);
+            Log::error($e->getMessage(), ['inv-' . $invoiceId, 'opco-attestation']);
             return back()
-                ->with('message', "Envoi impossible : " . $e->getMessage())
+                ->with('message', 'Attestation non créée : ' . $e->getMessage())
                 ->with('alert-type', 'error');
         }
 
-        return $sent
-            ? back()->with('message', "Certificats de réalisation de la facture {$invoice->no} envoyés aux apprenants.")->with('alert-type', 'success')
-            : back()->with('message', "Pas envoyé : aucun apprenant n'a pu recevoir son certificat (voir les logs).")->with('alert-type', 'warning');
+        $message = "Attestation de la facture {$invoice->no} créée.";
+        $message .= $result['sent'] === null
+            ? ' Aucun e-mail envoyé (envoi aux apprenants désactivé).'
+            : " Certificat envoyé à {$result['sent']} apprenant(s).";
+
+        return back()
+            ->with('message', $message)
+            ->with('alert-type', 'success');
     }
 
     // Generate normal invoice

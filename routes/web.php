@@ -243,12 +243,12 @@ Route::group(['prefix' => 'admin', 'middleware' => ['cmsAdmin']], function () {
             Route::post('/{invoiceId}/virement', [InvoiceController::class, 'markAsVirement'])
                 ->name('invoices.virement');
 
-            // OPCO-EP : factures des conventions sans facture (rattrapage), envoi des certificats aux apprenants
-            Route::post('/opco/generate', [InvoiceController::class, 'generateOpcoInvoices'])
+            // OPCO-EP : facture d'UNE convention choisie ; attestation (certificats) d'une facture
+            Route::post('/opco/generate', [InvoiceController::class, 'generateOpcoInvoice'])
                 ->name('invoices.opco.generate');
-            Route::post('/{invoiceId}/opco-send', [InvoiceController::class, 'sendOpcoDocuments'])
+            Route::post('/{invoiceId}/opco-attestation', [InvoiceController::class, 'createOpcoAttestation'])
                 ->whereNumber('invoiceId')
-                ->name('invoices.opco.send');
+                ->name('invoices.opco.attestation');
         });
 
 

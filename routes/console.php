@@ -46,13 +46,10 @@ Schedule::command('fifpl:send-invoices')
     ->dailyAt('08:15')
     ->timezone('Europe/Paris');
 
-// OPCO-EP : factures des conventions signées (dès le lendemain), certificat à chaque apprenant un mois après la signature
-Schedule::command('opco:invoices')
-    ->dailyAt('17:30')
-    ->timezone('Europe/Paris');
-Schedule::command('opco:send-documents')
-    ->dailyAt('08:30')
-    ->timezone('Europe/Paris');
+// OPCO-EP : désactivé pendant les tests — factures une par une (bouton CMS « Créer la facture OPCO-EP »),
+// attestation par le bouton de la facture. À réactiver quand tout est validé :
+// Schedule::command('opco:invoices')->dailyAt('17:30')->timezone('Europe/Paris');        // factures des conventions récentes
+// Schedule::command('opco:send-documents')->dailyAt('08:30')->timezone('Europe/Paris'); // fin de formation : attestation + certificats
 
 // Sales
 Schedule::command('sales:update-assignments')

@@ -86,4 +86,10 @@ return [
         'regions'  => env('GOOGLE_PLACES_REGIONS', 'fr,de,be,ch'),
         'language' => env('GOOGLE_PLACES_LANGUAGE', 'fr'),
     ],
+
+    // OPCO-EP : envoyer à chaque apprenant son certificat avec l'attestation (false pendant les tests :
+    // seule l'attestation, PDF de tous les certificats, est créée et enregistrée).
+    'opco' => [
+        'send_certificates' => env('OPCO_SEND_CERTIFICATES', false),
+    ],
 ];

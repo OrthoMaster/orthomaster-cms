@@ -217,11 +217,7 @@ class OpcoInvoiceService
             'Facture OPCO-EP - CMS'
         );
 
-        // Certificat signé le jour où il est fait : pour une convention rattrapée (formation finie), tout de suite ;
-        // sinon à l'envoi, à la fin de la formation (send()).
-        if (!$plannedDate->isFuture()) {
-            $this->generateCertificates($invoice, $contract);
-        }
+        // L'attestation (certificats) se fait à part : bouton du CMS ou envoi de fin de formation.
 
         Log::info('OPCO : facture ' . $invoice->no, ['opco-invoice', 'contract-' . $contract->id]);
         return $invoice;
@@ -264,9 +260,8 @@ class OpcoInvoiceService
     }
 
     /**
-     * Envoie à chaque apprenant SON certificat de réalisation (une page, son nom). La facture n'est pas envoyée.
-     * Le PDF de tous les certificats (invoices.certification, pour l'OPCO) est créé à ce moment s'il n'existe pas :
-     * signé le jour de fin de formation au plus tôt. false si aucun apprenant n'a pu recevoir son certificat.
+     * Fin de formation (tâche opco:send-documents) : attestation si elle manque, puis envoi à chaque apprenant
+     * de SON certificat (si services.opco.send_certificates). La facture n'est pas envoyée.
      */
     public function send(Invoice $invoice): bool
     {
@@ -275,14 +270,48 @@ class OpcoInvoiceService
             throw new RuntimeException("Facture {$invoice->no} : convention OPCO introuvable.");
         }
 
-        if (!$invoice->document) {
-            $this->renderInvoice($invoice, $contract);
-        }
         if (!$invoice->certification && !$this->generateCertificates($invoice, $contract)) {
-            Log::warning('OPCO : certificats de réalisation non créés, rien envoyé', ['opco-invoice', 'inv-' . $invoice->id]);
+            Log::warning('OPCO : attestation non créée, rien envoyé', ['opco-invoice', 'inv-' . $invoice->id]);
             return false;
         }
 
+        if (!config('services.opco.send_certificates')) {
+            Log::info('OPCO : envoi des certificats désactivé (OPCO_SEND_CERTIFICATES)', ['opco-invoice', 'inv-' . $invoice->id]);
+            return false;
+        }
+
+        return $this->sendCertificatesToLearners($invoice, $contract) > 0;
+    }
+
+    /**
+     * Bouton « Créer l'attestation » du CMS : (re)crée l'attestation = PDF de tous les certificats de la convention,
+     * enregistrée sur S3 (invoices.certification) ; puis, si services.opco.send_certificates, envoie à chaque
+     * apprenant son propre certificat.
+     *
+     * @return array{url: string, sent: int|null}  sent = null quand l'envoi est désactivé
+     */
+    public function createAttestation(Invoice $invoice): array
+    {
+        $contract = $this->contractOf($invoice);
+        if (!$contract) {
+            throw new RuntimeException("Facture {$invoice->no} : convention OPCO introuvable.");
+        }
+
+        $url = $this->generateCertificates($invoice, $contract);
+        if (!$url) {
+            throw new RuntimeException("Facture {$invoice->no} : attestation non créée.");
+        }
+
+        $sent = config('services.opco.send_certificates')
+            ? $this->sendCertificatesToLearners($invoice, $contract)
+            : null;
+
+        return ['url' => $url, 'sent' => $sent];
+    }
+
+    /** Chaque apprenant reçoit SON certificat. Retourne le nombre d'e-mails partis. */
+    private function sendCertificatesToLearners(Invoice $invoice, Contract $contract): int
+    {
         $dossier = $this->dossier($contract);
         $sent = 0;
         foreach ($dossier['members'] as $learner) {
@@ -298,16 +327,14 @@ class OpcoInvoiceService
             }
         }
 
-        if ($sent === 0) {
-            return false;
+        if ($sent > 0) {
+            $invoice->update([
+                'sent_at'  => null,
+                'sent_cnt' => (int) $invoice->sent_cnt + 1,
+            ]);
         }
 
-        $invoice->update([
-            'sent_at'  => null,
-            'sent_cnt' => (int) $invoice->sent_cnt + 1,
-        ]);
-
-        return true;
+        return $sent;
     }
 
     /** E-mail d'un apprenant avec son certificat (une page) en pièce jointe. */
