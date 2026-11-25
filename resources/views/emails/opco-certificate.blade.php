@@ -8,6 +8,7 @@
         <p>Félicitations, votre formation OrthoMaster est terminée !</p>
         <p>Vous trouverez ci-joint votre <b>certificat de réalisation</b>.</p>
         <p>Conservez-le précieusement : il atteste de la formation que vous avez suivie.</p>
+        <p>Vous pouvez utiliser ce certificat à toutes fins utiles (DPC, valorisation de vos compétences…).</p>
         <p>À très vite sur OrthoMaster pour une nouvelle formation ou simplement pour vous tenir informé(e) de nos dernières actualités !</p>
 
         <div class="divider"></div>
