@@ -187,7 +187,7 @@
                                                         @if ($invoice->certification)
                                                             <a href="{{ $invoice->certification }}" target="_blank">Ouvrir</a>
                                                         @elseif ($isOpco)
-                                                            <span class="detail-muted">en attente du modèle</span>
+                                                            <span class="detail-muted">créés à la fin de la formation</span>
                                                         @else
                                                             —
                                                         @endif

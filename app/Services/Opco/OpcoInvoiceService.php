@@ -58,13 +58,11 @@ class OpcoInvoiceService
     /** TVA 20 % dans Odoo. */
     public const ODOO_TAX_ID = 3;
 
-    /**
-     * Modèle PDF du certificat de réalisation, sur le serveur (storage/app n'est pas versionné),
-     * et emplacement des champs à remplir. Tant que l'un des deux manque, aucun certificat n'est
-     * créé et l'e-mail de fin de formation attend.
-     */
-    public const CERTIFICATE_TEMPLATE = 'app/opco/certificate.pdf';
-    public const CERTIFICATE_LAYOUT = [];
+    /** Certificat de réalisation : signataire pour l'organisme, lieu de signature, logos. */
+    public const CERTIFICATE_SIGNATORY = 'LÊ Guillaume';
+    public const CERTIFICATE_PLACE = 'Strasbourg';
+    public const CERTIFICATE_LOGO = 'https://content-orthomaster-prod.s3.eu-west-1.amazonaws.com/application-data/logo-v2/pdf/logo.png';
+    public const CERTIFICATE_BRAND = 'https://content-orthomaster-prod.s3.eu-west-1.amazonaws.com/application-data/logo-v2/pdf/brand_name_primary.png';
 
     public function __construct(private OdooService $odoo) {}
 
@@ -218,7 +216,11 @@ class OpcoInvoiceService
             'Facture OPCO-EP - CMS'
         );
 
-        $this->generateCertificates($invoice, $contract);
+        // Certificat signé le jour où il est fait : pour une convention rattrapée (formation finie), tout de suite ;
+        // sinon à l'envoi, à la fin de la formation (send()).
+        if (!$plannedDate->isFuture()) {
+            $this->generateCertificates($invoice, $contract);
+        }
 
         Log::info('OPCO : facture ' . $invoice->no, ['opco-invoice', 'contract-' . $contract->id]);
         return $invoice;
@@ -261,8 +263,8 @@ class OpcoInvoiceService
     }
 
     /**
-     * Envoie facture + certificats au manager. Attend le certificat : false s'il ne peut pas encore
-     * être créé (modèle absent), l'envoi reste alors prévu.
+     * Envoie facture + certificats au manager (certificats créés à ce moment s'ils n'existent pas encore :
+     * date de signature = jour de création du fichier). false si le certificat n'a pas pu être fait.
      */
     public function send(Invoice $invoice): bool
     {
@@ -275,7 +277,7 @@ class OpcoInvoiceService
             $this->renderInvoice($invoice, $contract);
         }
         if (!$invoice->certification && !$this->generateCertificates($invoice, $contract)) {
-            Log::warning('OPCO : e-mail en attente du certificat de réalisation', ['opco-invoice', 'inv-' . $invoice->id]);
+            Log::warning('OPCO : e-mail non envoyé, certificat de réalisation non créé', ['opco-invoice', 'inv-' . $invoice->id]);
             return false;
         }
 
@@ -294,15 +296,7 @@ class OpcoInvoiceService
      * Certificat de réalisation
      * =================================================================== */
 
-    public function certificateReady(): bool
-    {
-        return !empty(self::CERTIFICATE_LAYOUT) && is_file(storage_path(self::CERTIFICATE_TEMPLATE));
-    }
-
-    /**
-     * Un PDF par convention, une page par apprenant, dans invoices.certification.
-     * Retourne l'URL, ou null tant que le modèle n'est pas prêt.
-     */
+    /** Un PDF par convention, une page par apprenant, enregistré sur S3 (invoices.certification). Retourne l'URL. */
     public function generateCertificates(Invoice $invoice, Contract $contract): ?string
     {
         $content = $this->certificatesPdfContent($invoice, $contract);
@@ -321,16 +315,46 @@ class OpcoInvoiceService
         return $invoice->certification;
     }
 
-    /** Contenu du PDF des certificats (une page par apprenant), sans rien enregistrer ; null tant que le modèle manque. */
+    /**
+     * Contenu du PDF des certificats, sans rien enregistrer : une page par apprenant (pdf.opco_certificate).
+     * Lieu de travail = entreprise de la convention ; du … au … = période du devis (signature → + 1 mois) ;
+     * durée = heures du dossier ; « Le » = jour de création du fichier.
+     */
     public function certificatesPdfContent(Invoice $invoice, Contract $contract, ?array $dossier = null): ?string
     {
-        if (!$this->certificateReady()) {
-            return null;
-        }
+        $dossier ??= $this->dossier($contract);
+        $signedAt = $this->signedAt($contract);
+        $company = $dossier['company'];
 
-        // À écrire avec le modèle PDF : remplissage FPDI comme GeneratePdfController::fifplCertificateContent(),
-        // une page par apprenant du dossier (($dossier ?? $this->dossier($contract))['members']).
-        return null;
+        $workplace = $company
+            ? collect([
+                $company->name,
+                $company->address,
+                trim($company->postal_code . ' ' . $company->city),
+                'France',
+            ])->map(fn ($v) => trim((string) $v))->filter()->implode(', ')
+            : '—';
+
+        $hours = $dossier['minutes'] / 60;
+        $pdf = Pdf::loadView('pdf.opco_certificate', [
+            'company'     => GeneratePdfController::COMPANY,
+            'logo'        => self::CERTIFICATE_LOGO,
+            'brand'       => self::CERTIFICATE_BRAND,
+            'signatory'   => self::CERTIFICATE_SIGNATORY,
+            'place'       => self::CERTIFICATE_PLACE,
+            'learners'    => $dossier['members']->map(fn ($m) => trim($m->first_name . ' ' . $m->name))->values(),
+            'workplace'   => $workplace,
+            'from'        => $signedAt->format('d/m/Y'),
+            'to'          => $signedAt->copy()->addMonth()->format('d/m/Y'),
+            'hours'       => rtrim(rtrim(number_format($hours, 2, ',', ''), '0'), ','),
+            'hoursLabel'  => $hours > 1 ? 'heures' : 'heure',
+            'signedOn'    => now()->format('d/m/Y'),
+        ]);
+        $pdf->setOption('isPhpEnabled', true);
+        $pdf->setOption('isRemoteEnabled', true);
+        $pdf->setPaper('A4', 'portrait');
+
+        return $pdf->output();
     }
 
     /* ===================================================================

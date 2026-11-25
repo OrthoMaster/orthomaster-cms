@@ -243,7 +243,7 @@ class InvoiceController extends Controller
 
         return $sent
             ? back()->with('message', "Facture {$invoice->no} et certificats envoyés au manager.")->with('alert-type', 'success')
-            : back()->with('message', "Pas encore envoyé : le certificat de réalisation OPCO n'est pas prêt (modèle manquant).")->with('alert-type', 'warning');
+            : back()->with('message', "Pas envoyé : le certificat de réalisation OPCO n'a pas pu être créé (voir les logs).")->with('alert-type', 'warning');
     }
 
     // Generate normal invoice

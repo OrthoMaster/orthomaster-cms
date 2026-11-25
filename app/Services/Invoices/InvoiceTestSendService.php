@@ -200,7 +200,7 @@ class InvoiceTestSendService
         if ($certificates !== null) {
             $files['Certificats_realisation_' . $contract->no . '.pdf'] = $certificates;
         } else {
-            $notes[] = 'Certificat OPCO-EP pas encore disponible (modèle PDF manquant) : non joint.';
+            $notes[] = 'Certificat OPCO-EP non créé : non joint.';
         }
 
         $files['Programme_' . $contract->no . '.pdf'] = $this->pdf->autoProgPdfContentForGroups(
@@ -304,7 +304,7 @@ class InvoiceTestSendService
         if ($certificates !== null) {
             $files['Certificats_realisation_' . $contract->no . '.pdf'] = $certificates;
         } else {
-            $notes[] = 'Certificat OPCO-EP pas encore disponible (modèle PDF manquant) : non joint.';
+            $notes[] = 'Certificat OPCO-EP non créé : non joint.';
         }
 
         $files['Programme_' . $contract->no . '.pdf'] = $this->programme($contract, $this->opco->dossierIndex($contract));
