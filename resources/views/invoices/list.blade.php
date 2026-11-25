@@ -17,10 +17,49 @@
         <div class="row">
             <div class="col-lg-12">
 
-                {{-- ============ FILTRES ============ --}}
+                {{-- ============ SECTION 1 : OPCO-EP — facture d'une convention ============ --}}
+                <div class="panel panel-bordered opco-section">
+                    <div class="panel-body">
+                        <div class="section-head">
+                            <h3 class="section-title-main">Factures OPCO-EP</h3>
+                            <span class="section-sub">
+                                @if ($opcoPending->isNotEmpty())
+                                    {{ $opcoPending->count() }} convention(s) signée(s) sans facture
+                                @else
+                                    Toutes les conventions signées ont leur facture.
+                                @endif
+                            </span>
+                        </div>
+
+                        @if ($opcoPending->isNotEmpty())
+                            <form class="opco-form" action="{{ route('invoices.opco.generate') }}" method="POST"
+                                onsubmit="var o = this.contract_id.options[this.contract_id.selectedIndex]; return !!this.contract_id.value && confirm('Créer dans Odoo la facture de la convention ' + o.dataset.no + ' ?\n\nVérifiez d\'abord qu\'aucune facture n\'a déjà été faite à la main pour cette convention : une facture validée ne s\'annule que par un avoir.');">
+                                @csrf
+                                <select name="contract_id" class="form-control opco-contract" required>
+                                    <option value="">Choisir une convention…</option>
+                                    @foreach ($opcoPending as $c)
+                                        <option value="{{ $c->id }}" data-no="{{ $c->no }}">
+                                            {{ $c->no }} · {{ $c->company }} · signée le {{ $c->signed_at }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="voyager-receipt"></i> Créer la facture
+                                </button>
+                            </form>
+                        @endif
+                    </div>
+                </div>
+
+                {{-- ============ SECTION 2 : liste des factures ============ --}}
                 <div class="panel panel-bordered">
                     <div class="panel-body">
-                        <form class="row" action="{{ route('invoices.list') }}" method="GET">
+                        <div class="section-head">
+                            <h3 class="section-title-main">Toutes les factures</h3>
+                        </div>
+
+                        {{-- Filtres --}}
+                        <form class="row filters" action="{{ route('invoices.list') }}" method="GET">
                             <div class="col-md-4">
                                 <input type="text" class="form-control" name="q" id="q"
                                     value="{{ $search }}"
@@ -59,31 +98,7 @@
                     </div>
                 </div>
 
-                {{-- ============ OPCO-EP : facture d'une convention choisie ============ --}}
-                @if ($opcoPending->isNotEmpty())
-                    <div class="alert alert-info opco-pending">
-                        <form action="{{ route('invoices.opco.generate') }}" method="POST"
-                            onsubmit="var o = this.contract_id.options[this.contract_id.selectedIndex]; return !!this.contract_id.value && confirm('Créer dans Odoo la facture de la convention ' + o.dataset.no + ' ?\n\nVérifiez d\'abord qu\'aucune facture n\'a déjà été faite à la main pour cette convention : une facture validée ne s\'annule que par un avoir.');">
-                            @csrf
-                            <span class="opco-pending-label">
-                                <b>{{ $opcoPending->count() }}</b> convention(s) OPCO-EP sans facture
-                            </span>
-                            <select name="contract_id" class="form-control input-sm opco-contract" required>
-                                <option value="">Choisir une convention…</option>
-                                @foreach ($opcoPending as $c)
-                                    <option value="{{ $c->id }}" data-no="{{ $c->no }}">
-                                        {{ $c->no }} · {{ $c->company }} · signée le {{ $c->signed_at }}
-                                    </option>
-                                @endforeach
-                            </select>
-                            <button type="submit" class="btn btn-sm btn-primary">
-                                <i class="voyager-receipt"></i> Créer la facture OPCO-EP
-                            </button>
-                        </form>
-                    </div>
-                @endif
-
-                {{-- ============ LISTE ============ --}}
+                {{-- Liste --}}
                 @if ($invoices->isEmpty())
                     <div class="alert alert-warning">
                         <strong>Aucune facture.</strong>
@@ -521,17 +536,39 @@
             color: #2e7d46;
         }
 
-        .opco-pending form {
+        .section-head {
+            display: flex;
+            align-items: baseline;
+            gap: 12px;
+            margin-bottom: 14px;
+        }
+
+        .section-title-main {
+            margin: 0;
+            font-size: 16px;
+            font-weight: 600;
+            color: #2b3a4a;
+        }
+
+        .section-sub {
+            font-size: 13px;
+            color: #76838f;
+        }
+
+        .opco-form {
             display: flex;
             align-items: center;
             gap: 12px;
             margin: 0;
         }
 
-        .opco-pending .opco-contract {
+        .opco-form .opco-contract {
             flex: 1;
             min-width: 0;
-            color: #333;
+        }
+
+        .filters {
+            margin-bottom: 0;
         }
 
         .invoice-org {
