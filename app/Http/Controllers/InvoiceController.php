@@ -7,6 +7,7 @@ use App\Http\Controllers\Odoo\OdooInvoiceController;
 use App\Mail\SendFifplCompletedDocumentMail;
 use App\Models\Cart;
 use App\Models\Contract;
+use App\Models\FundingOrganization;
 use App\Models\Invoice;
 use App\Models\SystemNotification;
 use App\Models\User;
@@ -37,6 +38,10 @@ class InvoiceController extends Controller
      * Liste des factures.
      * GET /invoices/list
      */
+    /** Filtre « origine » de la liste : en plus des organismes de financement. */
+    private const ORIGIN_BOOKING = 'rendez-vous';
+    private const ORIGIN_DIRECT = 'direct';
+
     public function list(Request $request)
     {
         $search = trim((string) $request->query('q', ''));
@@ -45,6 +50,19 @@ class InvoiceController extends Controller
         if (!array_key_exists($status, self::STATUSES)) {
             $status = null;
         }
+
+        // Organisme / origine : organismes de financement (convention signée), rendez-vous expert, paiement direct
+        $origins = FundingOrganization::orderBy('id')->pluck('name')
+            ->mapWithKeys(fn ($name) => [$name => $name])
+            ->all() + [
+                self::ORIGIN_BOOKING => 'Rendez-vous expert',
+                self::ORIGIN_DIRECT  => 'Paiement direct (carte)',
+            ];
+        $origin = $request->query('origin');
+        if (!array_key_exists($origin, $origins)) {
+            $origin = null;
+        }
+        $cartInvoice = fn ($q) => $q->select(DB::raw(1))->from('carts as k')->whereColumn('k.invoice_id', 'i.id');
 
         $invoices = DB::table('invoices as i')
             ->leftJoin('users as u', 'u.id', '=', 'i.user_id')
@@ -73,9 +91,11 @@ class InvoiceController extends Controller
                 'i.sent_at',
                 'i.sent_cnt',
                 'u.email as user_email',
+                'i.booking_id',
                 'c.no as contract_no',
                 'c.organization as contract_organization'
             )
+            ->selectRaw('EXISTS (SELECT 1 FROM carts k WHERE k.invoice_id = i.id) as is_direct')
             ->when($search !== '', function ($q) use ($search) {
                 $q->where(function ($sub) use ($search) {
                     $sub->where('i.no', 'like', '%' . $search . '%')
@@ -84,6 +104,9 @@ class InvoiceController extends Controller
                 });
             })
             ->when($status, fn($q) => $q->where('i.status', $status))
+            ->when($origin === self::ORIGIN_BOOKING, fn ($q) => $q->whereNotNull('i.booking_id'))
+            ->when($origin === self::ORIGIN_DIRECT, fn ($q) => $q->whereNull('c.id')->whereNull('i.booking_id')->whereExists($cartInvoice))
+            ->when($origin && !in_array($origin, [self::ORIGIN_BOOKING, self::ORIGIN_DIRECT], true), fn ($q) => $q->where('c.organization', $origin))
             ->orderByDesc('i.created_at')
             ->orderByDesc('i.id')
             ->paginate(self::PER_PAGE)
@@ -96,6 +119,8 @@ class InvoiceController extends Controller
             'search'   => $search,
             'status'   => $status,
             'statuses' => self::STATUSES,
+            'origin'   => $origin,
+            'origins'  => $origins,
         ]);
     }
 
@@ -116,6 +141,14 @@ class InvoiceController extends Controller
         if ($invoice->status === 'paid') {
             return back()
                 ->with('message', 'Cette facture est déjà réglée.')
+                ->with('alert-type', 'warning');
+        }
+
+        // OPCO-EP : pas de règlement à enregistrer dans le CMS (seulement facture + certificat).
+        if (app(OpcoInvoiceService::class)->isOpcoInvoice($invoiceId)) {
+            return redirect()
+                ->route('invoices.list')
+                ->with('message', 'Facture OPCO-EP : aucun règlement à enregistrer dans le CMS.')
                 ->with('alert-type', 'warning');
         }
 
@@ -147,16 +180,6 @@ class InvoiceController extends Controller
             dispatch(function () use ($invoiceId) {
                 $invController = new InvoiceController();
                 $invController->generateInvoiceDocument($invoiceId);
-            })->afterResponse();
-        } elseif (app(OpcoInvoiceService::class)->isOpcoInvoice($invoice->id)) { // OPCO-EP : réglée par l'OPCO
-            $invoiceId = $invoice->id;
-            dispatch(function () use ($invoiceId) {
-                // Facture acquittée + PDF et paiement dans Odoo
-                try {
-                    app(OpcoInvoiceService::class)->markPaid(Invoice::findOrFail($invoiceId));
-                } catch (Exception $e) {
-                    Log::error($e->getMessage(), ['inv-' . $invoiceId, 'opco-invoice-paid']);
-                }
             })->afterResponse();
         } else { // FIFPL
             // Clear notification

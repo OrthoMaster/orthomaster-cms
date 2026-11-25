@@ -38,7 +38,7 @@ use Throwable;
  *   (invoices.sent_at = date prévue d'envoi, remise à null une fois envoyé, sent_cnt + 1).
  * - Conventions anciennes (date de facture déjà passée) : documents créés, pas d'e-mail automatique ;
  *   envoi possible depuis la liste des factures du CMS.
- * - Règlement par l'OPCO : « Marquer comme réglée par virement » → PDF « Acquittée » + paiement Odoo.
+ * - Pas de règlement dans le CMS : ni Stripe, ni virement, ni paiement Odoo — seulement facture + certificat.
  */
 class OpcoInvoiceService
 {
@@ -217,36 +217,6 @@ class OpcoInvoiceService
     }
 
     /* ===================================================================
-     * Règlement par l'OPCO
-     * =================================================================== */
-
-    /** Après « Marquer comme réglée par virement » : PDF acquitté + PDF et paiement dans Odoo. */
-    public function markPaid(Invoice $invoice): void
-    {
-        $contract = $this->contractOf($invoice);
-        if (!$contract) {
-            throw new RuntimeException("Facture {$invoice->no} : convention OPCO introuvable.");
-        }
-
-        $this->renderInvoice($invoice, $contract);
-
-        $odoo = $this->odooInvoices();
-        $odoo->uploadInvoicePdf(
-            $invoice->no,
-            $invoice->document,
-            str_replace('/', '_', $invoice->no) . '.pdf',
-            'Facture OPCO-EP acquittée - CMS'
-        );
-        if ($invoice->id_odoo) {
-            $odoo->markInvoiceAsPaid(
-                (int) $invoice->id_odoo,
-                (float) $invoice->amount,
-                ($invoice->paid_at ?? now())->format('Y-m-d')
-            );
-        }
-    }
-
-    /* ===================================================================
      * E-mail de fin de formation au manager
      * =================================================================== */
 
@@ -327,11 +297,30 @@ class OpcoInvoiceService
      */
     public function generateCertificates(Invoice $invoice, Contract $contract): ?string
     {
+        $content = $this->certificatesPdfContent($invoice, $contract);
+        if ($content === null) {
+            return null;
+        }
+
+        $fileName = 'certifications/opco/' . str_replace('/', '_', $invoice->no) . '.pdf';
+        if (!Storage::disk('s3')->put($fileName, $content)) {
+            throw new RuntimeException("Facture {$invoice->no} : certificats non enregistrés.");
+        }
+
+        $invoice->certification = Storage::disk('s3')->url($fileName);
+        $invoice->save();
+
+        return $invoice->certification;
+    }
+
+    /** Contenu du PDF des certificats (une page par apprenant), sans rien enregistrer ; null tant que le modèle manque. */
+    public function certificatesPdfContent(Invoice $invoice, Contract $contract): ?string
+    {
         if (!$this->certificateReady()) {
             return null;
         }
 
-        // À écrire avec le modèle PDF : remplissage FPDI comme GeneratePdfController::fifplCertificate(),
+        // À écrire avec le modèle PDF : remplissage FPDI comme GeneratePdfController::fifplCertificateContent(),
         // une page par apprenant du dossier ($this->dossier($contract)['members']).
         return null;
     }
@@ -363,7 +352,7 @@ class OpcoInvoiceService
             throw new RuntimeException("Convention {$contract->no} : {$signedCount} convention(s) signée(s) mais {$groups->count()} dossier(s) recalculé(s) pour le panier #{$cart->id}.");
         }
 
-        $index =preg_match('/_(\d+)$/', (string) $contract->no, $m) ? ((int) $m[1]) - 1 : 0;
+        $index = $this->dossierIndex($contract);
         $items = $groups->get($index);
         if (!$items || $items->isEmpty()) {
             throw new RuntimeException("Convention {$contract->no} : dossier n° " . ($index + 1) . " introuvable dans le panier #{$cart->id}.");
@@ -400,6 +389,12 @@ class OpcoInvoiceService
         ];
     }
 
+    /** Rang du dossier dans le panier (0 = premier) : suffixe « _n » du numéro de convention. */
+    public function dossierIndex(Contract $contract): int
+    {
+        return preg_match('/_(\d+)$/', (string) $contract->no, $m) ? ((int) $m[1]) - 1 : 0;
+    }
+
     /** Convention OPCO-EP d'une facture, ou null si la facture n'est pas une facture OPCO. */
     public function contractOf(Invoice $invoice): ?Contract
     {
@@ -429,12 +424,25 @@ class OpcoInvoiceService
      * PDF de la facture
      * =================================================================== */
 
-    /** (Re)crée le PDF : « Acquittée » si la facture est réglée. */
+    /** (Re)crée le PDF de la facture et l'enregistre sur S3 (invoices.document). */
     public function renderInvoice(Invoice $invoice, Contract $contract): string
+    {
+        $fileName = 'factures/opco/' . str_replace('/', '_', $invoice->no) . '.pdf';
+        if (!Storage::disk('s3')->put($fileName, $this->invoicePdfContent($invoice, $contract))) {
+            throw new RuntimeException("Facture {$invoice->no} : PDF non enregistré.");
+        }
+
+        $invoice->document = Storage::disk('s3')->url($fileName);
+        $invoice->save();
+
+        return $invoice->document;
+    }
+
+    /** Contenu du PDF de la facture, sans rien enregistrer (aussi pour l'envoi test du CMS). */
+    public function invoicePdfContent(Invoice $invoice, Contract $contract): string
     {
         $dossier = $this->dossier($contract);
         $signedAt = Carbon::parse($contract->getRawOriginal('created_at'));
-        $paid = $invoice->status === Invoice::STATUS_PAID;
 
         $pdf = Pdf::loadView('pdf.opco_invoice', [
             'company'    => GeneratePdfController::COMPANY,
@@ -453,21 +461,12 @@ class OpcoInvoiceService
             'tva'        => $dossier['tva'],
             'tva_amount' => (float) $invoice->tva_amount,
             'amount'     => (float) $invoice->amount,
-            'paidDate'   => $paid ? ($invoice->paid_at ?? now())->format('d/m/Y') : null,
         ]);
         $pdf->setOption('isPhpEnabled', true);
         $pdf->setOption('isRemoteEnabled', true);
         $pdf->setPaper('A4', 'portrait');
 
-        $fileName = 'factures/opco/' . str_replace('/', '_', $invoice->no) . '.pdf';
-        if (!Storage::disk('s3')->put($fileName, $pdf->output())) {
-            throw new RuntimeException("Facture {$invoice->no} : PDF non enregistré.");
-        }
-
-        $invoice->document = Storage::disk('s3')->url($fileName);
-        $invoice->save();
-
-        return $invoice->document;
+        return $pdf->output();
     }
 
     /* ===================================================================

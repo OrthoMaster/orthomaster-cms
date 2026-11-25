@@ -138,15 +138,6 @@ class PaymentController extends Controller
                         $invController = new InvoiceController();
                         $invController->generateInvoiceDocument($invoiceId);
                     })->afterResponse();
-                } elseif (app(\App\Services\Opco\OpcoInvoiceService::class)->isOpcoInvoice($invoice->id)) { // OPCO-EP
-                    $invoiceId = $invoice->id;
-                    dispatch(function () use ($invoiceId) {
-                        try {
-                            app(\App\Services\Opco\OpcoInvoiceService::class)->markPaid(Invoice::findOrFail($invoiceId));
-                        } catch (\Exception $e) {
-                            \Illuminate\Support\Facades\Log::error($e->getMessage(), ['inv-' . $invoiceId, 'opco-invoice-paid']);
-                        }
-                    })->afterResponse();
                 } else { // FIFPL
                     // Clear notification
                     SystemNotification::where('user_id', $invoice->user_id)
@@ -236,6 +227,14 @@ class PaymentController extends Controller
             ], 400);
         }
 
+        // OPCO-EP : réglée directement par l'OPCO, jamais par carte.
+        if (app(\App\Services\Opco\OpcoInvoiceService::class)->isOpcoInvoice($invoice->id)) {
+            return response()->json([
+                'success' => false,
+                'message' => "Cette facture est réglée par l'OPCO-EP.",
+            ], 400);
+        }
+
         if (($invoice->status !== Invoice::STATUS_PENDING) && ($invoice->status !== Invoice::STATUS_PROCESSING)) {
             return response()->json([
                 'success' => false,
@@ -260,6 +259,14 @@ class PaymentController extends Controller
                 'success' => false,
                 'message' => "La facture n'existe pas.",
             ], 403);
+        }
+
+        // OPCO-EP : réglée directement par l'OPCO, jamais par carte.
+        if (app(\App\Services\Opco\OpcoInvoiceService::class)->isOpcoInvoice($invoice->id)) {
+            return response()->json([
+                'success' => false,
+                'message' => "Cette facture est réglée par l'OPCO-EP.",
+            ], 400);
         }
 
         if (($invoice->status !== Invoice::STATUS_PENDING) && ($invoice->status !== Invoice::STATUS_PROCESSING)) {

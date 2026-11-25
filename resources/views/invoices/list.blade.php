@@ -7,6 +7,9 @@
         <h1 class="page-title">
             <i class="voyager-receipt"></i> Factures
         </h1>
+        <a href="{{ route('invoices.test-send') }}" class="btn btn-default btn-test-send">
+            <i class="voyager-paper-plane"></i> Envoi test
+        </a>
     </div>
 @stop
 
@@ -38,9 +41,18 @@
                                 </select>
                             </div>
 
-                            <div class="col-md-5">
+                            <div class="col-md-2">
+                                <select class="form-control" name="origin" id="origin">
+                                    <option value="">Tous les organismes</option>
+                                    @foreach ($origins as $key => $label)
+                                        <option value="{{ $key }}" @selected($origin === $key)>{{ $label }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+
+                            <div class="col-md-3">
                                 <button type="submit" class="btn btn-primary">Rechercher</button>
-                                @if ($search !== '' || $status)
+                                @if ($search !== '' || $status || $origin)
                                     <a href="{{ route('invoices.list') }}" class="btn btn-default">
                                         Réinitialiser
                                     </a>
@@ -89,6 +101,8 @@
                                     $isPaid = $invoice->status === 'paid';
                                     $isCard = $invoice->payment_method && $invoice->payment_method !== 'virement';
                                     $isOpco = $invoice->contract_organization === $opcoOrganization;
+                                    $originLabel = $invoice->contract_organization
+                                        ?: ($invoice->booking_id ? 'Rendez-vous' : ($invoice->is_direct ? 'Direct' : null));
                                 @endphp
 
                                 <div class="invoice-block" data-invoice="{{ $invoice->id }}">
@@ -100,8 +114,8 @@
 
                                         <div class="invoice-no">
                                             {{ $invoice->no ?: '—' }}
-                                            @if ($invoice->contract_organization)
-                                                <span class="invoice-org">{{ $invoice->contract_organization }}</span>
+                                            @if ($originLabel)
+                                                <span class="invoice-org invoice-org-{{ \Illuminate\Support\Str::slug($originLabel) }}">{{ $originLabel }}</span>
                                             @endif
                                         </div>
 
@@ -196,6 +210,13 @@
                                                     @endif
                                                 </dl>
 
+                                                @if (in_array($invoice->contract_organization, ['FIFPL', $opcoOrganization], true))
+                                                    <a href="{{ route('invoices.test-send', ['invoice' => $invoice->id]) }}"
+                                                        class="btn btn-sm btn-default">
+                                                        <i class="voyager-paper-plane"></i> Envoi test
+                                                    </a>
+                                                @endif
+
                                                 @if ($isOpco)
                                                     <form action="{{ route('invoices.opco.send', $invoice->id) }}" method="POST"
                                                         onsubmit="return confirm('Envoyer maintenant la facture et les certificats au manager ({{ $invoice->client_email }}) ?');">
@@ -251,7 +272,8 @@
                                                     </dd>
                                                 </dl>
 
-                                                @unless ($isPaid)
+                                                {{-- OPCO-EP : pas de règlement dans le CMS --}}
+                                                @unless ($isPaid || $isOpco)
                                                     {{-- Un virement se constate après coup : l'opération se fait ici --}}
                                                     <button type="button" class="btn btn-sm btn-success btn-virement"
                                                         data-url="{{ route('invoices.virement', $invoice->id) }}"
@@ -491,6 +513,25 @@
 
         .detail-error {
             color: #c0392b;
+        }
+
+        .btn-test-send {
+            margin: 22px 0 0 10px;
+        }
+
+        .invoice-org-opco-ep {
+            background: #fdf3e8;
+            color: #b45f06;
+        }
+
+        .invoice-org-fifpl {
+            background: #e8f1fd;
+            color: #1f5fa8;
+        }
+
+        .invoice-org-rendez-vous {
+            background: #eaf7ee;
+            color: #2e7d46;
         }
 
         .opco-pending form {

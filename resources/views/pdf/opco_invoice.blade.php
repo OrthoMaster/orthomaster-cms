@@ -296,11 +296,6 @@
 
 <body>
 
-    {{-- Watermark Acquittée - affiché uniquement si l'OPCO a réglé la facture --}}
-    @if ($paidDate)
-        <div class="watermark">Acquittée</div>
-    @endif
-
     <!-- Header : client = OPCO (subrogation), puis OrthoMaster -->
     <div class="header no-break">
         <table>
@@ -432,16 +427,6 @@
                 <td class="text-right"><strong>{{ number_format($amount, 2, ',', ' ') }} €</strong></td>
             </tr>
 
-            @if ($paidDate)
-                <tr>
-                    <td colspan="4" class="text-right">Payé le {{ $paidDate }} par virement</td>
-                    <td class="text-right">{{ number_format($amount, 2, ',', ' ') }} €</td>
-                </tr>
-                <tr class="total-row">
-                    <td colspan="4" class="text-right"><strong>Montant dû</strong></td>
-                    <td class="text-right">{{ number_format(0, 2, ',', ' ') }} €</td>
-                </tr>
-            @endif
         </tbody>
     </table>
 

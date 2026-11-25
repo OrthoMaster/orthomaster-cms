@@ -30,6 +30,7 @@ use App\Http\Controllers\GuideController;
 use App\Http\Controllers\InfographicController;
 use App\Http\Controllers\IntEmpTrackerController;
 use App\Http\Controllers\InvoiceController;
+use App\Http\Controllers\InvoiceTestController;
 use App\Http\Controllers\MediaController;
 use App\Http\Controllers\MktShortLinkController;
 use App\Http\Controllers\MktToolsController;
@@ -239,6 +240,12 @@ Route::group(['prefix' => 'admin', 'middleware' => ['cmsAdmin']], function () {
             Route::post('/{invoiceId}/opco-send', [InvoiceController::class, 'sendOpcoDocuments'])
                 ->whereNumber('invoiceId')
                 ->name('invoices.opco.send');
+
+            // Envoi test : refait facture + certificat + programme et envoie l'e-mail à une adresse saisie (rien enregistré)
+            Route::get('/test-send', [InvoiceTestController::class, 'form'])
+                ->name('invoices.test-send');
+            Route::post('/test-send', [InvoiceTestController::class, 'send'])
+                ->name('invoices.test-send.post');
         });
 
 
