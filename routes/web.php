@@ -21,6 +21,8 @@ use App\Http\Controllers\CongressPublicController;
 use App\Http\Controllers\DashboardCongressController;
 use App\Http\Controllers\DashboardEventController;
 use App\Http\Controllers\DashboardLessonController;
+use App\Http\Controllers\DashboardLessonFollowUpController;
+use App\Http\Controllers\SatisfactionPublicController;
 use App\Http\Controllers\DashboardReportController;
 use App\Http\Controllers\DashboardUserController;
 use App\Http\Controllers\DashboardVideoAdsController;
@@ -145,6 +147,9 @@ Route::group(['prefix' => 'admin', 'middleware' => ['cmsAdmin']], function () {
             Route::get('/', [DashboardLessonController::class, 'index'])->name('index');
             Route::get('/data', [DashboardLessonController::class, 'chartData'])->name('data');
             Route::get('/search-lessons', [DashboardLessonController::class, 'searchLessons'])->name('search-lessons');
+            // Suivi qualité (Qualiopi) : complétion + questionnaires de satisfaction
+            Route::get('/suivi', [DashboardLessonFollowUpController::class, 'index'])->name('suivi');
+            Route::get('/suivi/export', [DashboardLessonFollowUpController::class, 'export'])->name('suivi.export');
         });
 
     // Videos
@@ -681,6 +686,15 @@ Route::get('/congres/operator', [CongressPublicController::class, 'operatorEnter
 Route::get('/congres/operator/{code}', [CongressPublicController::class, 'operator'])->name('congres.operator');
 Route::get('/congres/{code}', [CongressPublicController::class, 'reader'])->name('congres.reader');
 Route::get('/congres/{code}/ecran/{token}', [CongressPublicController::class, 'screen'])->name('congres.screen');
+
+// Questionnaire de satisfaction à froid (auth.orthomaster.fr/satisfaction/{token}), lien envoyé par e-mail
+Route::get('/satisfaction/{token}', [SatisfactionPublicController::class, 'show'])
+    ->where('token', '[A-Za-z0-9]{32}')
+    ->name('satisfaction.show');
+Route::post('/satisfaction/{token}', [SatisfactionPublicController::class, 'submit'])
+    ->where('token', '[A-Za-z0-9]{32}')
+    ->middleware('throttle:20,1')
+    ->name('satisfaction.submit');
 
 // Redirection publique des short links (idéalement sur le domaine go.orthomaster.fr)
 Route::get('/sh/{code}', [MktToolsController::class, 'redirect'])->name('mkt.shortlink.redirect');
