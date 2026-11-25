@@ -6,6 +6,7 @@ use App\Jobs\SendExpoNotificationJob;
 use App\Mail\SendFifplNoPayInvoiceMail;
 use App\Mail\SendFifplCompletedDocumentMail;
 use App\Mail\ResendFifplNoPayInvoiceMail;
+use App\Models\Contract;
 use App\Models\Invoice;
 use App\Models\SystemNotification;
 use Illuminate\Console\Command;
@@ -33,7 +34,13 @@ class SendFifplInvoicesByNotificationsAndEmails extends Command
      */
     public function handle()
     {
+        // Seulement les factures FIFPL : sent_at sert aussi aux factures OPCO-EP (date d'envoi prévue)
+        // et aux factures de rendez-vous (date d'envoi), qui ne doivent pas recevoir ces e-mails.
         $invoices = Invoice::whereDate('sent_at', today())
+            ->whereIn('id', Contract::where('organization', 'FIFPL')
+                ->where('type', 'signed')
+                ->whereNotNull('invoice_id')
+                ->select('invoice_id'))
             ->with('user')
             ->get();
 

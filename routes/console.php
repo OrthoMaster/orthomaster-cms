@@ -46,6 +46,11 @@ Schedule::command('fifpl:send-invoices')
     ->dailyAt('08:15')
     ->timezone('Europe/Paris');
 
+// OPCO-EP : désactivé pendant les tests — factures une par une (bouton CMS « Créer la facture OPCO-EP »),
+// attestation par le bouton de la facture. À réactiver quand tout est validé :
+// Schedule::command('opco:invoices')->dailyAt('17:30')->timezone('Europe/Paris');        // factures des conventions récentes
+// Schedule::command('opco:send-documents')->dailyAt('08:30')->timezone('Europe/Paris'); // fin de formation : attestation + certificats
+
 // Sales
 Schedule::command('sales:update-assignments')
     ->dailyAt('01:00')
@@ -72,3 +77,5 @@ Schedule::command('queue:work --queue=ai-search --stop-when-empty')->everyMinute
 // Booking
 Schedule::command('booking:expire-requests')->everyFiveMinutes()->withoutOverlapping();
 Schedule::command('booking:meet-sweep')->everyTenMinutes()->withoutOverlapping();
+// Rappels 24 h avant les rendez-vous acceptés (e-mail aux deux parties).
+Schedule::command('booking:send-reminders')->everyTenMinutes()->withoutOverlapping();

@@ -98,6 +98,23 @@ class Booking extends Model
         return $this->belongsTo(BookingDeclineReason::class, 'decline_reason_id');
     }
 
+    /**
+     * Référence donnée au demandeur : RDV-MMJJ + id (au moins 3 chiffres), MMJJ = jour de la demande
+     * (heure de Paris). Ex. : demande #42 du 10/11 → RDV-1110042.
+     */
+    public function reference(): string
+    {
+        $date = ($this->requested_at ?? $this->created_at ?? now())->copy()->setTimezone('Europe/Paris');
+
+        return 'RDV-' . $date->format('md') . str_pad((string) $this->id, 3, '0', STR_PAD_LEFT);
+    }
+
+    /** Id d'une référence RDV-MMJJXXX (ou null si ce n'en est pas une). */
+    public static function idFromReference(string $reference): ?int
+    {
+        return preg_match('/^RDV-?\d{4}(\d{3,})$/i', trim($reference), $m) ? (int) $m[1] : null;
+    }
+
     /** Montant HT reversé à l'expert, commission copiée à la création déduite. */
     public function expertPayout(): float
     {

@@ -7,11 +7,13 @@ use App\Http\Controllers\Odoo\OdooInvoiceController;
 use App\Mail\SendFifplCompletedDocumentMail;
 use App\Models\Cart;
 use App\Models\Contract;
+use App\Models\FundingOrganization;
 use App\Models\Invoice;
 use App\Models\SystemNotification;
 use App\Models\User;
 use App\Organization;
 use App\Services\OdooService;
+use App\Services\Opco\OpcoInvoiceService;
 use Exception;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
@@ -35,6 +37,30 @@ class InvoiceController extends Controller
      * Liste des factures.
      * GET /invoices/list
      */
+    /** Création de factures OPCO-EP, attestations, envoi des certificats : administrateurs seulement (role_id = 1). */
+    public static function canManageOpco(): bool
+    {
+        return (int) optional(auth()->user())->role_id === 1;
+    }
+
+    /** Conventions OPCO-EP sans facture, pour le choix du bouton « Créer la facture OPCO-EP ». */
+    private function opcoContractOptions()
+    {
+        $contracts = app(OpcoInvoiceService::class)->contractsWithoutInvoice();
+        $companies = \App\Models\Company::whereIn('id', $contracts->pluck('company_id')->filter()->unique())->pluck('name', 'id');
+
+        return $contracts->sortByDesc('id')->map(fn ($c) => (object) [
+            'id'        => $c->id,
+            'no'        => $c->no,
+            'company'   => $companies[$c->company_id] ?? '—',
+            'signed_at' => \Illuminate\Support\Carbon::parse($c->getRawOriginal('created_at'))->format('d/m/Y'),
+        ])->values();
+    }
+
+    /** Filtre « origine » de la liste : en plus des organismes de financement. */
+    private const ORIGIN_BOOKING = 'rendez-vous';
+    private const ORIGIN_DIRECT = 'direct';
+
     public function list(Request $request)
     {
         $search = trim((string) $request->query('q', ''));
@@ -44,8 +70,25 @@ class InvoiceController extends Controller
             $status = null;
         }
 
+        // Organisme / origine : organismes de financement (convention signée), rendez-vous expert, paiement direct
+        $origins = FundingOrganization::orderBy('id')->pluck('name')
+            ->mapWithKeys(fn ($name) => [$name => $name])
+            ->all() + [
+                self::ORIGIN_BOOKING => 'Rendez-vous expert',
+                self::ORIGIN_DIRECT  => 'Paiement direct (carte)',
+            ];
+        $origin = $request->query('origin');
+        if (!array_key_exists($origin, $origins)) {
+            $origin = null;
+        }
+        $cartInvoice = fn ($q) => $q->select(DB::raw(1))->from('carts as k')->whereColumn('k.invoice_id', 'i.id');
+
         $invoices = DB::table('invoices as i')
             ->leftJoin('users as u', 'u.id', '=', 'i.user_id')
+            // Convention liée (FIFPL / OPCO-EP) : une facture au plus par convention signée.
+            ->leftJoin('contracts as c', function ($join) {
+                $join->on('c.invoice_id', '=', 'i.id')->where('c.type', '=', 'signed');
+            })
             ->select(
                 'i.id',
                 'i.no',
@@ -64,8 +107,14 @@ class InvoiceController extends Controller
                 'i.paid_at',
                 'i.document',
                 'i.certification',
-                'u.email as user_email'
+                'i.sent_at',
+                'i.sent_cnt',
+                'u.email as user_email',
+                'i.booking_id',
+                'c.no as contract_no',
+                'c.organization as contract_organization'
             )
+            ->selectRaw('EXISTS (SELECT 1 FROM carts k WHERE k.invoice_id = i.id) as is_direct')
             ->when($search !== '', function ($q) use ($search) {
                 $q->where(function ($sub) use ($search) {
                     $sub->where('i.no', 'like', '%' . $search . '%')
@@ -74,6 +123,9 @@ class InvoiceController extends Controller
                 });
             })
             ->when($status, fn($q) => $q->where('i.status', $status))
+            ->when($origin === self::ORIGIN_BOOKING, fn ($q) => $q->whereNotNull('i.booking_id'))
+            ->when($origin === self::ORIGIN_DIRECT, fn ($q) => $q->whereNull('c.id')->whereNull('i.booking_id')->whereExists($cartInvoice))
+            ->when($origin && !in_array($origin, [self::ORIGIN_BOOKING, self::ORIGIN_DIRECT], true), fn ($q) => $q->where('c.organization', $origin))
             ->orderByDesc('i.created_at')
             ->orderByDesc('i.id')
             ->paginate(self::PER_PAGE)
@@ -81,9 +133,19 @@ class InvoiceController extends Controller
 
         return view('invoices.list', [
             'invoices' => $invoices,
+            'canManageOpco' => self::canManageOpco(),
+            'opcoPending' => self::canManageOpco() ? $this->opcoContractOptions() : collect(),
+            'opcoOrganization' => OpcoInvoiceService::ORGANIZATION,
+            'opcoLearners' => app(OpcoInvoiceService::class)->learnersByInvoice(
+                collect($invoices->items())
+                    ->filter(fn ($i) => $i->contract_organization === OpcoInvoiceService::ORGANIZATION && $i->certification)
+                    ->pluck('id')->all()
+            ),
             'search'   => $search,
             'status'   => $status,
             'statuses' => self::STATUSES,
+            'origin'   => $origin,
+            'origins'  => $origins,
         ]);
     }
 
@@ -104,6 +166,14 @@ class InvoiceController extends Controller
         if ($invoice->status === 'paid') {
             return back()
                 ->with('message', 'Cette facture est déjà réglée.')
+                ->with('alert-type', 'warning');
+        }
+
+        // OPCO-EP : pas de règlement à enregistrer dans le CMS (seulement facture + certificat).
+        if (app(OpcoInvoiceService::class)->isOpcoInvoice($invoiceId)) {
+            return redirect()
+                ->route('invoices.list')
+                ->with('message', 'Facture OPCO-EP : aucun règlement à enregistrer dans le CMS.')
                 ->with('alert-type', 'warning');
         }
 
@@ -156,6 +226,102 @@ class InvoiceController extends Controller
             ->with('alert-type', 'success');
     }
 
+    /**
+     * Crée la facture (Odoo + PDF) d'UNE convention OPCO-EP choisie, sans attestation.
+     * POST /dashboard/invoices/opco/generate  (contract_id)
+     */
+    public function generateOpcoInvoice(Request $request)
+    {
+        abort_unless(self::canManageOpco(), 403);
+
+        $data = $request->validate(['contract_id' => ['required', 'integer']]);
+        $opco = app(OpcoInvoiceService::class);
+
+        $contract = $opco->contractsWithoutInvoice()->firstWhere('id', (int) $data['contract_id']);
+        if (!$contract) {
+            return back()
+                ->with('message', 'Cette convention OPCO-EP n\'existe pas ou a déjà sa facture.')
+                ->with('alert-type', 'error');
+        }
+
+        try {
+            $invoice = $opco->issueForContract($contract);
+        } catch (Exception $e) {
+            Log::error($e->getMessage(), ['contract-' . $contract->id, 'opco-invoice-create']);
+            return back()
+                ->with('message', "Facture de la convention {$contract->no} non créée : " . $e->getMessage())
+                ->with('alert-type', 'error');
+        }
+
+        return redirect()
+            ->route('invoices.list', ['q' => $invoice->no])
+            ->with('message', "Facture {$invoice->no} créée pour la convention {$contract->no}.")
+            ->with('alert-type', 'success');
+    }
+
+    /**
+     * Crée l'attestation d'une facture OPCO-EP (PDF de tous les certificats, sur S3). N'envoie rien.
+     * POST /dashboard/invoices/{invoice}/opco-attestation
+     */
+    public function createOpcoAttestation(int $invoiceId)
+    {
+        abort_unless(self::canManageOpco(), 403);
+
+        $opco = app(OpcoInvoiceService::class);
+        $invoice = Invoice::findOrFail($invoiceId);
+        abort_unless($opco->isOpcoInvoice($invoice->id), 404);
+
+        try {
+            $opco->createAttestation($invoice);
+        } catch (Exception $e) {
+            Log::error($e->getMessage(), ['inv-' . $invoiceId, 'opco-attestation']);
+            return back()
+                ->with('message', 'Attestation non créée : ' . $e->getMessage())
+                ->with('alert-type', 'error');
+        }
+
+        return back()
+            ->with('message', "Attestation de la facture {$invoice->no} créée. Vérifiez-la, puis envoyez les certificats aux apprenants.")
+            ->with('alert-type', 'success');
+    }
+
+    /**
+     * Envoie à chaque apprenant SA page de l'attestation (après vérification) ; learner_id : un seul apprenant.
+     * POST /dashboard/invoices/{invoice}/opco-certificates
+     */
+    public function sendOpcoCertificates(Request $request, int $invoiceId)
+    {
+        abort_unless(self::canManageOpco(), 403);
+
+        $opco = app(OpcoInvoiceService::class);
+        $invoice = Invoice::findOrFail($invoiceId);
+        abort_unless($opco->isOpcoInvoice($invoice->id), 404);
+
+        // learner_id vide = tous les apprenants
+        $learnerId = $request->integer('learner_id') ?: null;
+
+        try {
+            $result = $opco->sendCertificates($invoice, $learnerId);
+        } catch (Exception $e) {
+            Log::error($e->getMessage(), ['inv-' . $invoiceId, 'opco-certificates']);
+            return back()
+                ->with('message', 'Certificats non envoyés : ' . $e->getMessage())
+                ->with('alert-type', 'error');
+        }
+
+        $message = "Certificat envoyé à {$result['sent']} apprenant(s).";
+        if ($result['no_email']) {
+            $message .= ' Sans e-mail : ' . implode(', ', $result['no_email']) . '.';
+        }
+        if ($result['failed']) {
+            $message .= ' Échec : ' . implode(', ', $result['failed']) . ' (voir les logs).';
+        }
+
+        return back()
+            ->with('message', $message)
+            ->with('alert-type', ($result['no_email'] || $result['failed']) ? 'warning' : 'success');
+    }
+
     // Generate normal invoice
     public function generateInvoiceDocument($id)
     {
@@ -175,17 +341,26 @@ class InvoiceController extends Controller
         $invoice->tva = $cart->tva;
         $invoice->unit_price = $cart->unit_price;
 
-        $invoiceNo = '';
-        do {
-            $currentYear = date('Y');
-            $yearlyInvoiceCount = Invoice::whereYear('created_at', $currentYear)->count() + 1;
+        // Numéro F-AA-NNNN : suite du plus grand numéro F- de l'année, sans trou.
+        // (Avant : nombre de lignes « invoices » de l'année + 1, qui comptait aussi les lignes
+        // d'autres sources — rendez-vous experts, factures Odoo VE… — et faisait sauter des numéros.)
+        // Verrou MySQL : deux paiements simultanés ne prennent pas le même numéro.
+        DB::select("SELECT GET_LOCK('invoice-number-F', 10)");
+        try {
+            $prefix = 'F-' . date('y') . '-';
+            $last = (int) Invoice::where('no', 'like', $prefix . '%')
+                ->max(DB::raw('CAST(SUBSTRING(no, ' . (strlen($prefix) + 1) . ') AS UNSIGNED)'));
 
-            // Format: P + 2 no year + 4 no
-            $invoiceNo = strtoupper('F-' . substr($currentYear, -2) . '-' . str_pad($yearlyInvoiceCount, 4, '0', STR_PAD_LEFT));
-        } while (Invoice::where('no', $invoiceNo)->exists());
+            do {
+                $last++;
+                $invoiceNo = $prefix . str_pad((string) $last, 4, '0', STR_PAD_LEFT);
+            } while (Invoice::where('no', $invoiceNo)->exists());
 
-        $invoice->no = $invoiceNo;
-        $invoice->save();
+            $invoice->no = $invoiceNo;
+            $invoice->save();
+        } finally {
+            DB::select("SELECT RELEASE_LOCK('invoice-number-F')");
+        }
 
         $generatePdfController = new GeneratePdfController();
         $generatePdfController->paymentInvoice($invoice);

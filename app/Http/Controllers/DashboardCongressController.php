@@ -27,7 +27,7 @@ class DashboardCongressController extends Controller
     public function index()
     {
         $boards = DB::table('congress_boards as b')
-            ->select('b.id', 'b.title', 'b.congress_name', 'b.code', 'b.status', 'b.created_at')
+            ->select('b.id', 'b.title', 'b.congress_name', 'b.code', 'b.operator_code', 'b.status', 'b.created_at')
             ->selectSub(
                 DB::table('congress_questions as q')->whereColumn('q.board_id', 'b.id')->selectRaw('COUNT(*)'),
                 'questions_count'
@@ -60,6 +60,7 @@ class DashboardCongressController extends Controller
             'congress_name' => $data['congress_name'] ?? null,
             'title'         => $data['title'],
             'code'          => $this->service->newCode(),
+            'operator_code' => $this->service->newCode(),
             'screen_token'  => $this->service->newScreenToken(),
         ]);
 
@@ -198,6 +199,17 @@ class DashboardCongressController extends Controller
         $board->update(['screen_token' => $this->service->newScreenToken()]);
 
         return response()->json(['screen_url' => $board->screenUrl()]);
+    }
+
+    /**
+     * L'écran des intervenants ouvert avec l'ancien code affichera « Code désactivé ».
+     * POST /admin/dashboard/congres/{board}/operator-code
+     */
+    public function regenerateOperatorCode(CongressBoard $board): JsonResponse
+    {
+        $board->update(['operator_code' => $this->service->newCode()]);
+
+        return response()->json(['operator_code' => $board->operator_code, 'operator_url' => $board->operatorUrl()]);
     }
 
     /**

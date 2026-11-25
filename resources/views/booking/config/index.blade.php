@@ -35,6 +35,9 @@
     <a href="{{ route('booking.appointments.index') }}" class="btn btn-default">
         <i class="voyager-calendar"></i> Rendez-vous
     </a>
+    <a href="{{ route('booking.revenue.index') }}" class="btn btn-default">
+        <i class="voyager-dollar"></i> Revenus
+    </a>
     <a href="{{ route('booking.experts.index') }}" class="btn btn-default">
         <i class="voyager-people"></i> Experts
     </a>
