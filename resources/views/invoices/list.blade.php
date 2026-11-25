@@ -17,7 +17,8 @@
         <div class="row">
             <div class="col-lg-12">
 
-                {{-- ============ SECTION 1 : OPCO-EP — facture d'une convention ============ --}}
+                {{-- ============ SECTION 1 : OPCO-EP — facture d'une convention (admin) ============ --}}
+                @if ($canManageOpco)
                 <div class="panel panel-bordered opco-section">
                     <div class="panel-body">
                         <div class="section-head">
@@ -49,6 +50,7 @@
                         @endif
                     </div>
                 </div>
+                @endif
 
                 {{-- ============ SECTION 2 : liste des factures ============ --}}
                 <div class="panel panel-bordered">
@@ -225,7 +227,7 @@
                                                     </dd>
                                                 </dl>
 
-                                                @if ($isOpco)
+                                                @if ($isOpco && $canManageOpco)
                                                     @if (!$invoice->certification)
                                                         {{-- 1) Attestation = PDF de tous les certificats, sur S3. N'envoie rien. --}}
                                                         <form action="{{ route('invoices.opco.attestation', $invoice->id) }}" method="POST"

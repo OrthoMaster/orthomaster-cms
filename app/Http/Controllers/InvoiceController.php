@@ -37,6 +37,12 @@ class InvoiceController extends Controller
      * Liste des factures.
      * GET /invoices/list
      */
+    /** Création de factures OPCO-EP, attestations, envoi des certificats : administrateurs seulement (role_id = 1). */
+    public static function canManageOpco(): bool
+    {
+        return (int) optional(auth()->user())->role_id === 1;
+    }
+
     /** Conventions OPCO-EP sans facture, pour le choix du bouton « Créer la facture OPCO-EP ». */
     private function opcoContractOptions()
     {
@@ -127,7 +133,8 @@ class InvoiceController extends Controller
 
         return view('invoices.list', [
             'invoices' => $invoices,
-            'opcoPending' => $this->opcoContractOptions(),
+            'canManageOpco' => self::canManageOpco(),
+            'opcoPending' => self::canManageOpco() ? $this->opcoContractOptions() : collect(),
             'opcoOrganization' => OpcoInvoiceService::ORGANIZATION,
             'opcoLearners' => app(OpcoInvoiceService::class)->learnersByInvoice(
                 collect($invoices->items())
@@ -225,6 +232,8 @@ class InvoiceController extends Controller
      */
     public function generateOpcoInvoice(Request $request)
     {
+        abort_unless(self::canManageOpco(), 403);
+
         $data = $request->validate(['contract_id' => ['required', 'integer']]);
         $opco = app(OpcoInvoiceService::class);
 
@@ -256,6 +265,8 @@ class InvoiceController extends Controller
      */
     public function createOpcoAttestation(int $invoiceId)
     {
+        abort_unless(self::canManageOpco(), 403);
+
         $opco = app(OpcoInvoiceService::class);
         $invoice = Invoice::findOrFail($invoiceId);
         abort_unless($opco->isOpcoInvoice($invoice->id), 404);
@@ -280,6 +291,8 @@ class InvoiceController extends Controller
      */
     public function sendOpcoCertificates(Request $request, int $invoiceId)
     {
+        abort_unless(self::canManageOpco(), 403);
+
         $opco = app(OpcoInvoiceService::class);
         $invoice = Invoice::findOrFail($invoiceId);
         abort_unless($opco->isOpcoInvoice($invoice->id), 404);
