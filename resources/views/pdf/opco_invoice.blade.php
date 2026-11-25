@@ -357,6 +357,23 @@
         </table>
     </div>
 
+    <!-- Apprenants (comme le devis) -->
+    <div class="formation-section no-break">
+        <table>
+            <tr>
+                <td></td>
+                <td>
+                    <div class="learners-box">
+                        <div class="section-title">Apprenants</div>
+                        @foreach ($members as $member)
+                            <div class="learner-item">{{ $member->name . ' ' . $member->first_name }}</div>
+                        @endforeach
+                    </div>
+                </td>
+            </tr>
+        </table>
+    </div>
+
     <br />
 
     <!-- Items Table (comme le devis OPCO, description complète) -->

@@ -70,8 +70,9 @@
                         <p class="test-intro">
                             Invente un devis OPCO-EP signé aujourd'hui (entreprise « Cabinet TEST OrthoMaster »,
                             apprenants « TEST Apprenant n », vous comme manager) avec de vraies formations,
-                            un seul dossier de 10 h au plus. Envoie l'e-mail de fin de formation OPCO avec
-                            <b>devis + facture + certificat + programme</b>.
+                            un seul dossier de 10 h au plus. Envoie l'e-mail de fin de formation tel que le reçoit
+                            le 1<sup>er</sup> apprenant (son <b>certificat</b>), avec en plus, pour le test,
+                            <b>devis + facture + programme + certificats de tous les apprenants</b>.
                             <br>
                             <span class="text-muted">Tout est fait en mémoire : rien n'est enregistré.</span>
                         </p>

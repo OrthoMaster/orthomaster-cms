@@ -194,7 +194,7 @@
                                                     </dd>
 
                                                     @if ($isOpco)
-                                                        <dt>E-mail manager</dt>
+                                                        <dt>Certificats aux apprenants</dt>
                                                         <dd>
                                                             @if ($invoice->sent_at)
                                                                 prévu le {{ \Illuminate\Support\Carbon::parse($invoice->sent_at)->format('d/m/Y') }}
@@ -209,11 +209,11 @@
 
                                                 @if ($isOpco)
                                                     <form action="{{ route('invoices.opco.send', $invoice->id) }}" method="POST"
-                                                        onsubmit="return confirm('Envoyer maintenant la facture et les certificats au manager ({{ $invoice->client_email }}) ?');">
+                                                        onsubmit="return confirm('Envoyer maintenant à chaque apprenant son certificat de réalisation ?');">
                                                         @csrf
                                                         <button type="submit" class="btn btn-sm btn-default">
                                                             <i class="voyager-paper-plane"></i>
-                                                            {{ $invoice->sent_cnt > 0 ? 'Renvoyer au manager' : 'Envoyer au manager' }}
+                                                            {{ $invoice->sent_cnt > 0 ? 'Renvoyer les certificats' : 'Envoyer les certificats' }}
                                                         </button>
                                                     </form>
                                                 @endif

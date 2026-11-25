@@ -3,7 +3,7 @@
 namespace App\Services\Invoices;
 
 use App\Http\Controllers\GeneratePdfController;
-use App\Mail\OpcoCompletedDocumentMail;
+use App\Mail\OpcoCertificateMail;
 use App\Mail\SendFifplCompletedDocumentMail;
 use App\Models\Cart;
 use App\Models\CartItem;
@@ -196,12 +196,10 @@ class InvoiceTestSendService
 
         $files['Facture_' . str_replace('/', '_', $invoice->no) . '.pdf'] = $this->opco->invoicePdfContent($invoice, $contract, $dossier);
 
-        $certificates = $this->opco->certificatesPdfContent($invoice, $contract, $dossier);
-        if ($certificates !== null) {
-            $files['Certificats_realisation_' . $contract->no . '.pdf'] = $certificates;
-        } else {
-            $notes[] = 'Certificat OPCO-EP non créé : non joint.';
-        }
+        // L'e-mail réel : celui que reçoit chaque apprenant avec SON certificat ; ici celui du 1er apprenant.
+        $learner = $members->first();
+        $files[$this->opco->certificateFileName($learner)] = $this->opco->certificatesPdfContent($invoice, $contract, $dossier, collect([$learner]));
+        $files['Certificats_realisation_tous_' . $contract->no . '.pdf'] = $this->opco->certificatesPdfContent($invoice, $contract, $dossier);
 
         $files['Programme_' . $contract->no . '.pdf'] = $this->pdf->autoProgPdfContentForGroups(
             $cart,
@@ -212,7 +210,9 @@ class InvoiceTestSendService
             $today->format('d/m/Y')
         );
 
-        $mail = new OpcoCompletedDocumentMail($manager, $invoice, $contract);
+        $mail = new OpcoCertificateMail($learner, $contract);
+        $notes[] = 'E-mail tel que reçu par « ' . trim($learner->first_name . ' ' . $learner->name) . ' » (chaque apprenant reçoit le sien, '
+            . 'avec seulement son certificat). Devis, facture, programme et certificats de tous les apprenants : joints pour le test seulement.';
         foreach ($files as $name => $content) {
             $mail->attachData($content, $name, ['mime' => 'application/pdf']);
         }
@@ -292,7 +292,7 @@ class InvoiceTestSendService
 
     /* ---------------------------------------------------------------- OPCO-EP */
 
-    /** Comme OpcoInvoiceService::send(). */
+    /** Comme OpcoInvoiceService::send() pour le 1er apprenant, avec en plus les autres documents. */
     private function opcoDocuments(Invoice $invoice, Contract $contract): array
     {
         $notes = [];
@@ -300,18 +300,18 @@ class InvoiceTestSendService
 
         $files['Facture_' . str_replace('/', '_', $invoice->no) . '.pdf'] = $this->opco->invoicePdfContent($invoice, $contract);
 
-        $certificates = $this->opco->certificatesPdfContent($invoice, $contract);
-        if ($certificates !== null) {
-            $files['Certificats_realisation_' . $contract->no . '.pdf'] = $certificates;
-        } else {
-            $notes[] = 'Certificat OPCO-EP non créé : non joint.';
-        }
+        // L'e-mail réel : celui que reçoit chaque apprenant avec SON certificat ; ici celui du 1er apprenant.
+        $dossier = $this->opco->dossier($contract);
+        $learner = $dossier['members']->first();
+        $files[$this->opco->certificateFileName($learner)] = $this->opco->certificatesPdfContent($invoice, $contract, $dossier, collect([$learner]));
+        $files['Certificats_realisation_tous_' . $contract->no . '.pdf'] = $this->opco->certificatesPdfContent($invoice, $contract, $dossier);
 
         $files['Programme_' . $contract->no . '.pdf'] = $this->programme($contract, $this->opco->dossierIndex($contract));
         $notes[] = 'Programme refait sans la signature (elle n\'est pas conservée à part).';
+        $notes[] = 'E-mail tel que reçu par « ' . trim($learner->first_name . ' ' . $learner->name) . ' » (chaque apprenant reçoit le sien, '
+            . 'avec seulement son certificat). Facture, programme et certificats de tous les apprenants : joints pour le test seulement.';
 
-        $manager = User::findOrFail($invoice->user_id);
-        $mail = new OpcoCompletedDocumentMail($manager, $this->withoutStoredFiles($invoice), $contract);
+        $mail = new OpcoCertificateMail($learner, $contract);
 
         return [$mail, $files, $notes];
     }

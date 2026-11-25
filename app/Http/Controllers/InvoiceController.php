@@ -222,7 +222,7 @@ class InvoiceController extends Controller
     }
 
     /**
-     * Envoie tout de suite au manager la facture et les certificats d'une convention OPCO-EP
+     * Envoie tout de suite à chaque apprenant son certificat de réalisation (convention OPCO-EP)
      * (conventions anciennes : pas d'envoi automatique ; ou renvoi).
      * POST /dashboard/invoices/{invoice}/opco-send
      */
@@ -242,8 +242,8 @@ class InvoiceController extends Controller
         }
 
         return $sent
-            ? back()->with('message', "Facture {$invoice->no} et certificats envoyés au manager.")->with('alert-type', 'success')
-            : back()->with('message', "Pas envoyé : le certificat de réalisation OPCO n'a pas pu être créé (voir les logs).")->with('alert-type', 'warning');
+            ? back()->with('message', "Certificats de réalisation de la facture {$invoice->no} envoyés aux apprenants.")->with('alert-type', 'success')
+            : back()->with('message', "Pas envoyé : aucun apprenant n'a pu recevoir son certificat (voir les logs).")->with('alert-type', 'warning');
     }
 
     // Generate normal invoice

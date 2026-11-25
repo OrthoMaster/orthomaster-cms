@@ -5,12 +5,12 @@ namespace App\Console\Commands;
 use App\Services\Opco\OpcoInvoiceService;
 use Illuminate\Console\Command;
 
-/** E-mail de fin de formation (facture + certificats) aux managers dont la date d'envoi est arrivée. */
+/** Fin de formation : chaque apprenant reçoit son certificat de réalisation (date d'envoi arrivée). Pas de facture. */
 class SendOpcoDocuments extends Command
 {
     protected $signature = 'opco:send-documents';
 
-    protected $description = 'Envoie facture et certificats OPCO-EP au manager, un mois après la signature';
+    protected $description = 'Envoie à chaque apprenant OPCO-EP son certificat de réalisation, un mois après la signature';
 
     public function handle(OpcoInvoiceService $opco): int
     {

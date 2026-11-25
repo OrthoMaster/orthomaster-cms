@@ -118,6 +118,21 @@
             color: #111827;
         }
 
+        .modules-title {
+            margin-top: 3mm;
+        }
+
+        .modules {
+            margin: 1mm 0 0;
+            padding-left: 5mm;
+            font-weight: normal;
+            color: #374151;
+        }
+
+        .modules li {
+            margin-bottom: 0.8mm;
+        }
+
         .hl {
             font-weight: bold;
             color: #111827;
@@ -197,6 +212,12 @@
                 <div class="training">
                     ORTHOMASTER : Une formation pour bien délivrer les Dispositifs Médicaux de petit appareillage
                     orthopédique en pharmacie d'officine.
+                    <div class="modules-title">{{ count($modules) > 1 ? 'Modules :' : 'Module :' }}</div>
+                    <ul class="modules">
+                        @foreach ($modules as $module)
+                            <li>{{ $module }}</li>
+                        @endforeach
+                    </ul>
                 </div>
             </div>
 

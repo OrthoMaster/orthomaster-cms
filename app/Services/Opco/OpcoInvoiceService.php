@@ -4,7 +4,7 @@ namespace App\Services\Opco;
 
 use App\Http\Controllers\GeneratePdfController;
 use App\Http\Controllers\Odoo\OdooInvoiceController;
-use App\Mail\OpcoCompletedDocumentMail;
+use App\Mail\OpcoCertificateMail;
 use App\Models\Cart;
 use App\Models\Company;
 use App\Models\Contract;
@@ -35,7 +35,8 @@ use Throwable;
  *   l'OPCO règle directement OrthoMaster (subrogation). L'entreprise et les apprenants figurent sur la facture.
  * - Date de facture = signature + 1 mois (fin de formation) ; convention rattrapée après cette date :
  *   date du jour de création. Échéance = date de facture.
- * - Créée dès que possible (tâche du soir ou bouton CMS) ; e-mail au manager seulement à la date de facture
+ * - Créée dès que possible (tâche du soir ou bouton CMS) ; à la fin de la formation, chaque apprenant reçoit
+ *   par e-mail SON certificat de réalisation (la facture n'est envoyée à personne)
  *   (invoices.sent_at = date prévue d'envoi, remise à null une fois envoyé, sent_cnt + 1).
  * - Conventions anciennes (date de facture déjà passée) : documents créés, pas d'e-mail automatique ;
  *   envoi possible depuis la liste des factures du CMS.
@@ -192,7 +193,7 @@ class OpcoInvoiceService
                 'tva_amount'     => $dossier['tva_amount'],
                 'amount_ht'      => $dossier['amount_ht'],
                 'issued_at'      => now(),
-                // Envoi au manager à la date de facture ; convention rattrapée (date prévue passée) : pas d'envoi automatique.
+                // Envoi des certificats aux apprenants à la fin de formation ; convention rattrapée (date prévue passée) : pas d'envoi automatique.
                 'sent_at'        => $plannedDate->isBefore(today()) ? null : $plannedDate,
                 'client_name'    => self::OPCO_CLIENT['name'],
                 'client_email'   => $dossier['manager']->email,
@@ -227,7 +228,7 @@ class OpcoInvoiceService
     }
 
     /* ===================================================================
-     * E-mail de fin de formation au manager
+     * E-mail de fin de formation : certificat de réalisation à chaque apprenant
      * =================================================================== */
 
     /** Factures OPCO dont la date d'envoi est arrivée (rattrape aussi un jour manqué). */
@@ -263,8 +264,9 @@ class OpcoInvoiceService
     }
 
     /**
-     * Envoie facture + certificats au manager (certificats créés à ce moment s'ils n'existent pas encore :
-     * date de signature = jour de création du fichier). false si le certificat n'a pas pu être fait.
+     * Envoie à chaque apprenant SON certificat de réalisation (une page, son nom). La facture n'est pas envoyée.
+     * Le PDF de tous les certificats (invoices.certification, pour l'OPCO) est créé à ce moment s'il n'existe pas :
+     * signé le jour de fin de formation au plus tôt. false si aucun apprenant n'a pu recevoir son certificat.
      */
     public function send(Invoice $invoice): bool
     {
@@ -277,12 +279,28 @@ class OpcoInvoiceService
             $this->renderInvoice($invoice, $contract);
         }
         if (!$invoice->certification && !$this->generateCertificates($invoice, $contract)) {
-            Log::warning('OPCO : e-mail non envoyé, certificat de réalisation non créé', ['opco-invoice', 'inv-' . $invoice->id]);
+            Log::warning('OPCO : certificats de réalisation non créés, rien envoyé', ['opco-invoice', 'inv-' . $invoice->id]);
             return false;
         }
 
-        $manager = User::findOrFail($invoice->user_id);
-        Mail::to($manager->email)->send(new OpcoCompletedDocumentMail($manager, $invoice->fresh(), $contract));
+        $dossier = $this->dossier($contract);
+        $sent = 0;
+        foreach ($dossier['members'] as $learner) {
+            if (!$learner->email) {
+                Log::warning('OPCO : apprenant sans e-mail, certificat non envoyé', ['opco-invoice', 'inv-' . $invoice->id, 'user-' . $learner->id]);
+                continue;
+            }
+            try {
+                Mail::to($learner->email)->send($this->certificateMail($invoice, $contract, $dossier, $learner));
+                $sent++;
+            } catch (Throwable $e) {
+                Log::error('OPCO : certificat non envoyé — ' . $e->getMessage(), ['opco-invoice', 'inv-' . $invoice->id, 'user-' . $learner->id]);
+            }
+        }
+
+        if ($sent === 0) {
+            return false;
+        }
 
         $invoice->update([
             'sent_at'  => null,
@@ -290,6 +308,22 @@ class OpcoInvoiceService
         ]);
 
         return true;
+    }
+
+    /** E-mail d'un apprenant avec son certificat (une page) en pièce jointe. */
+    public function certificateMail(Invoice $invoice, Contract $contract, array $dossier, User $learner): OpcoCertificateMail
+    {
+        $content = $this->certificatesPdfContent($invoice, $contract, $dossier, collect([$learner]));
+
+        return (new OpcoCertificateMail($learner, $contract))
+            ->attachData($content, $this->certificateFileName($learner), ['mime' => 'application/pdf']);
+    }
+
+    public function certificateFileName(User $learner): string
+    {
+        $name = \Illuminate\Support\Str::slug(trim($learner->first_name . ' ' . $learner->name), '_') ?: 'apprenant';
+
+        return 'Certificat_realisation_' . $name . '.pdf';
     }
 
     /* ===================================================================
@@ -318,11 +352,14 @@ class OpcoInvoiceService
     /**
      * Contenu du PDF des certificats, sans rien enregistrer : une page par apprenant (pdf.opco_certificate).
      * Lieu de travail = entreprise de la convention ; du … au … = période du devis (signature → + 1 mois) ;
-     * durée = heures du dossier ; « Le » = le plus tardif entre fin de formation et jour de création du fichier.
+     * durée = heures du dossier ; modules = noms longs des formations du dossier ;
+     * « Le » = le plus tardif entre fin de formation et jour de création du fichier.
+     * $learners : seulement ces apprenants (certificat envoyé à un apprenant) ; sinon tous ceux du dossier.
      */
-    public function certificatesPdfContent(Invoice $invoice, Contract $contract, ?array $dossier = null): ?string
+    public function certificatesPdfContent(Invoice $invoice, Contract $contract, ?array $dossier = null, ?Collection $learners = null): ?string
     {
         $dossier ??= $this->dossier($contract);
+        $learners ??= $dossier['members'];
         $signedAt = $this->signedAt($contract);
         $company = $dossier['company'];
 
@@ -346,7 +383,9 @@ class OpcoInvoiceService
             'brand'       => self::CERTIFICATE_BRAND,
             'signatory'   => self::CERTIFICATE_SIGNATORY,
             'place'       => self::CERTIFICATE_PLACE,
-            'learners'    => $dossier['members']->map(fn ($m) => trim($m->first_name . ' ' . $m->name))->values(),
+            'learners'    => $learners->map(fn ($m) => trim($m->first_name . ' ' . $m->name))->values(),
+            // Nom long de la formation (celui des certificats FIFPL), sinon son nom
+            'modules'     => $dossier['items']->map(fn ($i) => $i->package->fifpl_cert_name ?: $i->package->name)->values(),
             'workplace'   => $workplace,
             'from'        => $signedAt->format('d/m/Y'),
             'to'          => $endDate->format('d/m/Y'),
