@@ -129,6 +129,11 @@ class GeneratePdfController extends Controller
         $pdf->setOption('isRemoteEnabled', true);
         $pdf->setPaper('A4', 'portrait');
 
+        // Contenu seul, sans rien enregistrer (écran de test du CMS)
+        if ($exportPdf === 'content') {
+            return $pdf->output();
+        }
+
         // Export pdf for generate/test
         if ($exportPdf) {
             return $pdf->download($qNo . '-' . now()->format('YmdHi') . '.pdf');
@@ -170,22 +175,7 @@ class GeneratePdfController extends Controller
         $pdfLinks = [];
         $html = '';
         foreach ($itemGroups as $key => $group) {
-            $totalModules = $group->sum(function ($item) {
-                return $item->package->modules->count();
-            });
-
-            $data = [
-                'company' => $this::COMPANY,
-                'signatureLink' => $signatureLink,
-                'companyName' => $companyName,
-                'name' => $name,
-                'location' => $location,
-                'date' => $date,
-                'cardId' => $cartNo . ($contractTotal > 1 ? '_' . ($key + 1) : ''),
-                'group' => $group,
-                'duration' => $cart->calculateGroupDuration($group),
-                'totalModules' => $totalModules
-            ];
+            $data = $this->autoProgGroupData($cart, $group, $key, $contractTotal, $signatureLink, $companyName, $name, $location, $date);
 
             // Test
             if ($exportPdf) {
@@ -222,6 +212,73 @@ class GeneratePdfController extends Controller
         }
 
         return $pdfLinks;
+    }
+
+    /** Données du modèle pdf.auto_programme pour un dossier du panier. */
+    private function autoProgGroupData($cart, $group, $key, $contractTotal, $signatureLink, $companyName, $name, $location, $date): array
+    {
+        $cartNo = str_pad($cart->id, 3, '0', STR_PAD_LEFT);
+
+        return [
+            'company' => $this::COMPANY,
+            'signatureLink' => $signatureLink,
+            'companyName' => $companyName,
+            'name' => $name,
+            'location' => $location,
+            'date' => $date,
+            'cardId' => $cartNo . ($contractTotal > 1 ? '_' . ($key + 1) : ''),
+            'group' => $group,
+            'duration' => $cart->calculateGroupDuration($group),
+            'totalModules' => $group->sum(fn ($item) => $item->package->modules->count()),
+        ];
+    }
+
+    /**
+     * Programme en PDF (contenu), sans rien enregistrer : un dossier ($groupIndex, à partir de 0)
+     * ou tous les dossiers du panier à la suite (null). Utilisé par l'envoi test du CMS.
+     */
+    public function autoProgPdfContent($cartId, ?int $groupIndex = null, $companyName = '', $name = '', $date = '', $signatureLink = '', $location = ''): string
+    {
+        $cart = Cart::with([
+            'members',
+            'items',
+            'items.package',
+            'items.package.modules',
+            'items.package.modules.lessons'
+        ])->findOrFail($cartId);
+
+        if ($cart->payment_type == '1') {
+            $itemGroups = $cart->groupItemsByDurationBestFit(Organization::OPCO_MAX_DURATION->value);
+        } elseif ($cart->payment_type == '2') {
+            $itemGroups = $cart->groupItemsByDurationBestFit(Organization::FIFPL_MAX_DURATION->value);
+        } else {
+            $itemGroups = $cart->groupItemsByDurationBestFit();
+        }
+        return $this->autoProgPdfContentForGroups($cart, $itemGroups, $groupIndex, $companyName, $name, $date, $signatureLink, $location);
+    }
+
+    /** Comme autoProgPdfContent(), avec un panier et des dossiers déjà construits (même non enregistrés). */
+    public function autoProgPdfContentForGroups($cart, $itemGroups, ?int $groupIndex = null, $companyName = '', $name = '', $date = '', $signatureLink = '', $location = ''): string
+    {
+        $contractTotal = sizeof($itemGroups);
+
+        $html = '';
+        foreach ($itemGroups as $key => $group) {
+            if ($groupIndex !== null && $key !== $groupIndex) {
+                continue;
+            }
+            if ($html !== '') {
+                $html .= '<div style="page-break-before: always;"></div>';
+            }
+            $html .= view('pdf.auto_programme', $this->autoProgGroupData($cart, $group, $key, $contractTotal, $signatureLink, $companyName, $name, $location, $date))->render();
+        }
+
+        $pdf = Pdf::loadHTML($html);
+        $pdf->setOption('isPhpEnabled', true);
+        $pdf->setOption('isRemoteEnabled', true);
+        $pdf->setPaper('A4', 'portrait');
+
+        return $pdf->output();
     }
 
     public function fifplPaymentInvoice(
@@ -270,6 +327,11 @@ class GeneratePdfController extends Controller
         $pdf->setOption('isRemoteEnabled', true);
         $pdf->setPaper('A4', 'portrait');
 
+        // Contenu seul, sans rien enregistrer (envoi test du CMS)
+        if ($exportPdf === 'content') {
+            return $pdf->output();
+        }
+
         // Export pdf for generate/test
         if ($exportPdf) {
             return $pdf->download(str_replace('/', '_', $invNo) . '-' . now()->format('YmdHi') . '.pdf');
@@ -286,6 +348,21 @@ class GeneratePdfController extends Controller
     }
 
     public function fifplCertificate($userId, $name, $fromDate, $toDate, $packages, $totalMins, $totalPackages, $amountHT, $amount)
+    {
+        $pdfContent = $this->fifplCertificateContent($name, $fromDate, $toDate, $packages, $totalMins, $totalPackages, $amountHT, $amount);
+
+        // Create file name
+        $fileName = 'certifications/' . $userId . '/certif-' . $toDate->format('YmdHi') . '.pdf';
+        $success = Storage::disk('s3')->put($fileName, $pdfContent, 'public');
+        if ($success) {
+            return Storage::disk('s3')->url($fileName);
+        }
+
+        return false;
+    }
+
+    /** Certificat FIFPL en PDF (contenu), sans rien enregistrer. */
+    public function fifplCertificateContent($name, $fromDate, $toDate, $packages, $totalMins, $totalPackages, $amountHT, $amount): string
     {
         try {
             $pdf = new Fpdi();
@@ -364,17 +441,7 @@ class GeneratePdfController extends Controller
                 }
             }
 
-            $pdfContent = $pdf->Output('', 'S');
-
-            // Create file name
-            $fileName = 'certifications/' . $userId . '/certif-' . $toDate->format('YmdHi') . '.pdf';
-            $success = Storage::disk('s3')->put($fileName, $pdfContent, 'public');;
-            if ($success) {
-                $url = Storage::disk('s3')->url($fileName);
-                return $url;
-            }
-
-            return false;
+            return $pdf->Output('', 'S');
         } catch (\Exception $e) {
             throw $e;
         }

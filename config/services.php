@@ -86,4 +86,5 @@ return [
         'regions'  => env('GOOGLE_PLACES_REGIONS', 'fr,de,be,ch'),
         'language' => env('GOOGLE_PLACES_LANGUAGE', 'fr'),
     ],
+
 ];

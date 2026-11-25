@@ -30,6 +30,7 @@ use App\Http\Controllers\GuideController;
 use App\Http\Controllers\InfographicController;
 use App\Http\Controllers\IntEmpTrackerController;
 use App\Http\Controllers\InvoiceController;
+use App\Http\Controllers\InvoiceTestController;
 use App\Http\Controllers\MediaController;
 use App\Http\Controllers\MktShortLinkController;
 use App\Http\Controllers\MktToolsController;
@@ -224,6 +225,15 @@ Route::group(['prefix' => 'admin', 'middleware' => ['cmsAdmin']], function () {
                 ->name('dashboard.events.stats');
         });
 
+    // Test admin (hors menu) : refait facture + certificat + programme d'une facture FIFPL / OPCO-EP
+    // et envoie l'e-mail de fin de formation à une adresse saisie. Rien n'est enregistré.
+    Route::get('dashboard/test-invoices', [InvoiceTestController::class, 'form'])
+        ->name('test-invoices');
+    Route::post('dashboard/test-invoices', [InvoiceTestController::class, 'send'])
+        ->name('test-invoices.send');
+    Route::post('dashboard/test-invoices/fake-opco', [InvoiceTestController::class, 'fakeOpco'])
+        ->name('test-invoices.fake-opco');
+
     // Invoices
     Route::prefix('dashboard/invoices')
         ->group(function () {
@@ -232,6 +242,16 @@ Route::group(['prefix' => 'admin', 'middleware' => ['cmsAdmin']], function () {
 
             Route::post('/{invoiceId}/virement', [InvoiceController::class, 'markAsVirement'])
                 ->name('invoices.virement');
+
+            // OPCO-EP : facture d'UNE convention choisie ; attestation (certificats) d'une facture
+            Route::post('/opco/generate', [InvoiceController::class, 'generateOpcoInvoice'])
+                ->name('invoices.opco.generate');
+            Route::post('/{invoiceId}/opco-attestation', [InvoiceController::class, 'createOpcoAttestation'])
+                ->whereNumber('invoiceId')
+                ->name('invoices.opco.attestation');
+            Route::post('/{invoiceId}/opco-certificates', [InvoiceController::class, 'sendOpcoCertificates'])
+                ->whereNumber('invoiceId')
+                ->name('invoices.opco.certificates');
         });
 
 
