@@ -305,9 +305,11 @@ class OpcoInvoiceService
      * Bouton « Envoyer les certificats » (après vérification de l'attestation) : chaque apprenant reçoit
      * SA page de l'attestation enregistrée — exactement le document vérifié, rien n'est refait.
      *
+     * $learnerId : renvoyer seulement à cet apprenant (sinon à tous).
+     *
      * @return array{sent: int, no_email: string[], failed: string[]}
      */
-    public function sendCertificates(Invoice $invoice): array
+    public function sendCertificates(Invoice $invoice, ?int $learnerId = null): array
     {
         $contract = $this->contractOf($invoice);
         if (!$contract) {
@@ -326,7 +328,14 @@ class OpcoInvoiceService
         }
 
         $result = ['sent' => 0, 'no_email' => [], 'failed' => []];
+        if ($learnerId && !$learners->contains('id', $learnerId)) {
+            throw new RuntimeException("Cet apprenant ne fait pas partie de la convention {$contract->no}.");
+        }
+
         foreach ($learners->values() as $i => $learner) {
+            if ($learnerId && $learner->id !== $learnerId) {
+                continue;
+            }
             $name = trim($learner->first_name . ' ' . $learner->name);
             if (!$learner->email) {
                 $result['no_email'][] = $name;
@@ -352,6 +361,34 @@ class OpcoInvoiceService
         }
 
         return $result;
+    }
+
+    /**
+     * Apprenants des factures OPCO de la page (pour « Renvoyer à … ») : [invoice_id => [[id, name, email], …]],
+     * dans l'ordre de l'attestation. Requête légère : apprenants du panier de chaque convention.
+     */
+    public function learnersByInvoice(array $invoiceIds): array
+    {
+        if (!$invoiceIds) {
+            return [];
+        }
+
+        $contracts = Contract::whereIn('invoice_id', $invoiceIds)
+            ->where('organization', self::ORGANIZATION)
+            ->where('type', 'signed')
+            ->get(['invoice_id', 'cart_id']);
+        $carts = Cart::with('members:users.id,users.name,users.first_name,users.email')->whereIn('id', $contracts->pluck('cart_id'))->get()->keyBy('id');
+
+        $out = [];
+        foreach ($contracts as $c) {
+            $out[$c->invoice_id] = ($carts[$c->cart_id]->members ?? collect())
+                ->sortBy('id')
+                ->map(fn ($m) => ['id' => $m->id, 'name' => trim($m->first_name . ' ' . $m->name), 'email' => $m->email])
+                ->values()
+                ->all();
+        }
+
+        return $out;
     }
 
     /** Pages de l'attestation enregistrée, une par apprenant (même ordre que dossier()['members']). */

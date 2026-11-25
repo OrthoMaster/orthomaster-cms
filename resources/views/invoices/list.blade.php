@@ -233,14 +233,30 @@
                                                         </form>
                                                     @else
                                                         {{-- 2) Après vérification : chaque apprenant reçoit SA page de l'attestation --}}
-                                                        <form action="{{ route('invoices.opco.certificates', $invoice->id) }}" method="POST"
-                                                            onsubmit="return confirm('{{ $invoice->sent_cnt > 0 ? 'Les certificats ont déjà été envoyés. Les renvoyer' : 'Envoyer' }} à chaque apprenant son certificat de réalisation ?');">
-                                                            @csrf
-                                                            <button type="submit" class="btn btn-sm {{ $invoice->sent_cnt > 0 ? 'btn-default' : 'btn-primary' }}">
-                                                                <i class="voyager-paper-plane"></i>
-                                                                {{ $invoice->sent_cnt > 0 ? 'Renvoyer les certificats' : 'Envoyer les certificats aux apprenants' }}
-                                                            </button>
-                                                        </form>
+                                                        @if ($invoice->sent_cnt > 0)
+                                                            {{-- Renvoi : à tous ou à un apprenant --}}
+                                                            <form class="opco-resend" action="{{ route('invoices.opco.certificates', $invoice->id) }}" method="POST"
+                                                                onsubmit="var s = this.learner_id; return confirm('Renvoyer le certificat de réalisation à ' + (s.value ? s.options[s.selectedIndex].text : 'tous les apprenants') + ' ?');">
+                                                                @csrf
+                                                                <select name="learner_id" class="form-control input-sm">
+                                                                    <option value="">Tous les apprenants</option>
+                                                                    @foreach ($opcoLearners[$invoice->id] ?? [] as $l)
+                                                                        <option value="{{ $l['id'] }}">{{ $l['name'] }}{{ $l['email'] ? '' : ' (sans e-mail)' }}</option>
+                                                                    @endforeach
+                                                                </select>
+                                                                <button type="submit" class="btn btn-sm btn-default">
+                                                                    <i class="voyager-paper-plane"></i> Renvoyer
+                                                                </button>
+                                                            </form>
+                                                        @else
+                                                            <form action="{{ route('invoices.opco.certificates', $invoice->id) }}" method="POST"
+                                                                onsubmit="return confirm('Envoyer à chaque apprenant son certificat de réalisation ?');">
+                                                                @csrf
+                                                                <button type="submit" class="btn btn-sm btn-primary">
+                                                                    <i class="voyager-paper-plane"></i> Envoyer les certificats aux apprenants
+                                                                </button>
+                                                            </form>
+                                                        @endif
                                                     @endif
                                                 @endif
                                             </div>
@@ -629,6 +645,18 @@
         .opco-suggestions .sug-empty {
             cursor: default;
             color: #76838f;
+        }
+
+        .opco-resend {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin: 0;
+        }
+
+        .opco-resend select {
+            width: auto;
+            max-width: 240px;
         }
 
         .filters {

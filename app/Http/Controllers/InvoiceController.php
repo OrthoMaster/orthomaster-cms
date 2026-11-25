@@ -129,6 +129,11 @@ class InvoiceController extends Controller
             'invoices' => $invoices,
             'opcoPending' => $this->opcoContractOptions(),
             'opcoOrganization' => OpcoInvoiceService::ORGANIZATION,
+            'opcoLearners' => app(OpcoInvoiceService::class)->learnersByInvoice(
+                collect($invoices->items())
+                    ->filter(fn ($i) => $i->contract_organization === OpcoInvoiceService::ORGANIZATION && $i->certification)
+                    ->pluck('id')->all()
+            ),
             'search'   => $search,
             'status'   => $status,
             'statuses' => self::STATUSES,
@@ -270,17 +275,20 @@ class InvoiceController extends Controller
     }
 
     /**
-     * Envoie à chaque apprenant SA page de l'attestation (après vérification).
+     * Envoie à chaque apprenant SA page de l'attestation (après vérification) ; learner_id : un seul apprenant.
      * POST /dashboard/invoices/{invoice}/opco-certificates
      */
-    public function sendOpcoCertificates(int $invoiceId)
+    public function sendOpcoCertificates(Request $request, int $invoiceId)
     {
         $opco = app(OpcoInvoiceService::class);
         $invoice = Invoice::findOrFail($invoiceId);
         abort_unless($opco->isOpcoInvoice($invoice->id), 404);
 
+        // learner_id vide = tous les apprenants
+        $learnerId = $request->integer('learner_id') ?: null;
+
         try {
-            $result = $opco->sendCertificates($invoice);
+            $result = $opco->sendCertificates($invoice, $learnerId);
         } catch (Exception $e) {
             Log::error($e->getMessage(), ['inv-' . $invoiceId, 'opco-certificates']);
             return back()
