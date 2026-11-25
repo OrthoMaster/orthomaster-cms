@@ -150,6 +150,9 @@ Route::group(['prefix' => 'admin', 'middleware' => ['cmsAdmin']], function () {
             // Suivi qualité (Qualiopi) : complétion + questionnaires de satisfaction
             Route::get('/suivi', [DashboardLessonFollowUpController::class, 'index'])->name('suivi');
             Route::get('/suivi/export', [DashboardLessonFollowUpController::class, 'export'])->name('suivi.export');
+            Route::get('/suivi/export-completion', [DashboardLessonFollowUpController::class, 'exportCompletion'])->name('suivi.export-completion');
+            Route::get('/suivi/search-surveys', [DashboardLessonFollowUpController::class, 'searchSurveys'])->name('suivi.search-surveys');
+            Route::post('/suivi/send', [DashboardLessonFollowUpController::class, 'send'])->name('suivi.send');
         });
 
     // Videos

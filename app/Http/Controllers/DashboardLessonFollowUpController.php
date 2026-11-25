@@ -3,10 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Models\SatisfactionSurvey;
+use App\Services\Satisfaction\SatisfactionSurveyService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
@@ -25,8 +27,12 @@ class DashboardLessonFollowUpController extends Controller
     /**
      * GET /admin/dashboard/lessons/suivi
      */
-    public function index(Request $request)
+    public function index(Request $request, SatisfactionSurveyService $service)
     {
+        // Les devis signés depuis le dernier passage de la tâche quotidienne apparaissent tout de suite
+        // (complétion, et choix de l'apprenant pour l'envoi immédiat).
+        $service->sync();
+
         $f = $this->resolveFilters($request);
 
         return view('dashboard.lessons.suivi', [
@@ -35,7 +41,139 @@ class DashboardLessonFollowUpController extends Controller
             'survey'     => $this->surveySummary($f),
             'responses'  => $this->answeredQuery($f)->orderByDesc('s.answered_at')->paginate(self::PER_PAGE)->withQueryString(),
             'minimum'    => self::COMPLETION_MIN,
+            'fakeCount'  => SatisfactionSurvey::where('is_fake', true)->count(),
         ]);
+    }
+
+    /* ===================== ENVOI IMMÉDIAT ===================== */
+
+    /**
+     * Questionnaires réels sans réponse, cherchés par nom ou e-mail de l'apprenant (select2).
+     * GET /admin/dashboard/lessons/suivi/search-surveys?q=...
+     */
+    public function searchSurveys(Request $request)
+    {
+        $term = trim((string) $request->query('q', ''));
+        if (mb_strlen($term) < 2) {
+            return response()->json([]);
+        }
+
+        $like = '%' . $term . '%';
+
+        $rows = DB::table('satisfaction_surveys as s')
+            ->join('users as u', 'u.id', '=', 's.user_id')
+            ->where('s.is_fake', false)
+            ->whereNull('s.answered_at')
+            ->where(fn ($q) => $q->where('u.email', 'like', $like)
+                ->orWhere('u.name', 'like', $like)
+                ->orWhere('u.first_name', 'like', $like)
+                ->orWhereRaw("CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.name, '')) LIKE ?", [$like]))
+            ->orderBy('u.name')
+            ->orderByDesc('s.purchased_at')
+            ->limit(30)
+            ->get(['s.id', 's.contract_no', 's.purchased_at', 's.sent_at', 's.packages_label', 'u.first_name', 'u.name', 'u.email']);
+
+        return response()->json($rows->map(function ($r) {
+            $tz = $this->displayTz();
+            $sent = $r->sent_at ? 'déjà envoyé le ' . Carbon::parse($r->sent_at)->setTimezone($tz)->format('d/m/Y') : 'jamais envoyé';
+
+            return [
+                'id'   => $r->id,
+                'text' => trim($r->first_name . ' ' . $r->name) . ' · ' . $r->email
+                    . ' — ' . str_replace("\n", ' ; ', $r->packages_label)
+                    . ' (devis ' . ($r->contract_no ?: '?') . ' du ' . Carbon::parse($r->purchased_at)->setTimezone($tz)->format('d/m/Y') . ', ' . $sent . ')',
+            ];
+        }));
+    }
+
+    /**
+     * Envoie tout de suite le questionnaire choisi, sans attendre les 3 mois.
+     * POST /admin/dashboard/lessons/suivi/send
+     */
+    public function send(Request $request, SatisfactionSurveyService $service)
+    {
+        $request->validate(['survey_id' => 'required|integer']);
+        $survey = SatisfactionSurvey::with('user')->findOrFail($request->integer('survey_id'));
+
+        try {
+            $service->sendNow($survey);
+        } catch (\RuntimeException $e) {
+            return back()->with(['message' => $e->getMessage(), 'alert-type' => 'error']);
+        } catch (\Throwable $e) {
+            Log::error($e->getMessage(), ['satisfaction-send-now', $survey->id]);
+
+            return back()->with(['message' => 'L\'e-mail n\'a pas pu être envoyé.', 'alert-type' => 'error']);
+        }
+
+        return back()->with([
+            'message'    => 'Questionnaire envoyé à ' . $survey->user->email . '.',
+            'alert-type' => 'success',
+        ]);
+    }
+
+    /* ===================== EXPORT COMPLÉTION ===================== */
+
+    /**
+     * Toutes les inscriptions (package_user) des utilisateurs normaux, quelle que soit l'origine
+     * (devis, carte, attribution manuelle), datées dans la période ; trié du % le plus haut au plus bas.
+     * GET /admin/dashboard/lessons/suivi/export-completion
+     */
+    public function exportCompletion(Request $request): StreamedResponse
+    {
+        $f = $this->resolveFilters($request);
+        [$from, $to] = $this->storageBounds($f);
+        $period = ($f['from'] ? Carbon::parse($f['from'])->format('d/m/Y') : 'début') . ' – ' . Carbon::parse($f['to'])->format('d/m/Y');
+
+        $rows = DB::table('package_user as pu')
+            ->join('users as u', 'u.id', '=', 'pu.user_id')
+            ->join('packages as p', 'p.id', '=', 'pu.package_id')
+            ->leftJoin('trainings as t', 't.id', '=', 'p.training_id')
+            ->whereIn('u.role_id', [2, 4])
+            ->where(fn ($q) => $q->whereNull('u.created_from')->orWhere('u.created_from', 'not like', 'CLONE%'))
+            // Les anciennes inscriptions n'ont pas toujours de date : gardées seulement sans borne de début.
+            ->where(fn ($q) => $q->where(fn ($q) => $q->when($from, fn ($q) => $q->where('pu.created_at', '>=', $from))->where('pu.created_at', '<=', $to))
+                ->when(!$from, fn ($q) => $q->orWhereNull('pu.created_at')))
+            ->select('pu.package_id', 'pu.progress', 'pu.created_at', 'u.email', 't.name as training')
+            ->selectRaw("TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.name, ''))) as learner")
+            ->selectRaw("CASE WHEN t.name IS NULL OR t.name = p.name THEN p.name ELSE CONCAT(t.name, ' — ', p.name) END as package")
+            ->get();
+
+        $byPackage = $rows->groupBy('package_id')->map(function ($group) {
+            $done = $group->filter(fn ($r) => (int) $r->progress > self::COMPLETION_MIN)->count();
+
+            return [
+                $group->first()->package,
+                $group->count(),
+                $done,
+                round($done * 100 / $group->count(), 1),
+                round($group->avg(fn ($r) => (int) $r->progress), 1),
+            ];
+        })->sortByDesc(fn ($r) => [$r[3], $r[4]])->values();
+
+        $total = $rows->count();
+        $totalDone = $rows->filter(fn ($r) => (int) $r->progress > self::COMPLETION_MIN)->count();
+        $byPackage->prepend(['TOUTES LES FORMATIONS', $total, $totalDone, $total ? round($totalDone * 100 / $total, 1) : 0, round((float) $rows->avg(fn ($r) => (int) $r->progress), 1)]);
+
+        $byLearner = $rows->sortByDesc(fn ($r) => (int) $r->progress)->values()->map(fn ($r) => [
+            $r->learner,
+            $r->email,
+            $r->package,
+            (int) $r->progress,
+            (int) $r->progress > self::COMPLETION_MIN ? 'Oui' : 'Non',
+            $r->created_at ? Carbon::parse($r->created_at)->setTimezone($this->displayTz())->format('d/m/Y') : '',
+        ])->all();
+
+        $spreadsheet = new Spreadsheet();
+        $this->fillSheet($spreadsheet->getActiveSheet(), 'Par formation', $period,
+            ['Formation', 'Apprenants inscrits', 'Terminés (> ' . self::COMPLETION_MIN . ' %)', 'Taux de complétion (%)', 'Progression moyenne (%)'],
+            $byPackage->all());
+        $spreadsheet->getActiveSheet()->getStyle('A5:E5')->getFont()->setBold(true);
+        $this->fillSheet($spreadsheet->createSheet(), 'Par apprenant', $period,
+            ['Apprenant', 'E-mail', 'Formation', 'Progression (%)', 'Terminée', "Date d'inscription"],
+            $byLearner);
+        $spreadsheet->setActiveSheetIndex(0);
+
+        return $this->streamXlsx($spreadsheet, 'taux-completion-' . ($f['from'] ?? 'debut') . '-' . $f['to'] . '.xlsx');
     }
 
     /**

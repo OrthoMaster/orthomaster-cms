@@ -53,6 +53,7 @@ class SatisfactionSurveyService
             ->get();
 
         $existing = SatisfactionSurvey::query()
+            ->whereNotNull('cart_id')
             ->get(['cart_id', 'user_id'])
             ->map(fn ($s) => $s->cart_id . '-' . $s->user_id)
             ->flip();
@@ -155,6 +156,7 @@ class SatisfactionSurveyService
     private function dueFirstSends(bool $daily)
     {
         return SatisfactionSurvey::with('user')
+            ->where('is_fake', false)
             ->whereNull('sent_at')
             ->whereNull('answered_at')
             ->where('purchased_at', '<=', now()->subMonths(self::SEND_AFTER_MONTHS))
@@ -166,6 +168,7 @@ class SatisfactionSurveyService
     private function dueReminders()
     {
         return SatisfactionSurvey::with('user')
+            ->where('is_fake', false)
             ->whereNotNull('sent_at')
             ->whereNull('reminded_at')
             ->whereNull('answered_at')
@@ -203,6 +206,27 @@ class SatisfactionSurveyService
         }
 
         return $row;
+    }
+
+    /**
+     * Envoi immédiat depuis le CMS, sans attendre les 3 mois.
+     * Premier e-mail → sent_at ; s'il a déjà reçu le questionnaire, l'e-mail part comme relance.
+     */
+    public function sendNow(SatisfactionSurvey $survey): void
+    {
+        if ($survey->is_fake) {
+            throw new \RuntimeException('Questionnaire fictif : aucun e-mail.');
+        }
+        if ($survey->answered_at) {
+            throw new \RuntimeException('Cet apprenant a déjà répondu.');
+        }
+        if (!$survey->user?->email) {
+            throw new \RuntimeException('Cet apprenant n\'a pas d\'e-mail.');
+        }
+
+        $reminder = $survey->sent_at !== null;
+        Mail::to($survey->user->email)->send(new SatisfactionSurveyMail($survey, $reminder));
+        $survey->forceFill([$reminder ? 'reminded_at' : 'sent_at' => now()])->save();
     }
 
     /* ===================== RÉPONSE ===================== */

@@ -7,6 +7,9 @@
         <h1 class="page-title">
             <i class="voyager-check"></i> Suivi qualité des formations
         </h1>
+        <button type="button" class="btn btn-success btn-add-new" data-toggle="modal" data-target="#send-modal">
+            <i class="voyager-paper-plane"></i> <span>Envoyer un questionnaire</span>
+        </button>
     </div>
 @stop
 
@@ -17,6 +20,13 @@
 @section('content')
     <div class="page-content browse container-fluid">
         @include('voyager::alerts')
+
+        @if ($fakeCount > 0)
+            <div class="alert alert-info">
+                <strong>{{ $fakeCount }} questionnaire(s) fictif(s)</strong> sont inclus dans les chiffres (marqués « Démo »).
+                Pour les retirer : <code>php artisan satisfaction:fake --clear</code>
+            </div>
+        @endif
 
         <div class="row">
             <div class="col-lg-12">
@@ -37,8 +47,12 @@
                                 <input type="date" class="form-control" name="to" id="to" value="{{ $filters['to'] }}">
                             </div>
                             <div class="col-md-6 filter-actions">
-                                <a href="#" class="btn btn-success" id="export">
-                                    <i class="voyager-download"></i> Exporter Excel
+                                <a href="#" class="btn btn-success js-export" data-url="{{ route('dashboard.lessons.suivi.export') }}">
+                                    <i class="voyager-download"></i> Export satisfaction
+                                </a>
+                                <a href="#" class="btn btn-success js-export" data-url="{{ route('dashboard.lessons.suivi.export-completion') }}"
+                                    title="Toutes les inscriptions aux formations (devis, carte, attribution manuelle), % par paquet et par apprenant">
+                                    <i class="voyager-download"></i> Export complétion
                                 </a>
                                 <button type="submit" class="btn btn-primary">Appliquer</button>
                             </div>
@@ -150,6 +164,9 @@
                                                 <td class="nowrap">{{ \Illuminate\Support\Carbon::parse($r->answered_at)->setTimezone(config('app.display_timezone', 'Asia/Ho_Chi_Minh'))->format('d/m/Y') }}</td>
                                                 <td>
                                                     <b>{{ $r->learner }}</b>
+                                                    @if ($r->is_fake)
+                                                        <span class="label label-default">Démo</span>
+                                                    @endif
                                                     @if ($r->recontact_flg)
                                                         <span class="label label-danger">À recontacter</span>
                                                     @endif
@@ -184,6 +201,31 @@
             </div>
         </div>
     </div>
+
+    {{-- ============ ENVOI IMMÉDIAT ============ --}}
+    <div class="modal fade" id="send-modal" tabindex="-1" role="dialog">
+        <div class="modal-dialog" role="document">
+            <form class="modal-content" method="POST" action="{{ route('dashboard.lessons.suivi.send') }}" id="send-form">
+                @csrf
+                <div class="modal-header">
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Fermer"><span aria-hidden="true">&times;</span></button>
+                    <h4 class="modal-title"><i class="voyager-paper-plane"></i> Envoyer un questionnaire maintenant</h4>
+                </div>
+                <div class="modal-body">
+                    <label for="survey_id">Apprenant</label>
+                    <select name="survey_id" id="survey_id" style="width:100%" required></select>
+                    <p class="filter-note">
+                        Nom ou e-mail. Seuls les apprenants ayant un devis signé et n'ayant pas encore répondu sont proposés ;
+                        un apprenant avec plusieurs devis apparaît une fois par devis. L'e-mail part tout de suite, sans attendre les 3 mois.
+                    </p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-default" data-dismiss="modal">Annuler</button>
+                    <button type="submit" class="btn btn-success" id="send-submit" disabled>Envoyer</button>
+                </div>
+            </form>
+        </div>
+    </div>
 @stop
 
 @section('css')
@@ -192,7 +234,8 @@
     <style>
         /* --- Filtres --- */
         .filter-actions { padding-top: 25px; text-align: right; }
-        .filter-actions .btn { margin: 0 0 0 8px; }
+        .filter-actions .btn { margin: 0 0 6px 8px; }
+        .page-title + .btn-add-new { margin-top: 18px; }
         .filter-note { margin: 12px 0 0; color: #8a9199; font-size: 12px; }
 
         /* --- KPI --- */
@@ -215,10 +258,36 @@
 @section('javascript')
     <script>
         $(document).ready(function () {
-            // L'export reprend la période affichée dans les champs, même si on n'a pas cliqué sur Appliquer.
-            $('#export').on('click', function (event) {
+            // Les exports reprennent la période affichée dans les champs, même sans avoir cliqué sur Appliquer.
+            $('.js-export').on('click', function (event) {
                 event.preventDefault();
-                window.location.href = '{{ route('dashboard.lessons.suivi.export') }}?' + $('#filters').serialize();
+                window.location.href = $(this).data('url') + '?' + $('#filters').serialize();
+            });
+
+            /* ---------- Envoi immédiat ---------- */
+            $('#survey_id').select2({
+                width: '100%',
+                dropdownParent: $('#send-modal'),
+                placeholder: 'Rechercher un apprenant',
+                minimumInputLength: 2,
+                language: {
+                    inputTooShort: function () { return 'Saisissez au moins 2 caractères'; },
+                    noResults: function () { return 'Aucun questionnaire en attente pour cette recherche'; },
+                    searching: function () { return 'Recherche…'; }
+                },
+                ajax: {
+                    url: '{{ route('dashboard.lessons.suivi.search-surveys') }}',
+                    dataType: 'json',
+                    delay: 250,
+                    data: function (params) { return { q: params.term }; },
+                    processResults: function (data) { return { results: data }; }
+                }
+            }).on('change', function () {
+                $('#send-submit').prop('disabled', !$(this).val());
+            });
+
+            $('#send-form').on('submit', function () {
+                $('#send-submit').prop('disabled', true).text('Envoi…');
             });
 
             $('#from').on('change', function () { $('#to').attr('min', $(this).val() || ''); });

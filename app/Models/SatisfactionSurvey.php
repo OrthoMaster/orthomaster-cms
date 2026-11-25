@@ -9,6 +9,7 @@ class SatisfactionSurvey extends Model
     protected $guarded = ['id'];
 
     protected $casts = [
+        'is_fake'          => 'boolean',
         'package_ids'      => 'array',
         'purchased_at'     => 'datetime',
         'sent_at'          => 'datetime',
