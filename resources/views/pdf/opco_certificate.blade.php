@@ -41,12 +41,12 @@
         }
 
         .brand .logo {
-            height: 64px;
-            margin-right: 10px;
+            height: 45px;
+            margin-right: 7px;
         }
 
         .brand .brand-name {
-            height: 46px;
+            height: 32px;
         }
 
         .title {
