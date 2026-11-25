@@ -36,11 +36,11 @@ use Throwable;
  *   l'OPCO règle directement OrthoMaster (subrogation). L'entreprise et les apprenants figurent sur la facture.
  * - Date de facture = signature + 1 mois (fin de formation) ; convention rattrapée après cette date :
  *   date du jour de création. Échéance = date de facture.
- * - Créée dès que possible (tâche du soir ou bouton CMS) ; à la fin de la formation, chaque apprenant reçoit
- *   par e-mail SON certificat de réalisation (la facture n'est envoyée à personne)
- *   (invoices.sent_at = date d'envoi prévue, puis date du dernier envoi ; sent_cnt = nombre d'envois).
- * - Conventions anciennes (date de facture déjà passée) : documents créés, pas d'e-mail automatique ;
- *   envoi possible depuis la liste des factures du CMS.
+ * - Traitement complet : opco:process (processAll) — pour chaque convention : facture si elle manque ;
+ *   formation terminée (signature + 1 mois atteint) → attestation (PDF de tous les certificats, S3) puis
+ *   envoi à chaque apprenant de SA page ; formation en cours → facture seulement (datée signature + 1 mois),
+ *   attestation et e-mails au prochain passage après la fin. CMS : mêmes étapes une par une (admin).
+ * - invoices.sent_at = date d'envoi prévue, puis date du dernier envoi ; sent_cnt = nombre d'envois.
  * - Pas de règlement dans le CMS : ni Stripe, ni virement, ni paiement Odoo — seulement facture + certificat.
  */
 class OpcoInvoiceService
@@ -88,60 +88,137 @@ class OpcoInvoiceService
     }
 
     /**
-     * Crée la facture (et le certificat si le modèle est prêt) de chaque convention qui n'en a pas.
-     * Un seul passage à la fois (tâche du soir et bouton CMS peuvent se croiser).
+     * Traitement complet des conventions OPCO-EP (commande opco:process), convention par convention :
+     *  1. pas de facture → facture Odoo + PDF (date = signature + 1 mois, ou aujourd'hui si déjà passée) ;
+     *  2. formation pas terminée (signature + 1 mois dans le futur) → on s'arrête là ;
+     *  3. pas d'attestation → attestation (PDF de tous les certificats, S3) ;
+     *  4. certificats jamais envoyés (sent_cnt = 0) → chaque apprenant reçoit SA page de l'attestation.
+     * Rejouable : ce qui est fait n'est pas refait. Une erreur sur une convention n'arrête pas les autres.
      *
-     * $all = false (tâche du soir) : conventions récentes seulement (fin de formation pas encore passée).
-     * $all = true (bouton CMS, opco:invoices --all) : rattrapage de toutes les anciennes conventions,
-     * lancé à la main — vérifier avant dans Odoo qu'aucune facture n'y a été faite à la main pour elles.
-     *
-     * @return array{created: string[], failed: string[], locked: bool}
+     * @param  bool      $dryRun     ne rien faire, seulement dire ce qui serait fait
+     * @param  int[]     $only       seulement ces conventions (id) ; vide = toutes
+     * @param  int[]     $exclude    conventions à laisser de côté (id), p. ex. déjà facturées à la main
+     * @param  bool      $sendEmails false : facture + attestation, sans e-mail
+     * @param  callable|null $report fn(array $row) appelée après chaque convention
+     * @return array<int, array{contract: string, company: string, signed: string, end: string, steps: string[], status: string, error: ?string}>
      */
-    public function generateMissing(bool $all = false): array
+    public function processAll(bool $dryRun = true, array $only = [], array $exclude = [], bool $sendEmails = true, ?callable $report = null): array
     {
-        $result = ['created' => [], 'failed' => [], 'locked' => false];
-
-        $lock = Cache::lock('opco-invoices-generate', 1800);
-        if (!$lock->get()) {
-            $result['locked'] = true;
-            return $result;
+        $lock = Cache::lock('opco-process', 3600);
+        if (!$dryRun && !$lock->get()) {
+            throw new RuntimeException('Un traitement OPCO-EP est déjà en cours.');
         }
 
         try {
-            foreach ($this->contractsWithoutInvoice(!$all) as $contract) {
-                try {
-                    $invoice = $this->issueForContract($contract);
-                    $result['created'][] = $invoice->no;
-                } catch (Throwable $e) {
-                    $result['failed'][] = $contract->no;
-                    Log::error('OPCO : facture non créée — ' . $e->getMessage(), ['opco-invoice', 'contract-' . $contract->id]);
+            $contracts = Contract::where('organization', self::ORGANIZATION)
+                ->where('type', 'signed')
+                ->where('status', Status::ACTIVE->value)
+                ->when($only, fn ($q) => $q->whereIn('id', $only))
+                ->when($exclude, fn ($q) => $q->whereNotIn('id', $exclude))
+                ->orderBy('id')
+                ->get();
+            $companies = Company::whereIn('id', $contracts->pluck('company_id')->filter()->unique())->pluck('name', 'id');
+
+            $rows = [];
+            foreach ($contracts as $contract) {
+                $row = $this->processContract($contract, $dryRun, $sendEmails);
+                $row['company'] = $companies[$contract->company_id] ?? '—';
+                $rows[] = $row;
+                if ($report) {
+                    $report($row);
                 }
             }
 
-            // Factures créées dont le PDF a échoué (Odoo a répondu, S3 non) : on le refait.
-            Invoice::whereNull('document')
-                ->whereIn('id', $this->opcoInvoiceIds())
-                ->get()
-                ->each(function (Invoice $invoice) use (&$result) {
-                    try {
-                        $this->renderInvoice($invoice, $this->contractOf($invoice));
-                        $this->odooInvoices()->uploadInvoicePdf(
-                            $invoice->no,
-                            $invoice->document,
-                            str_replace('/', '_', $invoice->no) . '.pdf',
-                            'Facture OPCO-EP - CMS'
-                        );
-                    } catch (Throwable $e) {
-                        $result['failed'][] = $invoice->no;
-                        Log::error('OPCO : PDF non créé — ' . $e->getMessage(), ['opco-invoice', 'inv-' . $invoice->id]);
-                    }
-                });
+            Log::info('OPCO : traitement ' . ($dryRun ? '(simulation)' : ''), [
+                'total'  => count($rows),
+                'errors' => collect($rows)->where('status', 'erreur')->pluck('contract')->all(),
+            ]);
+
+            return $rows;
         } finally {
-            $lock->release();
+            if (!$dryRun) {
+                $lock->release();
+            }
+        }
+    }
+
+    /** Une convention : voir processAll(). */
+    private function processContract(Contract $contract, bool $dryRun, bool $sendEmails): array
+    {
+        $signedAt = $this->signedAt($contract);
+        $end = $signedAt->copy()->addMonth()->startOfDay();
+        $row = [
+            'contract' => $contract->no,
+            'company'  => '',
+            'signed'   => $signedAt->format('d/m/Y'),
+            'end'      => $end->format('d/m/Y'),
+            'steps'    => [],
+            'status'   => 'ok',
+            'error'    => null,
+        ];
+
+        try {
+            // 1. Facture
+            $invoice = $contract->invoice_id ? Invoice::find($contract->invoice_id) : null;
+            if (!$invoice) {
+                $date = $this->invoiceDate($contract, now())->format('d/m/Y');
+                if ($dryRun) {
+                    $this->dossier($contract); // vérifie que la facture peut être faite (panier, apprenants, découpage)
+                    $row['steps'][] = "facture à créer (datée du {$date})";
+                } else {
+                    $invoice = $this->issueForContract($contract);
+                    $row['steps'][] = "facture {$invoice->no} créée (datée du {$date})";
+                }
+            } else {
+                $row['steps'][] = "facture {$invoice->no} existante";
+            }
+
+            // 2. Formation en cours : rien d'autre avant la fin
+            if ($end->isFuture()) {
+                $row['steps'][] = "formation en cours : attestation et e-mails à partir du {$row['end']}";
+                $row['status'] = 'en cours';
+                return $row;
+            }
+
+            // 3. Attestation
+            if (!$invoice || !$invoice->certification) {
+                if ($dryRun) {
+                    $row['steps'][] = 'attestation à créer';
+                } else {
+                    $this->createAttestation($invoice);
+                    $invoice->refresh();
+                    $row['steps'][] = 'attestation créée';
+                }
+            } else {
+                $row['steps'][] = 'attestation existante';
+            }
+
+            // 4. Certificats aux apprenants (une seule fois)
+            if ($invoice && (int) $invoice->sent_cnt > 0) {
+                $row['steps'][] = 'certificats déjà envoyés';
+            } elseif (!$sendEmails) {
+                $row['steps'][] = 'e-mails non envoyés (--no-email)';
+            } elseif ($dryRun) {
+                $learners = $this->dossier($contract)['members'];
+                $noEmail = $learners->filter(fn ($l) => !$l->email)->map(fn ($l) => trim($l->first_name . ' ' . $l->name));
+                $row['steps'][] = 'certificats à envoyer à ' . ($learners->count() - $noEmail->count()) . ' apprenant(s)'
+                    . ($noEmail->isNotEmpty() ? ' — sans e-mail : ' . $noEmail->implode(', ') : '');
+            } else {
+                $sent = $this->sendCertificates($invoice);
+                $row['steps'][] = "certificats envoyés à {$sent['sent']} apprenant(s)"
+                    . ($sent['no_email'] ? ' — sans e-mail : ' . implode(', ', $sent['no_email']) : '')
+                    . ($sent['failed'] ? ' — échec : ' . implode(', ', $sent['failed']) : '');
+                if ($sent['failed']) {
+                    $row['status'] = 'à vérifier';
+                }
+            }
+        } catch (Throwable $e) {
+            $row['status'] = 'erreur';
+            $row['error'] = $e->getMessage();
+            Log::error('OPCO : ' . $contract->no . ' — ' . $e->getMessage(), ['opco-process', 'contract-' . $contract->id]);
         }
 
-        Log::info('OPCO : factures créées', $result);
-        return $result;
+        return $row;
     }
 
     /**
@@ -227,58 +304,6 @@ class OpcoInvoiceService
     /* ===================================================================
      * E-mail de fin de formation : certificat de réalisation à chaque apprenant
      * =================================================================== */
-
-    /** Factures OPCO dont la date d'envoi est arrivée (rattrape aussi un jour manqué). */
-    public function dueForSending(): Collection
-    {
-        return Invoice::whereNotNull('sent_at')
-            ->whereDate('sent_at', '<=', today())
-            ->where(fn ($q) => $q->whereNull('sent_cnt')->orWhere('sent_cnt', 0)) // pas encore envoyés
-            ->whereIn('id', $this->opcoInvoiceIds())
-            ->orderBy('id')
-            ->get();
-    }
-
-    /** @return array{sent: string[], waiting: string[], failed: string[]} */
-    public function sendDue(): array
-    {
-        $result = ['sent' => [], 'waiting' => [], 'failed' => []];
-
-        foreach ($this->dueForSending() as $invoice) {
-            try {
-                if ($this->send($invoice)) {
-                    $result['sent'][] = $invoice->no;
-                } else {
-                    $result['waiting'][] = $invoice->no;
-                }
-            } catch (Throwable $e) {
-                $result['failed'][] = $invoice->no;
-                Log::error('OPCO : e-mail non envoyé — ' . $e->getMessage(), ['opco-invoice', 'inv-' . $invoice->id]);
-            }
-        }
-
-        Log::info('OPCO : envoi des documents', $result);
-        return $result;
-    }
-
-    /**
-     * Fin de formation (tâche opco:send-documents, désactivée pour l'instant) : attestation si elle manque,
-     * puis envoi à chaque apprenant de SON certificat. La facture n'est pas envoyée.
-     */
-    public function send(Invoice $invoice): bool
-    {
-        $contract = $this->contractOf($invoice);
-        if (!$contract) {
-            throw new RuntimeException("Facture {$invoice->no} : convention OPCO introuvable.");
-        }
-
-        if (!$invoice->certification && !$this->generateCertificates($invoice, $contract)) {
-            Log::warning('OPCO : attestation non créée, rien envoyé', ['opco-invoice', 'inv-' . $invoice->id]);
-            return false;
-        }
-
-        return $this->sendCertificates($invoice)['sent'] > 0;
-    }
 
     /**
      * Bouton « Créer l'attestation » : PDF de tous les certificats (une page par apprenant), sur S3
