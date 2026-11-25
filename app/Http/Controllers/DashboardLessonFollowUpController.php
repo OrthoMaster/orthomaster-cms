@@ -19,8 +19,7 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
  */
 class DashboardLessonFollowUpController extends Controller
 {
-    /** package_user.progress au-delà duquel un paquet compte comme terminé. */
-    private const COMPLETION_MIN = 60;
+    private const COMPLETION_MIN = SatisfactionSurvey::COMPLETION_MIN;
 
     private const PER_PAGE = 20;
 

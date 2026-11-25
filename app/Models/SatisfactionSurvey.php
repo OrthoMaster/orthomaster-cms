@@ -37,6 +37,9 @@ class SatisfactionSurvey extends Model
         'no'         => 'Non',
     ];
 
+    /** package_user.progress au-delà duquel une formation compte comme terminée (dashboard suivi, données fictives). */
+    public const COMPLETION_MIN = 75;
+
     /** Seuil « satisfait » sur la question globale (taux de satisfaction, Qualiopi ind. 2). */
     public const SATISFIED_MIN = 4;
 
