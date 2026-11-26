@@ -267,6 +267,9 @@ Route::group(['prefix' => 'admin', 'middleware' => ['cmsAdmin']], function () {
 
 
     // Reports
+    // Processus FIFPL / OPCO-EP (schémas, tous les utilisateurs du CMS)
+    Route::view('dashboard/processus', 'dashboard.processus.index')->name('dashboard.processus');
+
     Route::prefix('dashboard/reports')
         ->name('dashboard.reports.')
         ->group(function () {

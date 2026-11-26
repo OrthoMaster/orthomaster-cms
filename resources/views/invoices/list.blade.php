@@ -7,6 +7,9 @@
         <h1 class="page-title">
             <i class="voyager-receipt"></i> Factures
         </h1>
+        <a href="{{ route('dashboard.processus') }}" class="btn btn-default btn-header">
+            <i class="voyager-params"></i> Processus
+        </a>
     </div>
 @stop
 
@@ -579,6 +582,10 @@
         .invoice-org-rendez-vous {
             background: #eaf7ee;
             color: #2e7d46;
+        }
+
+        .btn-header {
+            margin: 22px 0 0 10px;
         }
 
         .section-head {
