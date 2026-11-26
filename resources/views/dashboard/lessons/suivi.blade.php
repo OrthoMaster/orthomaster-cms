@@ -167,9 +167,6 @@
                                                 <td class="nowrap">{{ \Illuminate\Support\Carbon::parse($r->answered_at)->setTimezone(config('app.display_timezone', 'Asia/Ho_Chi_Minh'))->format('d/m/Y') }}</td>
                                                 <td>
                                                     <b>{{ $r->learner }}</b>
-                                                    @if ($r->is_fake)
-                                                        <span class="label label-default">Démo</span>
-                                                    @endif
                                                     @if ($r->recontact_flg)
                                                         <span class="label label-danger">À recontacter</span>
                                                     @endif

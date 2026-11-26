@@ -7,6 +7,9 @@
         <h1 class="page-title">
             <i class="voyager-receipt"></i> Factures
         </h1>
+        <a href="{{ route('dashboard.processus') }}" class="btn btn-default btn-header">
+            <i class="voyager-params"></i> Processus
+        </a>
     </div>
 @stop
 
@@ -120,7 +123,7 @@
                                 @php
                                     $meta   = $statuses[$invoice->status] ?? ['label' => $invoice->status, 'class' => ''];
                                     $isPaid = $invoice->status === 'paid';
-                                    $isCard = $invoice->payment_method && $invoice->payment_method !== 'virement';
+                                    $isCard = $invoice->payment_method && !in_array($invoice->payment_method, ['virement', 'opco'], true);
                                     $isOpco = $invoice->contract_organization === $opcoOrganization;
                                     $originLabel = $invoice->contract_organization
                                         ?: ($invoice->booking_id ? 'Rendez-vous' : ($invoice->is_direct ? 'Direct' : null));
@@ -274,6 +277,8 @@
                                                     <dd>
                                                         @if ($invoice->payment_method === 'virement')
                                                             Virement
+                                                        @elseif ($invoice->payment_method === 'opco')
+                                                            Réglée par l'OPCO-EP
                                                         @elseif ($invoice->payment_method)
                                                             Carte
                                                             <span class="detail-muted">{{ $invoice->payment_method }}</span>
@@ -310,7 +315,18 @@
                                                     </dd>
                                                 </dl>
 
-                                                {{-- OPCO-EP : pas de règlement dans le CMS --}}
+                                                {{-- OPCO-EP : seulement constater le règlement par l'OPCO (sans retour possible) --}}
+                                                @if ($isOpco && !$isPaid)
+                                                    <form action="{{ route('invoices.opco.paid', $invoice->id) }}" method="POST"
+                                                        onsubmit="return confirm('Marquer la facture {{ $invoice->no }} comme payée par l\'OPCO-EP ?\n\nCe changement est définitif : la facture ne pourra pas repasser « En attente ».');">
+                                                        @csrf
+                                                        <button type="submit" class="btn btn-sm btn-success">
+                                                            <i class="voyager-check"></i> Marquer comme payée
+                                                        </button>
+                                                    </form>
+                                                @endif
+
+                                                {{-- OPCO-EP : pas de virement --}}
                                                 @unless ($isPaid || $isOpco)
                                                     {{-- Un virement se constate après coup : l'opération se fait ici --}}
                                                     <button type="button" class="btn btn-sm btn-success btn-virement"
@@ -566,6 +582,10 @@
         .invoice-org-rendez-vous {
             background: #eaf7ee;
             color: #2e7d46;
+        }
+
+        .btn-header {
+            margin: 22px 0 0 10px;
         }
 
         .section-head {

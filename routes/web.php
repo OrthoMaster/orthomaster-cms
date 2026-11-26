@@ -256,6 +256,10 @@ Route::group(['prefix' => 'admin', 'middleware' => ['cmsAdmin']], function () {
             Route::post('/{invoiceId}/opco-attestation', [InvoiceController::class, 'createOpcoAttestation'])
                 ->whereNumber('invoiceId')
                 ->name('invoices.opco.attestation');
+            // OPCO-EP : constater le règlement par l'OPCO (tous les utilisateurs du CMS, sans retour)
+            Route::post('/{invoiceId}/opco-paid', [InvoiceController::class, 'markOpcoPaid'])
+                ->whereNumber('invoiceId')
+                ->name('invoices.opco.paid');
             Route::post('/{invoiceId}/opco-certificates', [InvoiceController::class, 'sendOpcoCertificates'])
                 ->whereNumber('invoiceId')
                 ->name('invoices.opco.certificates');
@@ -263,6 +267,9 @@ Route::group(['prefix' => 'admin', 'middleware' => ['cmsAdmin']], function () {
 
 
     // Reports
+    // Processus FIFPL / OPCO-EP (schémas, tous les utilisateurs du CMS)
+    Route::view('dashboard/processus', 'dashboard.processus.index')->name('dashboard.processus');
+
     Route::prefix('dashboard/reports')
         ->name('dashboard.reports.')
         ->group(function () {

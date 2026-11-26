@@ -260,6 +260,41 @@ class InvoiceController extends Controller
     }
 
     /**
+     * Facture OPCO-EP réglée par l'OPCO : « En attente » → « Payée », définitivement (pas de retour).
+     * Tous les utilisateurs du CMS. Rien dans Stripe ni Odoo (le règlement Odoo reste à la comptabilité).
+     * POST /dashboard/invoices/{invoice}/opco-paid
+     */
+    public function markOpcoPaid(int $invoiceId)
+    {
+        $opco = app(OpcoInvoiceService::class);
+        $invoice = Invoice::findOrFail($invoiceId);
+        abort_unless($opco->isOpcoInvoice($invoice->id), 404);
+
+        // Un seul sens : seulement depuis « En attente », de façon atomique
+        $updated = DB::table('invoices')
+            ->where('id', $invoice->id)
+            ->where('status', '!=', 'paid')
+            ->update([
+                'status'         => 'paid',
+                'payment_method' => 'opco',
+                'paid_at'        => now(),
+                'updated_at'     => now(),
+            ]);
+
+        if (!$updated) {
+            return back()
+                ->with('message', "La facture {$invoice->no} est déjà payée.")
+                ->with('alert-type', 'info');
+        }
+
+        Log::info('OPCO : facture marquée payée', ['inv-' . $invoice->id, 'user-' . optional(auth()->user())->id]);
+
+        return back()
+            ->with('message', "Facture {$invoice->no} marquée comme payée par l'OPCO-EP.")
+            ->with('alert-type', 'success');
+    }
+
+    /**
      * Crée l'attestation d'une facture OPCO-EP (PDF de tous les certificats, sur S3). N'envoie rien.
      * POST /dashboard/invoices/{invoice}/opco-attestation
      */
