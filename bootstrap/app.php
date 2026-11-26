@@ -16,6 +16,7 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware) {
         $middleware->alias([
             'cmsAdmin' => \App\Http\Middleware\CmsAdminMiddleware::class,
+            'doctor' => \App\Http\Middleware\EnsureDoctor::class,
         ]);
 
         // Sous-domaine des pages partenaires : uniquement ces pages (404 pour le reste).

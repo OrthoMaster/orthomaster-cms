@@ -5,6 +5,7 @@ use App\Http\Controllers\API\ApplicationTrackingController;
 use App\Http\Controllers\API\AuthController;
 use App\Http\Controllers\API\CartController;
 use App\Http\Controllers\API\ChatbotController;
+use App\Http\Controllers\API\Scat6Controller;
 use App\Http\Controllers\API\CompanyController;
 use App\Http\Controllers\API\CongressController;
 use App\Http\Controllers\API\ContractController;
@@ -63,6 +64,22 @@ Route::prefix('auth')->group(function () {
 
     // Ads
     Route::post('/ads/interest', [AuthController::class, 'sendAdsInterest'])->middleware('auth:sanctum');
+});
+
+// SCAT6 (Outils, médecins = comptes actifs non étudiants)
+Route::prefix('scat')->middleware(['auth:sanctum', 'doctor', 'throttle:120,1'])->group(function () {
+    Route::get('/patients', [Scat6Controller::class, 'patients']);
+    Route::post('/patients', [Scat6Controller::class, 'storePatient']);
+    Route::get('/patients/{id}', [Scat6Controller::class, 'patient'])->whereNumber('id');
+    Route::put('/patients/{id}', [Scat6Controller::class, 'updatePatient'])->whereNumber('id');
+    Route::delete('/patients/{id}', [Scat6Controller::class, 'destroyPatient'])->whereNumber('id');
+
+    Route::get('/assessments', [Scat6Controller::class, 'assessments']);
+    Route::get('/assessments/{uuid}', [Scat6Controller::class, 'assessment']);
+    Route::put('/assessments/{uuid}', [Scat6Controller::class, 'saveAssessment']);
+    Route::post('/assessments/{uuid}/complete', [Scat6Controller::class, 'completeAssessment']);
+    Route::delete('/assessments/{uuid}', [Scat6Controller::class, 'destroyAssessment']);
+    Route::get('/assessments/{uuid}/pdf', [Scat6Controller::class, 'pdf']);
 });
 
 // Tracking - Dont use anymore - TODO: delete
