@@ -5,7 +5,6 @@ use App\Http\Controllers\API\ApplicationTrackingController;
 use App\Http\Controllers\API\AuthController;
 use App\Http\Controllers\API\CartController;
 use App\Http\Controllers\API\ChatbotController;
-use App\Http\Controllers\API\ScatController;
 use App\Http\Controllers\API\CompanyController;
 use App\Http\Controllers\API\CongressController;
 use App\Http\Controllers\API\ContractController;
@@ -64,17 +63,6 @@ Route::prefix('auth')->group(function () {
 
     // Ads
     Route::post('/ads/interest', [AuthController::class, 'sendAdsInterest'])->middleware('auth:sanctum');
-});
-
-// SCAT6
-// - OrthoMaster app: get a link that opens SCAT6 already signed in (doctors only)
-Route::post('/scat/handoff', [ScatController::class, 'createHandoff'])->middleware(['auth:sanctum', 'throttle:10,1']);
-// - scat-server only (X-Partner-Key)
-Route::prefix('partner/scat')->middleware(['scat.partner', 'throttle:30,1'])->group(function () {
-    Route::post('/verify-credentials', [ScatController::class, 'verifyCredentials']);
-    Route::post('/handoff/redeem', [ScatController::class, 'redeemHandoff']);
-    Route::get('/rpps/{rpps}', [ScatController::class, 'rpps']);
-    Route::post('/email-lookup', [ScatController::class, 'emailLookup']);
 });
 
 // Tracking - Dont use anymore - TODO: delete
