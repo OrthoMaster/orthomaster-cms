@@ -271,6 +271,9 @@
         <div class="muted" style="margin-top: 3px;">
             Mémoire immédiate : {{ $val($summary['immediate'] ?? null, '/30') }}
             @if (! empty($memory['endedAt'])) · fin du 3e essai à {{ $date($memory['endedAt'], 'H:i') }} @endif
+            @if (! empty($delayed['early']['remainingS']))
+                · mémoire différée commencée avant 5 min (il restait {{ intdiv((int) $delayed['early']['remainingS'], 60) }}:{{ str_pad((string) ((int) $delayed['early']['remainingS'] % 60), 2, '0', STR_PAD_LEFT) }}), décision du médecin
+            @endif
         </div>
 
         <table class="grid" style="margin-top: 6px;">
@@ -336,9 +339,24 @@
                 </td>
             </tr>
             <tr>
-                <td>Double tâche (meilleur temps · erreurs de calcul)</td>
-                <td class="num">{{ $val($tandem['dualBest'] ?? null, ' s') }} · {{ $val($tandem['dualErrors'] ?? null) }}</td>
+                <td>Double tâche (essai retenu : moins d'erreurs, puis plus rapide)</td>
+                <td class="num">
+                    {{ $val($tandem['dualBest'] ?? null, ' s') }} · {{ $val($tandem['dualErrors'] ?? null) }} erreur(s)
+                    @if (isset($tandem['dualBestTrial']) && $tandem['dualBestTrial'] !== null) (essai {{ (int) $tandem['dualBestTrial'] + 1 }}) @endif
+                </td>
             </tr>
+            @if (! empty($tandem['dualTrials']))
+                <tr>
+                    <td class="muted">Double tâche, essai par essai</td>
+                    <td class="num muted">
+                        @foreach ($tandem['dualTrials'] as $i => $t)
+                            @if ($t !== null)
+                                {{ $i + 1 }} : {{ $t < 0 ? 'échec' : $t.' s' }}, {{ count($tandem['dualWrongByTrial'][$i] ?? []) }} err.@if (! $loop->last) · @endif
+                            @endif
+                        @endforeach
+                    </td>
+                </tr>
+            @endif
         </table>
     </div>
 
