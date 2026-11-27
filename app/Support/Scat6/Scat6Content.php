@@ -47,7 +47,7 @@ final class Scat6Content
         'memoire'          => 'Mémoire immédiate',
         'concentration'    => 'Concentration',
         'equilibre'        => 'Équilibre (mBESS)',
-        'tandem'           => 'Marche en tandem',
+        'tandem'           => 'Marche sur une ligne',
         'memoire-differee' => 'Mémoire différée',
     ];
 
@@ -101,7 +101,7 @@ final class Scat6Content
         'C' => ['Veste', 'Couteau', 'Chemin', 'Chapeau', 'Miroir', 'Beurre', 'Tissu', 'Film', 'Souris', 'Dessin'],
     ];
 
-    public const MBESS_STANCES = ['Deux pieds', 'Tandem', 'Un pied'];
+    public const MBESS_STANCES = ['Pieds joints', 'Tandem', 'Unipodal'];
 
     public const ATTESTATION = 'Je suis un professionnel de santé. J’ai personnellement effectué ou supervisé cette évaluation menée à l’aide du SCAT6.';
 

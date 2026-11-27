@@ -20,8 +20,8 @@ final class Scat6Scoring
         'delayed'          => ['label' => 'Mémoire différée', 'max' => 10, 'unit' => null, 'worse_if_higher' => false],
         'cognitive_total'  => ['label' => 'Total cognitif', 'max' => 50, 'unit' => null, 'worse_if_higher' => false],
         'mbess'            => ['label' => 'mBESS (erreurs, sol ferme)', 'max' => 30, 'unit' => null, 'worse_if_higher' => true],
-        'mbess_foam'       => ['label' => 'mBESS (erreurs, mousse)', 'max' => 30, 'unit' => null, 'worse_if_higher' => true],
-        'tandem_best'      => ['label' => 'Marche en tandem (meilleur temps)', 'max' => null, 'unit' => 's', 'worse_if_higher' => true],
+        'mbess_foam'       => ['label' => 'mBESS (erreurs, sol instable)', 'max' => 30, 'unit' => null, 'worse_if_higher' => true],
+        'tandem_best'      => ['label' => 'Marche sur une ligne (meilleur temps)', 'max' => null, 'unit' => 's', 'worse_if_higher' => true],
         'dual_best'        => ['label' => 'Double tâche (meilleur temps)', 'max' => null, 'unit' => 's', 'worse_if_higher' => true],
     ];
 

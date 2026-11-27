@@ -15,6 +15,18 @@
     $summary = $assessment->summary ?? [];
     $tz = 'Europe/Paris';
     $date = fn ($d, $f = 'd/m/Y à H:i') => $d ? \Illuminate\Support\Carbon::parse($d)->timezone($tz)->format($f) : '—';
+    // Choc : à minuit pile (heure de Paris) = heure inconnue, on n'affiche que le jour ; sinon jour, heure et délai (H+5, J+2).
+    $injury = '—';
+    if ($assessment->injury_at) {
+        $choc = \Illuminate\Support\Carbon::parse($assessment->injury_at)->timezone($tz);
+        $at = \Illuminate\Support\Carbon::parse($assessment->started_at ?? $assessment->completed_at ?? now())->timezone($tz);
+        if ($choc->format('H:i:s') === '00:00:00') {
+            $injury = $choc->format('d/m/Y').' · examen à J+'.max(0, (int) round($choc->copy()->startOfDay()->diffInDays($at->copy()->startOfDay())));
+        } else {
+            $hours = (int) floor(max(0, $choc->diffInMinutes($at)) / 60);
+            $injury = $choc->format('d/m/Y à H:i').' · examen à '.($hours < 48 ? 'H+'.$hours : 'J+'.intdiv($hours, 24));
+        }
+    }
     $val = fn ($v, $suffix = '') => $v === null ? '—' : $v . $suffix;
     $answer = function ($code, $yes = 'Oui', $no = 'Non') use ($answers) {
         $a = $answers[$code] ?? null;
@@ -131,7 +143,7 @@
             <td><div class="label">Patient</div><div class="value">{{ $patient->name }}</div></td>
             <td><div class="label">Année de naissance</div><div class="value">{{ $patient->birth_year }}@if($age !== null) <span class="muted">(≈ {{ $age }} ans)</span>@endif</div></td>
             <td><div class="label">Sport</div><div class="value">{{ Scat6Content::SPORTS[$patient->sport] ?? $patient->sport }}</div></td>
-            <td><div class="label">{{ $isBaseline ? 'Examen' : 'Date du choc' }}</div><div class="value">{{ $isBaseline ? $date($assessment->started_at, 'd/m/Y') : $date($assessment->injury_at, 'd/m/Y') }}</div></td>
+            <td><div class="label">{{ $isBaseline ? 'Examen' : 'Date du choc' }}</div><div class="value">{{ $isBaseline ? $date($assessment->started_at, 'd/m/Y') : $injury }}</div></td>
         </tr>
     </table>
 
@@ -295,7 +307,7 @@
             <tr>
                 <th>mBESS (erreurs) — pied testé : {{ ['gauche' => 'gauche', 'droite' => 'droit'][$mbess['foot'] ?? ''] ?? '—' }}</th>
                 <th class="num">Sol ferme</th>
-                <th class="num">Mousse</th>
+                <th class="num">Sol instable</th>
             </tr>
             @foreach (Scat6Content::MBESS_STANCES as $i => $stance)
                 <tr>
@@ -312,7 +324,7 @@
         </table>
         <table class="grid" style="margin-top: 6px;">
             <tr>
-                <td>Marche en tandem (3 m)</td>
+                <td>Marche sur une ligne (3 m)</td>
                 <td class="num">
                     @if (! empty($tandem['done']))
                         @foreach (($tandem['trials'] ?? []) as $t)

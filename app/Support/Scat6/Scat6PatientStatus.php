@@ -72,7 +72,9 @@ final class Scat6PatientStatus
             return false;
         }
 
-        return Carbon::parse($exam->injury_at)->startOfDay()->gt(Carbon::parse($rts->injury_at)->startOfDay());
+        // Jour du choc de l'examen en heure de Paris (comme le jour enregistré pour le suivi).
+        return Carbon::parse($exam->injury_at)->timezone('Europe/Paris')->toDateString()
+            > Carbon::parse($rts->injury_at)->toDateString();
     }
 
     private static function iso($date): ?string

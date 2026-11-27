@@ -396,7 +396,8 @@ class Scat6Controller extends Controller
             'scat_patient_id' => $assessment->scat_patient_id,
             'user_id'         => $assessment->user_id,
             'assessment_uuid' => $assessment->uuid,
-            'injury_at'       => ($assessment->injury_at ?? now())->toDateString(),
+            // Jour du choc en heure de Paris (un choc sans heure est enregistré à minuit, heure de Paris).
+            'injury_at'       => ($assessment->injury_at ?? now())->copy()->timezone('Europe/Paris')->toDateString(),
             'current_step'    => 1,
             'status'          => ScatRts::STATUS_ACTIVE,
             'steps'           => ['1' => ['started_at' => $start, 'done_at' => null, 'forced' => false, 'note' => null]],
