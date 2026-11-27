@@ -15,6 +15,11 @@
     $summary = $assessment->summary ?? [];
     $tz = 'Europe/Paris';
     $date = fn ($d, $f = 'd/m/Y à H:i') => $d ? \Illuminate\Support\Carbon::parse($d)->timezone($tz)->format($f) : '—';
+    // Écarts : « +3 » / « −2 », vert si meilleur, rouge si moins bon (aucun seuil).
+    $deltaText = fn ($d) => $d === null ? '—' : ($d > 0 ? '+' . $d : (string) $d);
+    $deltaClass = fn ($d, $row) => ($d === null || $d == 0) ? '' : ((($d > 0) === (bool) ($row['worse_if_higher'] ?? false)) ? 'worse' : 'better');
+    $previous = $previous ?? null;
+    $previousLabel = $previousLabel ?? null;
     // Choc : à minuit pile (heure de Paris) = heure inconnue, on n'affiche que le jour ; sinon jour, heure et délai (H+5, J+2).
     $injury = '—';
     if ($assessment->injury_at) {
@@ -117,6 +122,8 @@
         li { margin-bottom: 2px; }
 
         .signature { margin-top: 10px; padding: 8px 10px; border: 1px solid #BCD1FF; border-radius: 4px; }
+        td.better { color: #2e7d32; font-weight: bold; }
+        td.worse { color: #c62828; font-weight: bold; }
         .footer { margin-top: 12px; font-size: 7pt; color: #8a8fa3; text-align: center; }
         .avoid-break { page-break-inside: avoid; }
     </style>
@@ -149,11 +156,15 @@
     </table>
 
     {{-- --- Résumé --- --}}
-    <h2>Résumé {{ $isBaseline ? '' : '— comparaison avec la baseline' }}</h2>
+    <h2>Résumé {{ $isBaseline ? '' : ($previous ? '— évolution et comparaison avec la baseline' : '— comparaison avec la baseline') }}</h2>
     <table class="grid">
         <tr>
             <th>Domaine</th>
             <th class="num">Actuel</th>
+            @if ($previous)
+                <th class="num">Précédent ({{ $previousLabel }})</th>
+                <th class="num">Évolution</th>
+            @endif
             @unless($isBaseline)
                 <th class="num">Baseline</th>
                 <th class="num">Écart</th>
@@ -169,9 +180,13 @@
                         {{ $row['current'] }}{{ $row['unit'] ? ' ' . $row['unit'] : ($row['max'] ? ' / ' . $row['max'] : '') }}
                     @endif
                 </td>
+                @if ($previous)
+                    <td class="num">{{ $val($row['previous']) }}</td>
+                    <td class="num {{ $deltaClass($row['prevDelta'], $row) }}">{{ $deltaText($row['prevDelta']) }}</td>
+                @endif
                 @unless($isBaseline)
                     <td class="num">{{ $val($row['baseline']) }}</td>
-                    <td class="num">{{ $row['delta'] === null ? '—' : ($row['delta'] > 0 ? '+' . $row['delta'] : $row['delta']) }}</td>
+                    <td class="num {{ $deltaClass($row['delta'], $row) }}">{{ $deltaText($row['delta']) }}</td>
                 @endunless
             </tr>
         @endforeach
@@ -180,6 +195,9 @@
         <div class="notice warning">Aucune baseline signée pour ce patient : interprétation clinique sans comparaison.</div>
     @elseif ($baseline && $baseline->word_list !== $assessment->word_list)
         <div class="notice">Liste de mots différente de la baseline ({{ $baseline->word_list }}) : les listes SCAT6 sont équivalentes.</div>
+    @endif
+    @if ($previous)
+        <div class="muted" style="margin-top: 4px;">Évolution : depuis l’examen précédent du même choc ({{ $previousLabel }}, {{ $date($previous->started_at ?? $previous->completed_at) }}).</div>
     @endif
     @if ($baseline)
         <div class="muted" style="margin-top: 4px;">Baseline du {{ $date($baseline->completed_at, 'd/m/Y') }} · liste {{ $baseline->word_list }}</div>

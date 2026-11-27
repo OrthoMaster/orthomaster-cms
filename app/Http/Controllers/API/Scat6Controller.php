@@ -13,6 +13,7 @@ use App\Support\Scat6\Scat6Scoring;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
@@ -304,6 +305,7 @@ class Scat6Controller extends Controller
 
         $patient = $assessment->patient;
         $baseline = $this->baselineFor($assessment);
+        $previous = $this->previousOfSameInjury($assessment);
         $age = Scat6Content::ageFromYear($patient->birth_year);
 
         $pdf = Pdf::loadView('pdf.scat6_report', [
@@ -311,7 +313,9 @@ class Scat6Controller extends Controller
             'patient'    => $patient,
             'age'        => $age,
             'baseline'   => $baseline,
-            'rows'       => $this->compareRows($assessment->summary ?? [], $baseline?->summary),
+            'rows'       => $this->compareRows($assessment->summary ?? [], $baseline?->summary, $previous?->summary),
+            'previous'      => $previous,
+            'previousLabel' => $previous ? self::sinceInjuryLabel($previous->injury_at, $previous->started_at ?? $previous->completed_at) : null,
             'returnLines' => Scat6Content::returnLines($patient->sport, $age),
         ])->setPaper('a4');
 
@@ -371,19 +375,65 @@ class Scat6Controller extends Controller
             ->first();
     }
 
-    /** Tableau « Actuel / Baseline / Écart » (aucun seuil, aucun verdict). */
-    private function compareRows(array $current, ?array $baseline): array
+    /**
+     * Examen signé précédent du même choc (colonne « Évolution »), même règle que l'application :
+     * l'examen signé juste avant, sauf si celui-ci ouvre un nouveau choc (après une baseline, ou
+     * « Après un choc » après un re-test). Aucun pour une baseline.
+     */
+    private function previousOfSameInjury(ScatAssessment $assessment): ?ScatAssessment
+    {
+        if ($assessment->exam_kind === 'baseline') {
+            return null;
+        }
+        $at = $assessment->started_at ?? $assessment->completed_at;
+        $last = ScatAssessment::where('scat_patient_id', $assessment->scat_patient_id)
+            ->where('status', ScatAssessment::STATUS_COMPLETED)
+            ->where('id', '!=', $assessment->id)
+            ->when($at, fn ($q) => $q->whereRaw('COALESCE(started_at, completed_at) < ?', [$at]))
+            ->orderByRaw('COALESCE(started_at, completed_at) DESC')
+            ->first();
+        if (! $last || $last->exam_kind === 'baseline') {
+            return null;
+        }
+        if ($assessment->exam_kind === 'post_choc' && $last->exam_kind === 'retest') {
+            return null;
+        }
+
+        return $last;
+    }
+
+    /** « H+5 » pendant 48 h, puis « J+2 » ; choc à minuit (heure de Paris) = heure inconnue : « J+0 ». */
+    private static function sinceInjuryLabel($injuryAt, $at): string
+    {
+        if (! $injuryAt || ! $at) {
+            return '—';
+        }
+        $choc = Carbon::parse($injuryAt)->timezone('Europe/Paris');
+        $when = Carbon::parse($at)->timezone('Europe/Paris');
+        if ($choc->format('H:i:s') === '00:00:00') {
+            return 'J+' . max(0, (int) round($choc->copy()->startOfDay()->diffInDays($when->copy()->startOfDay())));
+        }
+        $hours = (int) floor(max(0, $choc->diffInMinutes($when)) / 60);
+
+        return $hours < 48 ? 'H+' . $hours : 'J+' . intdiv($hours, 24);
+    }
+
+    /** Tableau « Actuel / Précédent / Évolution / Baseline / Écart » (aucun seuil, aucun verdict). */
+    private function compareRows(array $current, ?array $baseline, ?array $previous = null): array
     {
         $rows = [];
         foreach (Scat6Scoring::ROWS as $key => $row) {
             $c = $current[$key] ?? null;
             $b = $baseline[$key] ?? null;
+            $p = $previous[$key] ?? null;
             $rows[] = [
                 ...$row,
-                'key'      => $key,
-                'current'  => $c,
-                'baseline' => $b,
-                'delta'    => $c !== null && $b !== null ? round($c - $b, 1) : null,
+                'key'       => $key,
+                'current'   => $c,
+                'baseline'  => $b,
+                'delta'     => $c !== null && $b !== null ? round($c - $b, 1) : null,
+                'previous'  => $p,
+                'prevDelta' => $c !== null && $p !== null ? round($c - $p, 1) : null,
             ];
         }
 
