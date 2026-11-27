@@ -56,7 +56,7 @@
     <meta charset="UTF-8">
     <title>SCAT6 — {{ $patient->name }}</title>
     <style>
-        @page { size: A4; margin: 14mm 12mm 16mm 12mm; }
+        @page { size: A4; margin: 14mm 12mm 18mm 12mm; } /* bas : place du pied de page (Scat6PdfFooter) */
 
         /* Pas « * » : avec dompdf, « * { margin: 0 } » touche aussi la racine et annule les marges de @page. */
         body, body * { margin: 0; padding: 0; box-sizing: border-box; }

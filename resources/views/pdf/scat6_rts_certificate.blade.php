@@ -24,7 +24,7 @@
     <meta charset="UTF-8">
     <title>Certificat de reprise après commotion cérébrale</title>
     <style>
-        @page { size: A4; margin: 16mm 16mm 14mm 16mm; }
+        @page { size: A4; margin: 16mm 16mm 18mm 16mm; } /* bas : place du pied de page (Scat6PdfFooter) */
 
         /* Pas « * » : avec dompdf, « * { margin: 0 } » touche aussi la racine et annule les marges de @page. */
         body, body * { margin: 0; padding: 0; box-sizing: border-box; }

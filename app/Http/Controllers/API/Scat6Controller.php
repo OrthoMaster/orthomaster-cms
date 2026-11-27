@@ -8,6 +8,7 @@ use App\Models\ScatPatient;
 use App\Models\ScatRts;
 use App\Support\Scat6\Scat6Content;
 use App\Support\Scat6\Scat6PatientStatus;
+use App\Support\Scat6\Scat6PdfFooter;
 use App\Support\Scat6\Scat6Scoring;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\JsonResponse;
@@ -313,6 +314,14 @@ class Scat6Controller extends Controller
             'rows'       => $this->compareRows($assessment->summary ?? [], $baseline?->summary),
             'returnLines' => Scat6Content::returnLines($patient->sport, $age),
         ])->setPaper('a4');
+
+        // Pied de page sur chaque page : document, patient, date, « Page X / Y ».
+        Scat6PdfFooter::apply(
+            $pdf,
+            'SCAT6 · ' . $patient->name . ' · ' . (Scat6Content::EXAM_KINDS[$assessment->exam_kind] ?? 'Examen')
+                . ' · signé le ' . $assessment->completed_at->copy()->timezone('Europe/Paris')->format('d/m/Y'),
+            12
+        );
 
         $file = 'SCAT6-' . preg_replace('/[^A-Za-z0-9_-]+/', '-', $patient->name) . '-' . $assessment->completed_at->format('Y-m-d') . '.pdf';
 

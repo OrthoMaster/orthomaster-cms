@@ -7,6 +7,7 @@ use App\Models\ScatAssessment;
 use App\Models\ScatPatient;
 use App\Models\ScatRts;
 use App\Support\Scat6\Scat6Content;
+use App\Support\Scat6\Scat6PdfFooter;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -160,6 +161,13 @@ class Scat6RtsController extends Controller
             'minDays'    => Scat6Content::minCompetitionDays($patient->sport, $age),
             'steps'      => Scat6Content::RTS_STEPS,
         ])->setPaper('a4');
+
+        // Pied de page sur chaque page : document, patient, date d'édition, « Page X / Y ».
+        Scat6PdfFooter::apply(
+            $pdf,
+            'Certificat de reprise · ' . $patient->name . ' · édité le ' . now()->timezone('Europe/Paris')->format('d/m/Y'),
+            16
+        );
 
         $file = 'Certificat-reprise-' . $type . '-' . preg_replace('/[^A-Za-z0-9_-]+/', '-', $patient->name) . '.pdf';
 
