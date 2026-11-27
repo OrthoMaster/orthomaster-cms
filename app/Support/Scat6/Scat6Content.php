@@ -174,6 +174,43 @@ final class Scat6Content
         }
     }
 
+    /* ===================== RETOUR AU SPORT ===================== */
+
+    /** Les 6 étapes (consensus d'Amsterdam 2022). Même texte que src/scat6/core/rts.ts. */
+    public const RTS_STEPS = [
+        1 => ['title' => 'Activités limitées par les symptômes', 'detail' => 'Vie quotidienne qui n’aggrave pas les symptômes ; reprise progressive du travail ou de l’école.'],
+        2 => ['title' => 'Exercice aérobie léger puis modéré', 'detail' => 'Marche rapide, vélo d’appartement ; effort progressif, sans musculation lourde.'],
+        3 => ['title' => 'Exercices individuels spécifiques au sport', 'detail' => 'Course, changements de direction, technique ; aucun risque de choc à la tête.'],
+        4 => ['title' => 'Entraînement sans contact', 'detail' => 'Intensité élevée, exercices plus complexes, avec l’équipe.'],
+        5 => ['title' => 'Entraînement avec contact complet', 'detail' => 'Après accord médical.'],
+        6 => ['title' => 'Retour à la compétition', 'detail' => 'Décision médicale.'],
+    ];
+
+    /**
+     * Délai minimal avant la compétition (jours après le choc), selon la fédération et l'âge.
+     * null = pas de délai fixe (décision médicale). Le niveau n'est pas connu : valeur la plus prudente
+     * du cas courant, l'autre cas figure dans returnLines().
+     */
+    public static function minCompetitionDays(string $sport, ?int $age): ?int
+    {
+        $young = $age !== null && $age < 20;
+
+        return match ($sport) {
+            'football'     => $young ? 21 : 7,
+            'judo'         => $young ? 21 : 10,
+            'hockey_glace' => 7,
+            default        => null,
+        };
+    }
+
+    /** Où va le certificat de reprise, selon la fédération (règlements en vigueur, saison 2025-2026). */
+    public const CERTIFICATE_ROUTING = [
+        'football'     => 'Certificat à remettre au joueur et, si demandé, au médecin du club. Football professionnel : examen préalable par un médecin expert en commotion reconnu par la FFF.',
+        'judo'         => 'Certificat d’absence de contre-indication (CACI) à transmettre à un médecin référent FFJudo pour le déverrouillage de l’arrêt temporaire de pratique.',
+        'hockey_glace' => 'Certificat médical de reprise post-commotion à transmettre à la FFHG (medical@ffhg.eu) : la licence reste bloquée jusqu’à sa réception.',
+        'general'      => 'À transmettre selon le règlement médical de la fédération concernée.',
+    ];
+
     /** Âge à partir de l'année de naissance seule (peut avoir un an de trop avant l'anniversaire). */
     public static function ageFromYear(?int $year): ?int
     {

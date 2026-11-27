@@ -5,7 +5,9 @@ namespace App\Http\Controllers\API;
 use App\Http\Controllers\Controller;
 use App\Models\ScatAssessment;
 use App\Models\ScatPatient;
+use App\Models\ScatRts;
 use App\Support\Scat6\Scat6Content;
+use App\Support\Scat6\Scat6PatientStatus;
 use App\Support\Scat6\Scat6Scoring;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\JsonResponse;
@@ -59,9 +61,16 @@ class Scat6Controller extends Controller
             ->get()
             ->groupBy('scat_patient_id');
 
+        // Suivis de reprise : état du patient (badge, filtre de la liste).
+        $rts = DB::table('scat_rts')
+            ->whereIn('scat_patient_id', $patients->pluck('id'))
+            ->whereNull('deleted_at')
+            ->get()
+            ->groupBy('scat_patient_id');
+
         return response()->json([
             'success' => true,
-            'data'    => $patients->map(fn ($p) => $this->patientRow($p, $assessments->get($p->id, collect())))->values(),
+            'data'    => $patients->map(fn ($p) => $this->patientRow($p, $assessments->get($p->id, collect()), $rts->get($p->id, collect())))->values(),
         ]);
     }
 
@@ -79,6 +88,12 @@ class Scat6Controller extends Controller
             'data'    => [
                 ...$this->patientRow($patient, $assessments),
                 'assessments' => $assessments->map(fn ($a) => $this->assessmentRow($a, $patient))->values(),
+                // Suivis de reprise, le plus récent en tête (un seul actif à la fois).
+                'rts'         => ScatRts::where('scat_patient_id', $patient->id)
+                    ->orderByDesc('created_at')
+                    ->get()
+                    ->map(fn ($r) => Scat6RtsController::row($r, $patient))
+                    ->values(),
             ],
         ]);
     }
@@ -111,6 +126,7 @@ class Scat6Controller extends Controller
 
         DB::transaction(function () use ($patient) {
             $patient->assessments()->delete();
+            ScatRts::where('scat_patient_id', $patient->id)->delete();
             $patient->delete();
         });
 
@@ -251,6 +267,11 @@ class Scat6Controller extends Controller
             'completed_at' => now(),
         ]);
 
+        // Commotion diagnostiquée par le médecin : le suivi de reprise s'ouvre tout seul (sens prudent).
+        if (! $baseline && $data['diagnosis'] === 'oui') {
+            $this->openRtsAfterDiagnosis($assessment);
+        }
+
         return response()->json(['success' => true, 'data' => $this->assessmentDetail($assessment->fresh())]);
     }
 
@@ -360,9 +381,33 @@ class Scat6Controller extends Controller
         return $rows;
     }
 
-    private function patientRow(object $patient, $assessments): array
+    /** Ouvre un suivi « retour au sport » s'il n'y en a pas déjà un en cours pour ce patient. */
+    private function openRtsAfterDiagnosis(ScatAssessment $assessment): void
+    {
+        $exists = ScatRts::where('scat_patient_id', $assessment->scat_patient_id)
+            ->where('status', ScatRts::STATUS_ACTIVE)
+            ->exists();
+        if ($exists) {
+            return;
+        }
+
+        $start = now()->toIso8601String();
+        ScatRts::create([
+            'scat_patient_id' => $assessment->scat_patient_id,
+            'user_id'         => $assessment->user_id,
+            'assessment_uuid' => $assessment->uuid,
+            'injury_at'       => ($assessment->injury_at ?? now())->toDateString(),
+            'current_step'    => 1,
+            'status'          => ScatRts::STATUS_ACTIVE,
+            'steps'           => ['1' => ['started_at' => $start, 'done_at' => null, 'forced' => false, 'note' => null]],
+            'setbacks'        => [],
+        ]);
+    }
+
+    private function patientRow(object $patient, $assessments, $rts = null): array
     {
         $last = $assessments->sortByDesc('updated_at')->first();
+        $rts ??= ScatRts::where('scat_patient_id', $patient->id)->get();
 
         return [
             'id'                => (int) $patient->id,
@@ -382,6 +427,7 @@ class Scat6Controller extends Controller
                 'diagnosis'  => $last->diagnosis,
                 'updated_at' => $this->iso($last->updated_at),
             ] : null,
+            'status'            => Scat6PatientStatus::compute($assessments, $rts),
         ];
     }
 

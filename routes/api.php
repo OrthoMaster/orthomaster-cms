@@ -6,6 +6,7 @@ use App\Http\Controllers\API\AuthController;
 use App\Http\Controllers\API\CartController;
 use App\Http\Controllers\API\ChatbotController;
 use App\Http\Controllers\API\Scat6Controller;
+use App\Http\Controllers\API\Scat6RtsController;
 use App\Http\Controllers\API\CompanyController;
 use App\Http\Controllers\API\CongressController;
 use App\Http\Controllers\API\ContractController;
@@ -80,6 +81,15 @@ Route::prefix('scat')->middleware(['auth:sanctum', 'doctor', 'throttle:120,1'])-
     Route::post('/assessments/{uuid}/complete', [Scat6Controller::class, 'completeAssessment']);
     Route::delete('/assessments/{uuid}', [Scat6Controller::class, 'destroyAssessment']);
     Route::get('/assessments/{uuid}/pdf', [Scat6Controller::class, 'pdf']);
+
+    // Retour au sport (6 étapes, certificat de reprise)
+    Route::post('/rts', [Scat6RtsController::class, 'store']);
+    Route::get('/rts/{id}', [Scat6RtsController::class, 'show'])->whereNumber('id');
+    Route::put('/rts/{id}', [Scat6RtsController::class, 'update'])->whereNumber('id');
+    Route::delete('/rts/{id}', [Scat6RtsController::class, 'destroy'])->whereNumber('id');
+    Route::get('/rts/{id}/certificate/{type}', [Scat6RtsController::class, 'certificate'])
+        ->whereNumber('id')
+        ->whereIn('type', ['contact', 'competition']);
 });
 
 // Tracking - Dont use anymore - TODO: delete
