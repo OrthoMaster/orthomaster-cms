@@ -26,7 +26,8 @@
     <style>
         @page { size: A4; margin: 16mm 16mm 14mm 16mm; }
 
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+        /* Pas « * » : avec dompdf, « * { margin: 0 } » touche aussi la racine et annule les marges de @page. */
+        body, body * { margin: 0; padding: 0; box-sizing: border-box; }
 
         body {
             font-family: 'DejaVu Sans', sans-serif;
